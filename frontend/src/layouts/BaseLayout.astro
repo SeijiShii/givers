@@ -1,0 +1,47 @@
+---
+import '../styles/global.css';
+import { t, type Locale } from '../lib/i18n';
+
+interface Props {
+  title: string;
+  locale?: Locale;
+}
+
+const { title, locale = 'ja' } = Astro.props;
+
+const basePath = locale === 'en' ? '/en' : '';
+---
+
+<!DOCTYPE html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title} | GIVErS</title>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href={`${basePath}/`}>{t(locale, 'nav.home')}</a>
+        <a href={`${basePath}/projects`}>{t(locale, 'nav.projects')}</a>
+        <a href={`${basePath}/host`}>{t(locale, 'nav.host')}</a>
+        <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
+        <span class="locale-switcher">
+          {locale === 'ja' ? (
+            <a href={`/en${Astro.url.pathname === '/' ? '' : Astro.url.pathname}`} aria-label="Switch to English">{t(locale, 'locale.en')}</a>
+          ) : (
+            <a href={Astro.url.pathname.replace(/^\/en/, '') || '/'} aria-label="日本語に切り替え">{t(locale, 'locale.ja')}</a>
+          )}
+        </span>
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer>
+      <p>{t(locale, 'footer.text')}</p>
+    </footer>
+  </body>
+</html>

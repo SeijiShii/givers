@@ -1,0 +1,317 @@
+/* GIVErS - 温かい草原をイメージしたカラーテーマ */
+:root {
+  /* 基調: 緑 */
+  --color-primary: #4a7c59;
+  --color-primary-dark: #3d6b4a;
+  --color-primary-light: #6b9b6e;
+  --color-primary-muted: #a8c9a8;
+
+  /* アクセント: 黄色 */
+  --color-accent: #e8b923;
+  --color-accent-light: #f5d054;
+  --color-accent-dark: #c99a1a;
+
+  /* 背景 */
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f8faf8;
+  --color-bg-card: #fcfdfc;
+
+  /* テキスト */
+  --color-text: #2d3d2d;
+  --color-text-muted: #5a6b5a;
+  --color-text-on-primary: #ffffff;
+  --color-text-on-accent: #2d3d2d;
+
+  /* ボーダー・影 */
+  --color-border: #d4e4d4;
+  --color-border-light: #e8f0e8;
+  --shadow-sm: 0 1px 3px rgba(74, 124, 89, 0.08);
+  --shadow-md: 0 4px 12px rgba(74, 124, 89, 0.12);
+
+  /* フォント */
+  --font-sans: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  --font-mono: ui-monospace, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+/* ヘッダー・ナビゲーション */
+header {
+  background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  box-shadow: var(--shadow-md);
+}
+
+header nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem;
+}
+
+header nav a {
+  color: var(--color-text-on-primary);
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+header nav a:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+header nav a:first-child {
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.locale-switcher {
+  margin-left: auto;
+}
+
+.locale-switcher a {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.locale-switcher a:hover {
+  opacity: 1;
+}
+
+/* メインコンテンツ */
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  min-height: calc(100vh - 140px);
+}
+
+main h1 {
+  color: var(--color-primary-dark);
+  font-size: 1.75rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+main h2 {
+  color: var(--color-primary);
+  font-size: 1.35rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+main p {
+  color: var(--color-text);
+  margin: 0.5rem 0;
+}
+
+/* フッター */
+footer {
+  background-color: var(--color-bg-subtle);
+  border-top: 1px solid var(--color-border-light);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+footer p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+/* ボタン */
+.btn {
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  font-weight: 500;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.btn-accent {
+  background-color: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.btn-accent:hover {
+  background-color: var(--color-accent-dark);
+}
+
+/* カード */
+.card {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* アクセントライン */
+.accent-line {
+  border-left: 4px solid var(--color-accent);
+  padding-left: 1rem;
+  margin: 1rem 0;
+}
+
+/* ヒーローセクション */
+.hero h1 {
+  font-size: 2rem;
+}
+
+.hero .tagline {
+  color: var(--color-text-muted);
+  font-size: 1rem;
+}
+
+/* ステータス表示 */
+.status-box {
+  padding: 1rem;
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  margin-top: 0.5rem;
+}
+
+.status-box[data-status="ok"] {
+  border-left: 4px solid var(--color-primary);
+}
+
+.status-box[data-status="loading"] {
+  border-left: 4px solid var(--color-accent);
+}
+
+.status-box[data-status="error"] {
+  border-left: 4px solid #c45c5c;
+}
+
+/* 健全性シグナルカード */
+.signal-cards .signal-card {
+  flex: 1;
+  min-width: 140px;
+  position: relative;
+  padding-left: 2.5rem;
+}
+
+.signal-dot {
+  position: absolute;
+  left: 1rem;
+  top: 1.25rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.signal-ok .signal-dot {
+  background-color: var(--color-primary);
+}
+
+.signal-warn .signal-dot {
+  background-color: var(--color-accent);
+}
+
+.signal-danger .signal-dot {
+  background-color: #c45c5c;
+}
+
+.signal-card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+.signal-card p {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+/* プロジェクトカード（モック） */
+.project-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  margin-bottom: 1rem;
+}
+
+.project-card:hover {
+  color: var(--color-primary);
+}
+
+.project-list .project-card {
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.achievement-badge {
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.achievement-badge[data-level="ok"] {
+  background-color: var(--color-primary-muted);
+  color: var(--color-primary-dark);
+}
+
+.achievement-badge[data-level="warn"] {
+  background-color: var(--color-accent-light);
+  color: var(--color-accent-dark);
+}
+
+.achievement-badge[data-level="danger"] {
+  background-color: #f5d4d4;
+  color: #c45c5c;
+}
+
+/* 達成率バー */
+.achievement-bar {
+  height: 8px;
+  background-color: var(--color-border-light);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.achievement-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}

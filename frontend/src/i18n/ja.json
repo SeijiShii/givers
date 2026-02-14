@@ -1,0 +1,49 @@
+{
+  "nav": {
+    "home": "GIVErS",
+    "projects": "プロジェクト一覧",
+    "host": "サービスホストについて",
+    "about": "About"
+  },
+  "home": {
+    "title": "GIVErS",
+    "tagline": "GIVEの精神 / Donation platform for the GIVE spirit.",
+    "description": "作り手の GIVE と受け手の GIVE をつなぐプラットフォームです。",
+    "apiStatus": "API ステータス"
+  },
+  "about": {
+    "title": "About GIVErS",
+    "official": "公式 GIVErS は {url} のみ（本番環境で設定）",
+    "selfHosted": "このサイトは GIVErS の自ホスト版です。（自ホスト時のみ表示）"
+  },
+  "host": {
+    "title": "サービスホストについて",
+    "description": "GIVErS が健全に運営されているかどうかを閲覧できます。",
+    "signalOk": "健全",
+    "signalOkDesc": "余裕あり",
+    "signalWarn": "注意",
+    "signalWarnDesc": "ギリギリ",
+    "signalDanger": "危険",
+    "signalDangerDesc": "継続困難",
+    "phaseNote": "（Phase 5 で API 連携を実装）"
+  },
+  "projects": {
+    "title": "プロジェクト一覧",
+    "description": "作り手の GIVE と受け手の GIVE をつなぐプロジェクトです。",
+    "monthlyTarget": "月額目標",
+    "backToList": "プロジェクト一覧に戻る",
+    "supportStatus": "支援状況",
+    "supportStatusDetail": "月額目標: ¥{target} / 現在: ¥{current} ({rate}%)",
+    "supportTitle": "このプロジェクトを支援する",
+    "donate": "寄付する",
+    "phaseNote": "（Phase 3 で API 連携を実装）",
+    "phaseNoteDonate": "（Phase 4 で寄付フォームを実装）"
+  },
+  "footer": {
+    "text": "GIVErS - GIVEの精神 / Donation platform for the GIVE spirit."
+  },
+  "locale": {
+    "ja": "日本語",
+    "en": "English"
+  }
+}

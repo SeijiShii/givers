@@ -1,0 +1,49 @@
+{
+  "nav": {
+    "home": "GIVErS",
+    "projects": "Projects",
+    "host": "About Service Host",
+    "about": "About"
+  },
+  "home": {
+    "title": "GIVErS",
+    "tagline": "GIVE spirit / Donation platform for the GIVE spirit.",
+    "description": "A platform connecting givers and recipients of GIVE.",
+    "apiStatus": "API Status"
+  },
+  "about": {
+    "title": "About GIVErS",
+    "official": "The official GIVErS is {url} only (configure in production)",
+    "selfHosted": "This site is a self-hosted instance of GIVErS. (shown only when self-hosted)"
+  },
+  "host": {
+    "title": "About Service Host",
+    "description": "View whether GIVErS is operating soundly.",
+    "signalOk": "Healthy",
+    "signalOkDesc": "Comfortable",
+    "signalWarn": "Caution",
+    "signalWarnDesc": "Barely",
+    "signalDanger": "Critical",
+    "signalDangerDesc": "Sustainability at risk",
+    "phaseNote": "(API integration in Phase 5)"
+  },
+  "projects": {
+    "title": "Projects",
+    "description": "Projects connecting givers and recipients of GIVE.",
+    "monthlyTarget": "Monthly target",
+    "backToList": "Back to project list",
+    "supportStatus": "Support status",
+    "supportStatusDetail": "Monthly target: ¥{target} / Current: ¥{current} ({rate}%)",
+    "supportTitle": "Support this project",
+    "donate": "Donate",
+    "phaseNote": "(API integration in Phase 3)",
+    "phaseNoteDonate": "(Donation form in Phase 4)"
+  },
+  "footer": {
+    "text": "GIVErS - GIVE spirit / Donation platform for the GIVE spirit."
+  },
+  "locale": {
+    "ja": "日本語",
+    "en": "English"
+  }
+}
