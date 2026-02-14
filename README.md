@@ -15,6 +15,22 @@
 クラウドファンディングのような目標設定やリワードは不要。  
 プロジェクトの月額コストや達成率を透明に表示し、寄付者が判断しやすくする。
 
+## 開発
+
+### 起動
+
+```bash
+docker compose up -d db
+cd backend && go run ./cmd/migrate   # 初回のみ
+cd backend && go run ./cmd/server
+cd frontend && npm run dev
+```
+
+### OAuth（Phase 2）
+
+- **Google**: [Google Cloud Console](https://console.cloud.google.com/) で OAuth 2.0 クライアント ID を作成。リダイレクト URI: `http://localhost:8080/api/auth/google/callback`
+- **GitHub**: [GitHub Developer Settings](https://github.com/settings/developers) で OAuth App を作成。Authorization callback URL: `http://localhost:8080/api/auth/github/callback`
+
 ## 詳細
 
 詳しい思想や仕様は [docs/idea.md](docs/idea.md) を参照してください。

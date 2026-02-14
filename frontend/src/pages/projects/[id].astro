@@ -1,50 +1,27 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import ProjectDetail from '../../components/react/ProjectDetail';
 import { t } from '../../lib/i18n';
 
-export function getStaticPaths() {
-  return [{ params: { id: '1' } }, { params: { id: '2' } }, { params: { id: '3' } }];
-}
-
+export const prerender = false;
 const { id } = Astro.params;
 const locale = 'ja';
-
-const mockProject = {
-  id,
-  name: `サンプルプロジェクト ${id}`,
-  nameEn: `Sample Project ${id}`,
-  description: 'オープンソースで無料提供しているプロジェクトの説明文です。作り手の GIVE の精神に基づき、見返りを求めず開発・提供しています。',
-  descriptionEn: 'Description of an open source project provided for free. Developed and provided without expecting anything in return, based on the GIVE spirit.',
-  monthlyTarget: 50000,
-  currentMonthly: 42500,
-  achievementRate: 85,
-  status: 'ok' as const,
-};
 ---
 
-<BaseLayout title={locale === 'en' ? mockProject.nameEn : mockProject.name} locale={locale}>
-  <div class="project-detail">
-    <a href="/projects" style="color: var(--color-primary); text-decoration: none; font-size: 0.9rem;">← {t(locale, 'projects.backToList')}</a>
-
-    <h1>{locale === 'en' ? mockProject.nameEn : mockProject.name}</h1>
-    <p>{locale === 'en' ? mockProject.descriptionEn : mockProject.description}</p>
-
-    <div class="card" style="margin-top: 1.5rem;">
-      <h2>{t(locale, 'projects.supportStatus')}</h2>
-      <div class="achievement-bar" style="margin: 1rem 0;">
-        <div class="achievement-fill" style={`width: ${Math.min(mockProject.achievementRate, 100)}%`}></div>
-      </div>
-      <p>{t(locale, 'projects.supportStatusDetail', {
-        target: mockProject.monthlyTarget.toLocaleString(),
-        current: mockProject.currentMonthly.toLocaleString(),
-        rate: String(mockProject.achievementRate),
-      })}</p>
-    </div>
-
-    <div class="card accent-line" style="margin-top: 1.5rem;">
-      <h2>{t(locale, 'projects.supportTitle')}</h2>
-      <p>{t(locale, 'projects.phaseNoteDonate')}</p>
-      <button type="button" class="btn btn-accent" style="margin-top: 1rem;">{t(locale, 'projects.donate')}</button>
-    </div>
-  </div>
+<BaseLayout title={id ? `Project ${id}` : 'Project'} locale={locale}>
+  {id ? (
+    <ProjectDetail
+      client:load
+      id={id}
+      locale={locale}
+      backLabel={t(locale, 'projects.backToList')}
+      supportStatus={t(locale, 'projects.supportStatus')}
+      supportStatusDetail={(args) => t(locale, 'projects.supportStatusDetail', args)}
+      supportTitle={t(locale, 'projects.supportTitle')}
+      phaseNoteDonate={t(locale, 'projects.phaseNoteDonate')}
+      donateLabel={t(locale, 'projects.donate')}
+    />
+  ) : (
+    <p>Invalid project</p>
+  )}
 </BaseLayout>

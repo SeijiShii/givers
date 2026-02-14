@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_users_github_id;
+ALTER TABLE users DROP COLUMN IF EXISTS github_id;
+ALTER TABLE users ALTER COLUMN google_id SET NOT NULL;

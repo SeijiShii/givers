@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN IF NOT EXISTS github_id VARCHAR(255) UNIQUE;
+ALTER TABLE users ALTER COLUMN google_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id);

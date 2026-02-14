@@ -24,6 +24,12 @@ services:
     environment:
       DATABASE_URL: postgres://givers:givers@db:5432/givers?sslmode=disable
       FRONTEND_URL: http://localhost:4321
+      BACKEND_URL: http://localhost:8080
+      SESSION_SECRET: dev-secret-change-in-production-32bytes
+      # GOOGLE_CLIENT_ID: (要設定)
+      # GOOGLE_CLIENT_SECRET: (要設定)
+      # GITHUB_CLIENT_ID: (要設定)
+      # GITHUB_CLIENT_SECRET: (要設定)
     depends_on:
       db:
         condition: service_healthy

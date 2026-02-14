@@ -37,7 +37,21 @@
     "supportTitle": "Support this project",
     "donate": "Donate",
     "phaseNote": "(API integration in Phase 3)",
-    "phaseNoteDonate": "(Donation form in Phase 4)"
+    "phaseNoteDonate": "(Donation form in Phase 4)",
+    "newProject": "New Project",
+    "editProject": "Edit Project",
+    "amountType": "Amount input type",
+    "amountTypeWant": "Minimum want amount (at least ¥X)",
+    "amountTypeCost": "Cost breakdown",
+    "amountTypeBoth": "Both",
+    "ownerWant": "Minimum want amount (monthly)",
+    "costBreakdown": "Cost breakdown",
+    "serverCost": "Server cost (monthly)",
+    "devCostPerDay": "Dev rate (per day)",
+    "devDaysPerMonth": "Dev days (per month)",
+    "otherCost": "Other (monthly)",
+    "noProjects": "No projects yet.",
+    "loading": "Loading..."
   },
   "footer": {
     "text": "GIVErS - GIVE spirit / Donation platform for the GIVE spirit."

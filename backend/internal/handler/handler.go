@@ -6,13 +6,15 @@ import (
 	"github.com/givers/backend/internal/repository"
 )
 
+// Handler は HTTP ハンドラを提供する（MVC の Controller 相当）
 type Handler struct {
-	repo        *repository.Repository
+	db          repository.DB
 	frontendURL string
 }
 
-func New(repo *repository.Repository, frontendURL string) *Handler {
-	return &Handler{repo: repo, frontendURL: frontendURL}
+// New は Handler を生成する（DI: DB インターフェースを注入）
+func New(db repository.DB, frontendURL string) *Handler {
+	return &Handler{db: db, frontendURL: frontendURL}
 }
 
 func (h *Handler) CORS(next http.Handler) http.Handler {

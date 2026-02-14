@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS users (
+    id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    google_id VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);

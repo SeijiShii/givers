@@ -1,34 +1,20 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import ProjectList from '../../../components/react/ProjectList';
 import { t } from '../../../lib/i18n';
 
 const locale = 'en';
-
-const mockProjects = [
-  { id: '1', name: 'サンプルプロジェクト A', nameEn: 'Sample Project A', description: 'オープンソースの〇〇ツール', descriptionEn: 'Open source ○○ tool', monthlyTarget: 50000, achievementRate: 85 },
-  { id: '2', name: 'サンプルプロジェクト B', nameEn: 'Sample Project B', description: '無料で提供する△△サービス', descriptionEn: 'Free △△ service', monthlyTarget: 30000, achievementRate: 45 },
-  { id: '3', name: 'サンプルプロジェクト C', nameEn: 'Sample Project C', description: '誰でも使える□□ライブラリ', descriptionEn: '□□ library for everyone', monthlyTarget: 20000, achievementRate: 120 },
-];
 ---
 
 <BaseLayout title={t(locale, 'projects.title')} locale={locale}>
   <h1>{t(locale, 'projects.title')}</h1>
   <p>{t(locale, 'projects.description')}</p>
 
-  <div class="project-list" style="margin-top: 2rem;">
-    {mockProjects.map((project) => (
-      <a href={`/en/projects/${project.id}`} class="card project-card">
-        <div class="project-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-          <h2 style="margin: 0;">{project.nameEn}</h2>
-          <span class="achievement-badge" data-level={project.achievementRate >= 80 ? 'ok' : project.achievementRate >= 50 ? 'warn' : 'danger'}>
-            {project.achievementRate}%
-          </span>
-        </div>
-        <p style="margin: 0; color: var(--color-text-muted); font-size: 0.95rem;">{project.descriptionEn}</p>
-        <p style="margin: 0.5rem 0 0; font-size: 0.9rem;">{t(locale, 'projects.monthlyTarget')}: ¥{project.monthlyTarget.toLocaleString()}</p>
-      </a>
-    ))}
-  </div>
+  <p style="margin-top: 1rem;">
+    <a href="/en/projects/new" class="btn btn-accent">{t(locale, 'projects.newProject')}</a>
+  </p>
+
+  <ProjectList client:load locale={locale} />
 
   <p class="accent-line" style="margin-top: 2rem;">{t(locale, 'projects.phaseNote')}</p>
 </BaseLayout>

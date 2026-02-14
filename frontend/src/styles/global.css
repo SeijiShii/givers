@@ -100,6 +100,26 @@ header nav a:first-child {
   opacity: 1;
 }
 
+.auth-status-wrapper {
+  margin-left: 0.5rem;
+}
+
+.auth-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.auth-status .btn {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.9rem;
+}
+
+.auth-user {
+  font-size: 0.9rem;
+  opacity: 0.95;
+}
+
 /* メインコンテンツ */
 main {
   max-width: 1200px;

@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { t, type Locale } from '../lib/i18n';
+import AuthStatus from '../components/react/AuthStatus';
 
 interface Props {
   title: string;
@@ -26,6 +27,7 @@ const basePath = locale === 'en' ? '/en' : '';
       <nav>
         <a href={`${basePath}/`}>{t(locale, 'nav.home')}</a>
         <a href={`${basePath}/projects`}>{t(locale, 'nav.projects')}</a>
+        <a href={`${basePath}/me`}>{locale === 'ja' ? 'マイページ' : 'My Page'}</a>
         <a href={`${basePath}/host`}>{t(locale, 'nav.host')}</a>
         <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
         <span class="locale-switcher">
@@ -34,6 +36,9 @@ const basePath = locale === 'en' ? '/en' : '';
           ) : (
             <a href={Astro.url.pathname.replace(/^\/en/, '') || '/'} aria-label="日本語に切り替え">{t(locale, 'locale.ja')}</a>
           )}
+        </span>
+        <span class="auth-status-wrapper">
+          <AuthStatus client:load locale={locale} />
         </span>
       </nav>
     </header>

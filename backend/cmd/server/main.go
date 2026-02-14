@@ -11,6 +11,8 @@ import (
 
 	"github.com/givers/backend/internal/handler"
 	"github.com/givers/backend/internal/repository"
+	"github.com/givers/backend/internal/service"
+	"github.com/givers/backend/pkg/auth"
 	"github.com/joho/godotenv"
 )
 
@@ -27,15 +29,62 @@ func main() {
 		frontendURL = "http://localhost:4321"
 	}
 
-	repo, err := repository.New(context.Background(), dbURL)
+	sessionSecret := os.Getenv("SESSION_SECRET")
+	if sessionSecret == "" {
+		sessionSecret = "dev-secret-change-in-production-32bytes"
+	}
+
+	pool, err := repository.NewPool(context.Background(), dbURL)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
-	defer repo.Close()
+	defer pool.Close()
 
-	h := handler.New(repo, frontendURL)
+	userRepo := repository.NewPgUserRepository(pool)
+	projectRepo := repository.NewPgProjectRepository(pool)
+	authService := service.NewAuthService(userRepo)
+	projectService := service.NewProjectService(projectRepo)
+
+	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
+	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
+
+	h := handler.New(pool, frontendURL)
+	authHandler := handler.NewAuthHandler(authService, handler.AuthConfig{
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+		GoogleRedirectPath: "/api/auth/google/callback",
+		GitHubRedirectPath: "/api/auth/github/callback",
+		SessionSecret:      sessionSecret,
+		FrontendURL:        frontendURL,
+	})
+	meHandler := handler.NewMeHandler(userRepo, sessionSecretBytes)
+	projectHandler := handler.NewProjectHandler(projectService)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.Health)
+	mux.HandleFunc("GET /api/auth/google/login", authHandler.GoogleLoginURL)
+	mux.HandleFunc("GET /api/auth/google/callback", authHandler.GoogleCallback)
+	mux.HandleFunc("GET /api/auth/github/login", authHandler.GitHubLoginURL)
+	mux.HandleFunc("GET /api/auth/github/callback", authHandler.GitHubCallback)
+	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
+	mux.HandleFunc("GET /api/me", meHandler.Me)
+
+	// プロジェクト API（一覧・詳細は認証不要）
+	mux.Handle("GET /api/projects", http.HandlerFunc(projectHandler.List))
+	mux.Handle("GET /api/projects/{id}", http.HandlerFunc(projectHandler.Get))
+
+	// 認証必要エンドポイント
+	wrapAuth := func(next http.Handler) http.Handler {
+		if authRequired {
+			return auth.RequireAuth(sessionSecretBytes)(next)
+		}
+		return auth.DevAuth(next)
+	}
+	mux.Handle("GET /api/me/projects", wrapAuth(http.HandlerFunc(projectHandler.MyProjects)))
+	mux.Handle("POST /api/projects", wrapAuth(http.HandlerFunc(projectHandler.Create)))
+	mux.Handle("PUT /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Update)))
 
 	server := &http.Server{
 		Addr:         ":8080",

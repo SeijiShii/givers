@@ -37,7 +37,21 @@
     "supportTitle": "このプロジェクトを支援する",
     "donate": "寄付する",
     "phaseNote": "（Phase 3 で API 連携を実装）",
-    "phaseNoteDonate": "（Phase 4 で寄付フォームを実装）"
+    "phaseNoteDonate": "（Phase 4 で寄付フォームを実装）",
+    "newProject": "新規プロジェクト",
+    "editProject": "プロジェクトを編集",
+    "amountType": "金額の入力方法",
+    "amountTypeWant": "最低希望額（最低〇〇円欲しい）",
+    "amountTypeCost": "必要額（コスト内訳）",
+    "amountTypeBoth": "両方",
+    "ownerWant": "最低希望額（月額）",
+    "costBreakdown": "コスト内訳",
+    "serverCost": "サーバー費用（月額）",
+    "devCostPerDay": "開発者単価（1日）",
+    "devDaysPerMonth": "開発者稼働（月日数）",
+    "otherCost": "その他（月額）",
+    "noProjects": "プロジェクトはまだありません。",
+    "loading": "読み込み中..."
   },
   "footer": {
     "text": "GIVErS - GIVEの精神 / Donation platform for the GIVE spirit."
