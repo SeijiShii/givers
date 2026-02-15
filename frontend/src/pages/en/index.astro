@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import HealthStatus from '../../components/react/HealthStatus';
+import FeaturedProjects from '../../components/react/FeaturedProjects';
 import { t } from '../../lib/i18n';
 
 const locale = 'en';
@@ -12,6 +13,14 @@ const locale = 'en';
     <p class="tagline">{t(locale, 'home.tagline')}</p>
     <p class="accent-line">{t(locale, 'home.description')}</p>
   </div>
+
+  <FeaturedProjects
+    client:load
+    locale={locale}
+    newTitle={t(locale, 'home.newProjects')}
+    hotTitle={t(locale, 'home.hotProjects')}
+    viewAll={t(locale, 'home.viewAll')}
+  />
 
   <section class="card" style="margin-top: 2rem;">
     <h2>{t(locale, 'home.apiStatus')}</h2>

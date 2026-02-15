@@ -9,7 +9,10 @@
     "title": "GIVErS",
     "tagline": "GIVE spirit / Donation platform for the GIVE spirit.",
     "description": "A platform connecting givers and recipients of GIVE.",
-    "apiStatus": "API Status"
+    "apiStatus": "API Status",
+    "newProjects": "New Projects",
+    "hotProjects": "Popular Projects",
+    "viewAll": "View all"
   },
   "about": {
     "title": "About GIVErS",

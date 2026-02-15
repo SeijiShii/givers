@@ -1,4 +1,5 @@
 const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8080';
+const MOCK_MODE = import.meta.env.PUBLIC_MOCK_MODE === 'true';
 
 export async function fetchApi<T>(
   path: string,
@@ -21,6 +22,7 @@ export async function fetchApi<T>(
 }
 
 export async function healthCheck(): Promise<{ status: string; message: string }> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.healthCheck();
   return fetchApi('/api/health');
 }
 
@@ -33,7 +35,8 @@ export interface User {
 }
 
 export async function getMe(): Promise<User | null> {
-  const res = await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8080'}/api/me`, {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getMe();
+  const res = await fetch(`${API_URL}/api/me`, {
     credentials: 'include',
   });
   if (res.status === 401) return null;
@@ -42,15 +45,18 @@ export async function getMe(): Promise<User | null> {
 }
 
 export async function getGoogleLoginUrl(): Promise<{ url: string }> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getGoogleLoginUrl();
   return fetchApi('/api/auth/google/login');
 }
 
 export async function getGitHubLoginUrl(): Promise<{ url: string }> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getGitHubLoginUrl();
   return fetchApi('/api/auth/github/login');
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${import.meta.env.PUBLIC_API_URL || 'http://localhost:8080'}/api/auth/logout`, {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.logout();
+  await fetch(`${API_URL}/api/auth/logout`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -86,21 +92,38 @@ export interface Project {
   updated_at: string;
   costs?: ProjectCosts | null;
   alerts?: ProjectAlerts | null;
+  /** 月額寄付の現在合計（モック/Phase4以降） */
+  current_monthly_donations?: number;
 }
 
 /** 金額表示タイプ: 希望額 / 必要額 / 両方 */
 export type AmountInputType = 'want' | 'cost' | 'both';
 
 export async function getProjects(limit = 20, offset = 0): Promise<Project[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getProjects(limit, offset);
   return fetchApi<Project[]>(`/api/projects?limit=${limit}&offset=${offset}`);
 }
 
 export async function getProject(id: string): Promise<Project> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getProject(id);
   return fetchApi<Project>(`/api/projects/${id}`);
 }
 
 export async function getMyProjects(): Promise<Project[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getMyProjects();
   return fetchApi<Project[]>('/api/me/projects');
+}
+
+/** 新着プロジェクト（モック時のみ、トップページ用） */
+export async function getNewProjects(limit = 5): Promise<Project[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getNewProjects(limit);
+  return getProjects(limit, 0);
+}
+
+/** HOT プロジェクト（モック時のみ、トップページ用） */
+export async function getHotProjects(limit = 5): Promise<Project[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getHotProjects(limit);
+  return getProjects(limit, 0);
 }
 
 export interface CreateProjectInput {
@@ -114,6 +137,7 @@ export interface CreateProjectInput {
 }
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.createProject(input);
   return fetchApi<Project>('/api/projects', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -131,6 +155,7 @@ export interface UpdateProjectInput {
 }
 
 export async function updateProject(id: string, input: UpdateProjectInput): Promise<Project> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.updateProject(id, input);
   return fetchApi<Project>(`/api/projects/${id}`, {
     method: 'PUT',
     body: JSON.stringify(input),

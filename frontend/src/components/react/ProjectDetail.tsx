@@ -53,7 +53,7 @@ export default function ProjectDetail({
   if (!project) return null;
 
   const target = monthlyTarget(project);
-  const currentMonthly = 0;
+  const currentMonthly = project.current_monthly_donations ?? 0;
   const achievementRate = target > 0 ? Math.round((currentMonthly / target) * 100) : 0;
 
   return (

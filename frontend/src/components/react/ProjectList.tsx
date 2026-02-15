@@ -21,6 +21,12 @@ function monthlyTarget(project: Project): number {
   return 0;
 }
 
+function achievementRate(project: Project): number {
+  const target = monthlyTarget(project);
+  const current = project.current_monthly_donations ?? 0;
+  return target > 0 ? Math.round((current / target) * 100) : 0;
+}
+
 export default function ProjectList({ locale }: Props) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +47,7 @@ export default function ProjectList({ locale }: Props) {
     <div className="project-list" style={{ marginTop: '2rem' }}>
       {projects.map((project) => {
         const target = monthlyTarget(project);
-        const achievementRate = target > 0 ? 0 : 0;
+        const rate = achievementRate(project);
         return (
           <a key={project.id} href={`/projects/${project.id}`} className="card project-card">
             <div
@@ -57,9 +63,9 @@ export default function ProjectList({ locale }: Props) {
               {target > 0 && (
                 <span
                   className="achievement-badge"
-                  data-level={achievementRate >= 80 ? 'ok' : achievementRate >= 50 ? 'warn' : 'danger'}
+                  data-level={rate >= 80 ? 'ok' : rate >= 50 ? 'warn' : 'danger'}
                 >
-                  {achievementRate}%
+                  {rate}%
                 </span>
               )}
             </div>

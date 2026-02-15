@@ -9,7 +9,10 @@
     "title": "GIVErS",
     "tagline": "GIVEの精神 / Donation platform for the GIVE spirit.",
     "description": "作り手の GIVE と受け手の GIVE をつなぐプラットフォームです。",
-    "apiStatus": "API ステータス"
+    "apiStatus": "API ステータス",
+    "newProjects": "新着プロジェクト",
+    "hotProjects": "人気のプロジェクト",
+    "viewAll": "すべて見る"
   },
   "about": {
     "title": "About GIVErS",
