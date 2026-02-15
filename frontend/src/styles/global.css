@@ -82,9 +82,18 @@ header nav a:hover {
   background-color: rgba(255, 255, 255, 0.15);
 }
 
-header nav a:first-child {
+header nav a:first-child,
+header nav a.logo-link {
   font-weight: 700;
   font-size: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+header nav a.logo-link .logo-img {
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .locale-switcher {

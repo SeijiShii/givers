@@ -17,7 +17,7 @@ const basePath = locale === 'en' ? '/en' : '';
 <html lang={locale}>
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/givers-logo.png" />
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <title>{title} | GIVErS</title>
@@ -25,7 +25,10 @@ const basePath = locale === 'en' ? '/en' : '';
   <body>
     <header>
       <nav>
-        <a href={`${basePath}/`}>{t(locale, 'nav.home')}</a>
+        <a href={`${basePath}/`} class="logo-link">
+          <img src="/givers-logo.png" alt="GIVErS" width="32" height="32" class="logo-img" />
+          {t(locale, 'nav.home')}
+        </a>
         <a href={`${basePath}/projects`}>{t(locale, 'nav.projects')}</a>
         <a href={`${basePath}/me`}>{locale === 'ja' ? 'マイページ' : 'My Page'}</a>
         <a href={`${basePath}/host`}>{t(locale, 'nav.host')}</a>

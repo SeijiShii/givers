@@ -44,6 +44,7 @@ services:
       PUBLIC_API_URL: http://localhost:8080
     volumes:
       - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     command: npm run dev -- --host
     depends_on:
       - backend
