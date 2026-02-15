@@ -1,0 +1,21 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import AdminUserList from '../../components/react/AdminUserList';
+import { t } from '../../lib/i18n';
+
+const locale = 'ja';
+---
+
+<BaseLayout title={t(locale, 'admin.usersTitle')} locale={locale}>
+  <AdminUserList
+    client:load
+    locale={locale}
+    title={t(locale, 'admin.usersTitle')}
+    forbiddenMessage={t(locale, 'admin.forbidden')}
+    statusActive={t(locale, 'admin.statusActive')}
+    statusSuspended={t(locale, 'admin.statusSuspended')}
+    suspendLabel={t(locale, 'admin.suspend')}
+    unsuspendLabel={t(locale, 'admin.unsuspend')}
+    projectCountLabel={t(locale, 'admin.projectCount')}
+  />
+</BaseLayout>

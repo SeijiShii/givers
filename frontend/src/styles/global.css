@@ -22,6 +22,10 @@
   --color-text-on-primary: #ffffff;
   --color-text-on-accent: #2d3d2d;
 
+  /* 状態・警告・エラー */
+  --color-danger: #c44;
+  --color-warning-muted: #f0e0a0;
+
   /* ボーダー・影 */
   --color-border: #d4e4d4;
   --color-border-light: #e8f0e8;
@@ -198,6 +202,16 @@ footer p {
 
 .btn-accent:hover {
   background-color: var(--color-accent-dark);
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover {
+  background-color: #a33;
 }
 
 /* カード */

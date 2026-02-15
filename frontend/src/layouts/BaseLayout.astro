@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { t, type Locale } from '../lib/i18n';
 import AuthStatus from '../components/react/AuthStatus';
+import NavAdminLink from '../components/react/NavAdminLink';
 
 interface Props {
   title: string;
@@ -30,8 +31,9 @@ const basePath = locale === 'en' ? '/en' : '';
           {t(locale, 'nav.home')}
         </a>
         <a href={`${basePath}/projects`}>{t(locale, 'nav.projects')}</a>
-        <a href={`${basePath}/me`}>{locale === 'ja' ? 'マイページ' : 'My Page'}</a>
+        <a href={`${basePath}/me`}>{t(locale, 'nav.me')}</a>
         <a href={`${basePath}/host`}>{t(locale, 'nav.host')}</a>
+        <NavAdminLink client:load locale={locale} basePath={basePath} />
         <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
         <span class="locale-switcher">
           {locale === 'ja' ? (
