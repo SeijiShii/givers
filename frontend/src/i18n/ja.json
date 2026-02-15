@@ -2,7 +2,7 @@
   "nav": {
     "home": "GIVErS",
     "projects": "プロジェクト一覧",
-    "host": "サービスホストについて",
+    "host": "GIVErS への寄付",
     "about": "About"
   },
   "home": {
@@ -14,14 +14,27 @@
     "hotProjects": "人気のプロジェクト",
     "viewAll": "すべて見る"
   },
+  "feed": {
+    "title": "いま起きていること",
+    "projectCreated": "{actor}が {project} を登録しました",
+    "projectUpdated": "{actor}が {project} を更新しました",
+    "donationBy": "{actor}が {project} に {amount} を寄付しました",
+    "donationAnonymous": "匿名の方が {project} に {amount} を寄付しました",
+    "milestoneReached": "{project} が {rate}% 達成しました"
+  },
   "about": {
     "title": "About GIVErS",
     "official": "公式 GIVErS は {url} のみ（本番環境で設定）",
     "selfHosted": "このサイトは GIVErS の自ホスト版です。（自ホスト時のみ表示）"
   },
   "host": {
-    "title": "サービスホストについて",
-    "description": "GIVErS が健全に運営されているかどうかを閲覧できます。",
+    "title": "GIVErS への寄付",
+    "backToTop": "トップに戻る",
+    "description": "GIVErS は手数料ゼロで運営しています。プラットフォームの継続のため、ご支援をお願いします。",
+    "donateCta": "GIVErS に寄付する",
+    "viewProjectDetail": "プロジェクト詳細を見る",
+    "viewInProjectList": "プロジェクト一覧でも見る",
+    "signalTitle": "運営状況",
     "signalOk": "健全",
     "signalOkDesc": "余裕あり",
     "signalWarn": "注意",
@@ -29,6 +42,10 @@
     "signalDanger": "危険",
     "signalDangerDesc": "継続困難",
     "phaseNote": "（Phase 5 で API 連携を実装）"
+  },
+  "platformProject": {
+    "badge": "プラットフォームプロジェクト",
+    "hostPageLink": "サービスホストページへ"
   },
   "projects": {
     "title": "プロジェクト一覧",
@@ -54,7 +71,28 @@
     "devDaysPerMonth": "開発者稼働（月日数）",
     "otherCost": "その他（月額）",
     "noProjects": "プロジェクトはまだありません。",
-    "loading": "読み込み中..."
+    "loading": "読み込み中...",
+    "owner": "オーナー",
+    "recentSupporters": "最近の応援者",
+    "anonymous": "匿名",
+    "customAmount": "任意額",
+    "messageLabel": "メッセージ",
+    "messagePlaceholder": "プロジェクトオーナーへのメッセージ（任意）",
+    "thankYouTitle": "ありがとうございます！",
+    "thankYouMessage": "{amount} のご寄付を {project} に届けました。",
+    "thankYouMessageMonthly": "毎月 {amount} のご寄付を {project} に届ける設定が完了しました。",
+    "donateMonthly": "毎月寄付する",
+    "oneTime": "単発で寄付",
+    "monthly": "毎月定額で寄付",
+    "donationTypeLabel": "寄付の種類",
+    "chartMinAmount": "最低金額",
+    "chartTargetAmount": "目標金額",
+    "chartActualAmount": "達成額",
+    "chartNoData": "チャートデータがありません",
+    "tabSupport": "支援状況",
+    "tabOverview": "概要",
+    "tabUpdates": "アップデート",
+    "updatesEmpty": "アップデートはまだありません"
   },
   "footer": {
     "text": "GIVErS - GIVEの精神 / Donation platform for the GIVE spirit."

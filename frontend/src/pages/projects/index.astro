@@ -14,7 +14,7 @@ const locale = 'ja';
     <a href="/projects/new" class="btn btn-accent">{t(locale, 'projects.newProject')}</a>
   </p>
 
-  <ProjectList client:load locale={locale} />
+  <ProjectList client:load locale={locale} platformBadge={t(locale, 'platformProject.badge')} />
 
   <p class="accent-line" style="margin-top: 2rem;">{t(locale, 'projects.phaseNote')}</p>
 </BaseLayout>

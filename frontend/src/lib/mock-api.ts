@@ -6,7 +6,11 @@ import type {
   UpdateProjectInput,
   User,
 } from './api';
+import type { ProjectUpdate } from './api';
 import { MOCK_PROJECTS, type MockProject } from '../data/mock-projects';
+import { MOCK_ACTIVITIES, MOCK_OWNERS, MOCK_RECENT_SUPPORTERS, type ActivityItem } from '../data/mock-activities';
+import { MOCK_CHART_DATA, type ChartDataPoint } from '../data/mock-chart-data';
+import { MOCK_PROJECT_UPDATES } from '../data/mock-project-updates';
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -14,10 +18,14 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const MOCK_DELAY = 150;
 
 function toProject(p: MockProject): Project {
-  const { _mockCurrentMonthly, ...rest } = p;
+  const { _mockCurrentMonthly, _mockImageUrl, _mockOverview, ...rest } = p;
   return {
     ...rest,
     current_monthly_donations: _mockCurrentMonthly,
+    owner_name: MOCK_OWNERS[p.owner_id],
+    recent_supporters: MOCK_RECENT_SUPPORTERS[p.id] ?? [],
+    image_url: _mockImageUrl ?? null,
+    overview: _mockOverview ?? rest.description,
   };
 }
 
@@ -116,5 +124,29 @@ export const mockApi = {
     });
     const sorted = withRate.sort((a, b) => b.rate - a.rate);
     return sorted.slice(0, limit).map((x) => toProject(x.p));
+  },
+
+  /** アクティビティフィード */
+  async getActivityFeed(limit = 10): Promise<ActivityItem[]> {
+    await delay(MOCK_DELAY);
+    const sorted = [...MOCK_ACTIVITIES].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    return sorted.slice(0, limit);
+  },
+
+  /** プロジェクトチャートデータ */
+  async getProjectChart(projectId: string): Promise<ChartDataPoint[]> {
+    await delay(MOCK_DELAY);
+    return MOCK_CHART_DATA[projectId] ?? [];
+  },
+
+  /** プロジェクトオーナーからのアップデート */
+  async getProjectUpdates(projectId: string, limit = 20): Promise<ProjectUpdate[]> {
+    await delay(MOCK_DELAY);
+    const list = MOCK_PROJECT_UPDATES[projectId] ?? [];
+    return list
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, limit);
   },
 };

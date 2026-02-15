@@ -16,10 +16,29 @@ const locale = 'ja';
       locale={locale}
       backLabel={t(locale, 'projects.backToList')}
       supportStatus={t(locale, 'projects.supportStatus')}
-      supportStatusDetail={(args) => t(locale, 'projects.supportStatusDetail', args)}
       supportTitle={t(locale, 'projects.supportTitle')}
-      phaseNoteDonate={t(locale, 'projects.phaseNoteDonate')}
       donateLabel={t(locale, 'projects.donate')}
+      ownerLabel={t(locale, 'projects.owner')}
+      recentSupportersLabel={t(locale, 'projects.recentSupporters')}
+      anonymousLabel={t(locale, 'projects.anonymous')}
+      donateFormPresets={[300, 500, 1000, 3000, 5000]}
+      customAmountLabel={t(locale, 'projects.customAmount')}
+      messageLabel={t(locale, 'projects.messageLabel')}
+      messagePlaceholder={t(locale, 'projects.messagePlaceholder')}
+      thankYouTitle={t(locale, 'projects.thankYouTitle')}
+      donateLabelMonthly={t(locale, 'projects.donateMonthly')}
+      oneTimeLabel={t(locale, 'projects.oneTime')}
+      monthlyLabel={t(locale, 'projects.monthly')}
+      donationTypeLabel={t(locale, 'projects.donationTypeLabel')}
+      chartMinAmountLabel={t(locale, 'projects.chartMinAmount')}
+      chartTargetAmountLabel={t(locale, 'projects.chartTargetAmount')}
+      chartActualAmountLabel={t(locale, 'projects.chartActualAmount')}
+      chartNoDataLabel={t(locale, 'projects.chartNoData')}
+      hostPageLink={t(locale, 'platformProject.hostPageLink')}
+      tabSupportLabel={t(locale, 'projects.tabSupport')}
+      tabOverviewLabel={t(locale, 'projects.tabOverview')}
+      tabUpdatesLabel={t(locale, 'projects.tabUpdates')}
+      updatesEmptyLabel={t(locale, 'projects.updatesEmpty')}
     />
   ) : (
     <p>Invalid project</p>

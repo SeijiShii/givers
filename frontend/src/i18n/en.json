@@ -2,7 +2,7 @@
   "nav": {
     "home": "GIVErS",
     "projects": "Projects",
-    "host": "About Service Host",
+    "host": "Donate to GIVErS",
     "about": "About"
   },
   "home": {
@@ -14,14 +14,27 @@
     "hotProjects": "Popular Projects",
     "viewAll": "View all"
   },
+  "feed": {
+    "title": "What's happening",
+    "projectCreated": "{actor} registered {project}",
+    "projectUpdated": "{actor} updated {project}",
+    "donationBy": "{actor} donated {amount} to {project}",
+    "donationAnonymous": "Someone donated {amount} to {project}",
+    "milestoneReached": "{project} reached {rate}%"
+  },
   "about": {
     "title": "About GIVErS",
     "official": "The official GIVErS is {url} only (configure in production)",
     "selfHosted": "This site is a self-hosted instance of GIVErS. (shown only when self-hosted)"
   },
   "host": {
-    "title": "About Service Host",
-    "description": "View whether GIVErS is operating soundly.",
+    "title": "Donate to GIVErS",
+    "backToTop": "Back to top",
+    "description": "GIVErS operates with zero fees. Your support helps keep the platform running.",
+    "donateCta": "Donate to GIVErS",
+    "viewProjectDetail": "View project details",
+    "viewInProjectList": "Also in project list",
+    "signalTitle": "Platform status",
     "signalOk": "Healthy",
     "signalOkDesc": "Comfortable",
     "signalWarn": "Caution",
@@ -29,6 +42,10 @@
     "signalDanger": "Critical",
     "signalDangerDesc": "Sustainability at risk",
     "phaseNote": "(API integration in Phase 5)"
+  },
+  "platformProject": {
+    "badge": "Platform project",
+    "hostPageLink": "Service host page"
   },
   "projects": {
     "title": "Projects",
@@ -54,7 +71,28 @@
     "devDaysPerMonth": "Dev days (per month)",
     "otherCost": "Other (monthly)",
     "noProjects": "No projects yet.",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "owner": "Owner",
+    "recentSupporters": "Recent supporters",
+    "anonymous": "Anonymous",
+    "customAmount": "Custom amount",
+    "messageLabel": "Message",
+    "messagePlaceholder": "Message to the project owner (optional)",
+    "thankYouTitle": "Thank you!",
+    "thankYouMessage": "Your donation of {amount} has been sent to {project}.",
+    "thankYouMessageMonthly": "You will now donate {amount} monthly to {project}.",
+    "donateMonthly": "Donate monthly",
+    "oneTime": "One-time donation",
+    "monthly": "Monthly donation",
+    "donationTypeLabel": "Donation type",
+    "chartMinAmount": "Minimum amount",
+    "chartTargetAmount": "Target amount",
+    "chartActualAmount": "Actual amount",
+    "chartNoData": "No chart data available",
+    "tabSupport": "Support",
+    "tabOverview": "Overview",
+    "tabUpdates": "Updates",
+    "updatesEmpty": "No updates yet"
   },
   "footer": {
     "text": "GIVErS - GIVE spirit / Donation platform for the GIVE spirit."

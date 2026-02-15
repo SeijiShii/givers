@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { Project } from '../../lib/api';
-import { getProjects } from '../../lib/api';
+import { getProjects, PLATFORM_PROJECT_ID } from '../../lib/api';
 import type { Locale } from '../../lib/i18n';
 
 interface Props {
   locale: Locale;
+  platformBadge?: string;
 }
 
 function monthlyTarget(project: Project): number {
@@ -27,7 +28,7 @@ function achievementRate(project: Project): number {
   return target > 0 ? Math.round((current / target) * 100) : 0;
 }
 
-export default function ProjectList({ locale }: Props) {
+export default function ProjectList({ locale, platformBadge }: Props) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +49,9 @@ export default function ProjectList({ locale }: Props) {
       {projects.map((project) => {
         const target = monthlyTarget(project);
         const rate = achievementRate(project);
+        const basePath = locale === 'en' ? '/en' : '';
         return (
-          <a key={project.id} href={`/projects/${project.id}`} className="card project-card">
+          <a key={project.id} href={`${basePath}/projects/${project.id}`} className="card project-card">
             <div
               className="project-header"
               style={{
@@ -59,7 +61,31 @@ export default function ProjectList({ locale }: Props) {
                 marginBottom: '0.5rem',
               }}
             >
-              <h2 style={{ margin: 0 }}>{project.name}</h2>
+              <div>
+                <h2 style={{ margin: 0 }}>
+                  {project.name}
+                  {project.id === PLATFORM_PROJECT_ID && platformBadge && (
+                    <span
+                      style={{
+                        marginLeft: '0.5rem',
+                        fontSize: '0.7rem',
+                        fontWeight: 500,
+                        color: 'var(--color-primary)',
+                        backgroundColor: 'var(--color-bg-accent)',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '4px',
+                      }}
+                    >
+                      {platformBadge}
+                    </span>
+                  )}
+                </h2>
+                {project.owner_name && (
+                  <span className="project-owner" style={{ display: 'block', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                    by {project.owner_name}
+                  </span>
+                )}
+              </div>
               {target > 0 && (
                 <span
                   className="achievement-badge"

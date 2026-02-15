@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Project } from '../../lib/api';
-import { getNewProjects, getHotProjects } from '../../lib/api';
+import { getNewProjects, getHotProjects, PLATFORM_PROJECT_ID } from '../../lib/api';
 import type { Locale } from '../../lib/i18n';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   newTitle: string;
   hotTitle: string;
   viewAll: string;
+  platformBadge?: string;
 }
 
 function monthlyTarget(project: Project): number {
@@ -30,13 +31,35 @@ function achievementRate(project: Project): number {
   return target > 0 ? Math.round((current / target) * 100) : 0;
 }
 
-function ProjectCard({ project }: { project: Project }) {
+function ProjectCard({ project, platformBadge, basePath = '' }: { project: Project; platformBadge?: string; basePath?: string }) {
   const target = monthlyTarget(project);
   const rate = achievementRate(project);
   return (
-    <a href={`/projects/${project.id}`} className="card project-card" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+    <a href={`${basePath}/projects/${project.id}`} className="card project-card" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-        <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{project.name}</h3>
+        <div>
+          <h3 style={{ margin: 0, fontSize: '1.1rem' }}>
+            {project.name}
+            {project.id === PLATFORM_PROJECT_ID && platformBadge && (
+              <span
+                style={{
+                  marginLeft: '0.5rem',
+                  fontSize: '0.65rem',
+                  fontWeight: 500,
+                  color: 'var(--color-primary)',
+                  backgroundColor: 'var(--color-bg-accent)',
+                  padding: '0.1rem 0.4rem',
+                  borderRadius: '4px',
+                }}
+              >
+                {platformBadge}
+              </span>
+            )}
+          </h3>
+          {project.owner_name && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>by {project.owner_name}</span>
+          )}
+        </div>
         {target > 0 && (
           <span
             className="achievement-badge"
@@ -58,7 +81,7 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
-export default function FeaturedProjects({ locale, newTitle, hotTitle, viewAll }: Props) {
+export default function FeaturedProjects({ locale, newTitle, hotTitle, viewAll, platformBadge }: Props) {
   const [newProjects, setNewProjects] = useState<Project[]>([]);
   const [hotProjects, setHotProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,10 +116,10 @@ export default function FeaturedProjects({ locale, newTitle, hotTitle, viewAll }
             <h2 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1.2rem' }}>{newTitle}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {newProjects.map((p) => (
-                <ProjectCard key={p.id} project={p} />
+                <ProjectCard key={p.id} project={p} platformBadge={platformBadge} basePath={locale === 'en' ? '/en' : ''} />
               ))}
             </div>
-            <a href="/projects" style={{ display: 'inline-block', marginTop: '1rem', fontSize: '0.9rem', color: 'var(--color-primary)' }}>
+            <a href={`${locale === 'en' ? '/en' : ''}/projects`} style={{ display: 'inline-block', marginTop: '1rem', fontSize: '0.9rem', color: 'var(--color-primary)' }}>
               {viewAll} →
             </a>
           </section>
@@ -106,10 +129,10 @@ export default function FeaturedProjects({ locale, newTitle, hotTitle, viewAll }
             <h2 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1.2rem' }}>{hotTitle}</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {hotProjects.map((p) => (
-                <ProjectCard key={p.id} project={p} />
+                <ProjectCard key={p.id} project={p} platformBadge={platformBadge} basePath={locale === 'en' ? '/en' : ''} />
               ))}
             </div>
-            <a href="/projects" style={{ display: 'inline-block', marginTop: '1rem', fontSize: '0.9rem', color: 'var(--color-primary)' }}>
+            <a href={`${locale === 'en' ? '/en' : ''}/projects`} style={{ display: 'inline-block', marginTop: '1rem', fontSize: '0.9rem', color: 'var(--color-primary)' }}>
               {viewAll} →
             </a>
           </section>

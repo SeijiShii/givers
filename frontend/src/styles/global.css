@@ -344,3 +344,14 @@ footer p {
   border-radius: 4px;
   transition: width 0.3s ease;
 }
+
+/* アクティビティフィード */
+.activity-project {
+  color: var(--color-primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.activity-project:hover {
+  text-decoration: underline;
+}

@@ -1,6 +1,9 @@
 const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8080';
 const MOCK_MODE = import.meta.env.PUBLIC_MOCK_MODE === 'true';
 
+/** プラットフォームプロジェクト（GIVErS への寄付）の ID。モック時は mock-4 */
+export const PLATFORM_PROJECT_ID = 'mock-4';
+
 export async function fetchApi<T>(
   path: string,
   options?: RequestInit
@@ -94,6 +97,24 @@ export interface Project {
   alerts?: ProjectAlerts | null;
   /** 月額寄付の現在合計（モック/Phase4以降） */
   current_monthly_donations?: number;
+  /** オーナー表示名（モック/Phase4以降） */
+  owner_name?: string;
+  /** 最近の応援者（モック/Phase4以降、匿名は null） */
+  recent_supporters?: { name: string | null; amount: number }[];
+  /** ヒーロー画像URL（モック/Phase5以降） */
+  image_url?: string | null;
+  /** プロジェクト概要・詳細説明（2000文字程度、モック/Phase5以降） */
+  overview?: string | null;
+}
+
+/** プロジェクトオーナーからのアップデート（モック/Phase5以降） */
+export interface ProjectUpdate {
+  id: string;
+  project_id: string;
+  created_at: string;
+  title?: string | null;
+  body: string;
+  author_name?: string | null;
 }
 
 /** 金額表示タイプ: 希望額 / 必要額 / 両方 */
@@ -124,6 +145,46 @@ export async function getNewProjects(limit = 5): Promise<Project[]> {
 export async function getHotProjects(limit = 5): Promise<Project[]> {
   if (MOCK_MODE) return (await import('./mock-api')).mockApi.getHotProjects(limit);
   return getProjects(limit, 0);
+}
+
+// --- Activity Feed (モック時のみ) ---
+
+export type ActivityType = 'project_created' | 'project_updated' | 'donation' | 'milestone';
+
+export interface ActivityItem {
+  id: string;
+  type: ActivityType;
+  created_at: string;
+  project_id: string;
+  project_name: string;
+  actor_name: string | null;
+  amount?: number;
+  rate?: number;
+}
+
+export async function getActivityFeed(limit = 10): Promise<ActivityItem[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getActivityFeed(limit);
+  return [];
+}
+
+// --- Project Chart (モック時のみ) ---
+
+export interface ChartDataPoint {
+  month: string;
+  minAmount: number;
+  targetAmount: number;
+  actualAmount: number;
+}
+
+export async function getProjectChart(projectId: string): Promise<ChartDataPoint[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getProjectChart(projectId);
+  return [];
+}
+
+/** プロジェクトオーナーからのアップデート（モック時のみ） */
+export async function getProjectUpdates(projectId: string, limit = 20): Promise<ProjectUpdate[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getProjectUpdates(projectId, limit);
+  return [];
 }
 
 export interface CreateProjectInput {
