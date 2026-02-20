@@ -66,6 +66,52 @@ giving_platform/
 - **donations**: id, project_id, **donor_type**（'token' \| 'user'）, **donor_id**（token の UUID または user の UUID）, amount, currency, stripe_payment_id, ...  
   ※ donor_type + donor_id の 2 カラムで識別（検索・インデックス・トークン→ユーザー移行が明確）。アカウントなし・ありを問わず全寄付を記録。idea.md の「全ての寄付者の寄付行動履歴を保存する」方針に基づく。将来的なデータ分析も想定。
 - **platform_health**: プラットフォーム全体の健全性（月額必要額、達成率など）
+- **project_updates**: プロジェクトのアップデート投稿
+- **watches**: ウォッチ（ユーザー×プロジェクト）
+- **project_mutes**: ミュート（プロジェクトオーナーが寄付者をミュート、プロジェクト単位）
+
+### 未定義テーブルの詳細スキーマ
+
+#### project_updates
+
+| カラム | 型 | 説明 |
+|--------|----|------|
+| id | UUID PK | |
+| project_id | UUID FK → projects | |
+| author_id | UUID FK → users | 投稿者（プロジェクトオーナー） |
+| title | TEXT NULL | タイトル（任意） |
+| body | TEXT NOT NULL | 本文（Markdown） |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+
+#### watches
+
+| カラム | 型 | 説明 |
+|--------|----|------|
+| user_id | UUID FK → users | |
+| project_id | UUID FK → projects | |
+| created_at | TIMESTAMPTZ | |
+| PK | (user_id, project_id) | 複合主キー |
+
+#### project_mutes
+
+| カラム | 型 | 説明 |
+|--------|----|------|
+| project_id | UUID FK → projects | |
+| muted_user_id | UUID FK → users | ミュートされたユーザー |
+| created_at | TIMESTAMPTZ | |
+| PK | (project_id, muted_user_id) | 複合主キー |
+
+#### platform_health
+
+| カラム | 型 | 説明 |
+|--------|----|------|
+| id | INT PK DEFAULT 1 | 常に1行（シングルトン） |
+| monthly_cost | INTEGER | 月額必要額（円） |
+| current_monthly | INTEGER | 現在の月額達成額（円） |
+| warning_threshold | INTEGER | 注意閾値（達成率%、例: 60） |
+| critical_threshold | INTEGER | 危険閾値（達成率%、例: 30） |
+| updated_at | TIMESTAMPTZ | |
 
 ## 実装フェーズ
 
@@ -93,7 +139,7 @@ giving_platform/
 
 ### Phase 4: 決済（Stripe Connect）
 
-- Stripe Connect で募集者オンボーディング
+- **Stripe Connect オンボーディングはプロジェクト作成時に必須**。作成フォームの最終ステップで Stripe Connect にリダイレクト。オンボーディング完了後にプロジェクトが公開される。Stripe 未接続のままプロジェクト公開は不可。
 - 寄付用 Checkout Session / サブスク作成
 - Webhook で決済完了・サブスク状態の同期
 - フロント: 寄付フォーム（React）、金額・通貨・単発/定期の選択
@@ -253,7 +299,7 @@ giving_platform/
 | **冪等** | **冪等とする**。同じトークンで複数回呼んでも、2 回目以降は「すでに移行済み」としてエラーにせず成功扱い。 |
 | **すでに移行済み** | 移行済みのトークンで再呼び出し時は **200 OK** を返す。body で `{ "migrated_count": 0, "already_migrated": true }` のようにし、フロントはエラー表示せず「引き継ぎ済みです」等の表示に利用する。 |
 | **成功時** | 200 OK。`{ "migrated_count": N, "already_migrated": false }`（N は移行した寄付件数）。 |
-| **トークンなし・無効** | Cookie に有効なトークンがない場合は 400 または 200（migrated_count: 0）のいずれかで統一（実装時にどちらにするか決定）。 |
+| **トークンなし・無効** | Cookie に有効なトークンがない場合は **400 Bad Request** を返す。フロントは Cookie の有無を事前チェックしてから呼び出す前提。 |
 
 ### ディレクトリ構成（Go）
 

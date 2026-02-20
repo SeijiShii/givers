@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Project, ProjectCosts, AmountInputType } from '../../lib/api';
+import type { Project, ProjectCosts, ProjectAlerts, AmountInputType } from '../../lib/api';
 import { createProject, updateProject } from '../../lib/api';
 import { t, type Locale } from '../../lib/i18n';
 
@@ -16,12 +16,18 @@ const defaultCosts: ProjectCosts = {
   other_cost_monthly: 0,
 };
 
+const defaultAlerts: ProjectAlerts = {
+  warning_threshold: 60,
+  critical_threshold: 30,
+};
+
 function monthlyTargetFromCosts(c: ProjectCosts): number {
   return c.server_cost_monthly + c.dev_cost_per_day * c.dev_days_per_month + c.other_cost_monthly;
 }
 
 export default function ProjectForm({ locale, project, redirectPath }: Props) {
   const isEdit = !!project;
+
   const [amountType, setAmountType] = useState<AmountInputType>(() => {
     if (!project) return 'want';
     const hasWant = project.owner_want_monthly != null && project.owner_want_monthly > 0;
@@ -30,25 +36,60 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     if (hasCost) return 'cost';
     return 'want';
   });
+
   const [name, setName] = useState(project?.name ?? '');
   const [description, setDescription] = useState(project?.description ?? '');
   const [ownerWant, setOwnerWant] = useState(project?.owner_want_monthly ?? 0);
-  const [costs, setCosts] = useState<ProjectCosts>(
-    project?.costs ?? defaultCosts
+  const [costs, setCosts] = useState<ProjectCosts>(project?.costs ?? defaultCosts);
+
+  // 期限
+  const [deadlineType, setDeadlineType] = useState<'permanent' | 'date'>(
+    project?.deadline ? 'date' : 'permanent'
   );
+  const [deadlineValue, setDeadlineValue] = useState(
+    project?.deadline ? project.deadline.slice(0, 10) : ''
+  );
+
+  // アラート閾値
+  const [alertsEnabled, setAlertsEnabled] = useState(!!project?.alerts);
+  const [alerts, setAlerts] = useState<ProjectAlerts>(project?.alerts ?? defaultAlerts);
+
+  // Stripe Connect（新規作成のみ）
+  const [stripeConnecting, setStripeConnecting] = useState(false);
+  const [stripeConnected, setStripeConnected] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const handleStripeConnect = () => {
+    setStripeConnecting(true);
+    // モック: 1.5秒後に接続完了
+    setTimeout(() => {
+      setStripeConnecting(false);
+      setStripeConnected(true);
+    }, 1500);
+  };
+
+  const canSubmit = isEdit || stripeConnected;
+
   const doSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSubmit) return;
     setError(null);
     setSubmitting(true);
     try {
       const payload = {
         name,
         description,
-        owner_want_monthly: amountType === 'want' || amountType === 'both' ? (ownerWant > 0 ? ownerWant : null) : null,
+        deadline: deadlineType === 'date' && deadlineValue ? deadlineValue : null,
+        owner_want_monthly:
+          amountType === 'want' || amountType === 'both'
+            ? ownerWant > 0
+              ? ownerWant
+              : null
+            : null,
         costs: amountType === 'cost' || amountType === 'both' ? costs : null,
+        alerts: alertsEnabled ? alerts : null,
       };
       if (isEdit) {
         await updateProject(project!.id, payload);
@@ -65,6 +106,7 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
 
   return (
     <form onSubmit={doSubmit} className="card" style={{ maxWidth: '32rem', marginTop: '1.5rem' }}>
+      {/* プロジェクト名 */}
       <div style={{ marginBottom: '1rem' }}>
         <label htmlFor="name" style={{ display: 'block', marginBottom: '0.25rem' }}>
           プロジェクト名 *
@@ -78,6 +120,8 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
           style={{ width: '100%', padding: '0.5rem' }}
         />
       </div>
+
+      {/* 説明 */}
       <div style={{ marginBottom: '1rem' }}>
         <label htmlFor="description" style={{ display: 'block', marginBottom: '0.25rem' }}>
           説明
@@ -91,6 +135,38 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         />
       </div>
 
+      {/* 期限 */}
+      <fieldset style={{ marginBottom: '1rem', border: '1px solid var(--color-border)', padding: '1rem', borderRadius: '4px' }}>
+        <legend>{t(locale, 'projects.deadline')}</legend>
+        <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+          <input
+            type="radio"
+            name="deadlineType"
+            checked={deadlineType === 'permanent'}
+            onChange={() => setDeadlineType('permanent')}
+          />
+          {' '}{t(locale, 'projects.deadlinePermanent')}
+        </label>
+        <label style={{ display: 'block' }}>
+          <input
+            type="radio"
+            name="deadlineType"
+            checked={deadlineType === 'date'}
+            onChange={() => setDeadlineType('date')}
+          />
+          {' '}{t(locale, 'projects.deadlineDate')}
+        </label>
+        {deadlineType === 'date' && (
+          <input
+            type="date"
+            value={deadlineValue}
+            onChange={(e) => setDeadlineValue(e.target.value)}
+            style={{ marginTop: '0.5rem', padding: '0.5rem' }}
+          />
+        )}
+      </fieldset>
+
+      {/* 金額タイプ */}
       <fieldset style={{ marginBottom: '1rem', border: '1px solid var(--color-border)', padding: '1rem', borderRadius: '4px' }}>
         <legend>{t(locale, 'projects.amountType')}</legend>
         <label style={{ display: 'block', marginBottom: '0.5rem' }}>
@@ -122,6 +198,7 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         </label>
       </fieldset>
 
+      {/* 最低希望額 */}
       {(amountType === 'want' || amountType === 'both') && (
         <div style={{ marginBottom: '1rem' }}>
           <label htmlFor="ownerWant" style={{ display: 'block', marginBottom: '0.25rem' }}>
@@ -138,6 +215,7 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         </div>
       )}
 
+      {/* コスト内訳 */}
       {(amountType === 'cost' || amountType === 'both') && (
         <div style={{ marginBottom: '1rem', padding: '1rem', border: '1px solid var(--color-border)', borderRadius: '4px' }}>
           <h3 style={{ marginTop: 0 }}>{t(locale, 'projects.costBreakdown')}</h3>
@@ -196,10 +274,117 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         </div>
       )}
 
+      {/* アラート閾値 */}
+      <fieldset style={{ marginBottom: '1rem', border: '1px solid var(--color-border)', padding: '1rem', borderRadius: '4px' }}>
+        <legend>{t(locale, 'projects.alertsTitle')}</legend>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={alertsEnabled}
+            onChange={(e) => setAlertsEnabled(e.target.checked)}
+          />
+          アラートを設定する
+        </label>
+        {alertsEnabled && (
+          <>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+              {t(locale, 'projects.alertsHint')}
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '120px' }}>
+                <label htmlFor="warningThreshold" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                  {t(locale, 'projects.warningThreshold')}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <input
+                    id="warningThreshold"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={alerts.warning_threshold || ''}
+                    onChange={(e) => setAlerts({ ...alerts, warning_threshold: parseInt(e.target.value, 10) || 0 })}
+                    style={{ width: '80px', padding: '0.5rem' }}
+                  />
+                  <span>%</span>
+                </div>
+              </div>
+              <div style={{ flex: 1, minWidth: '120px' }}>
+                <label htmlFor="criticalThreshold" style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>
+                  {t(locale, 'projects.criticalThreshold')}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <input
+                    id="criticalThreshold"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={alerts.critical_threshold || ''}
+                    onChange={(e) => setAlerts({ ...alerts, critical_threshold: parseInt(e.target.value, 10) || 0 })}
+                    style={{ width: '80px', padding: '0.5rem' }}
+                  />
+                  <span>%</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </fieldset>
+
+      {/* Stripe Connect（新規作成のみ） */}
+      {!isEdit && (
+        <div style={{
+          marginBottom: '1.5rem',
+          padding: '1rem',
+          border: `1px solid ${stripeConnected ? 'var(--color-primary)' : 'var(--color-border)'}`,
+          borderRadius: '4px',
+          background: stripeConnected ? 'var(--color-primary-muted, rgba(99,102,241,0.06))' : undefined,
+        }}>
+          <h3 style={{ marginTop: 0 }}>{t(locale, 'projects.stripeConnectTitle')}</h3>
+          {!stripeConnected ? (
+            <>
+              <p style={{ marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+                {t(locale, 'projects.stripeConnectDesc')}
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={stripeConnecting}
+                onClick={handleStripeConnect}
+              >
+                {stripeConnecting ? t(locale, 'projects.stripeConnecting') : t(locale, 'projects.stripeConnectButton')}
+              </button>
+              <p style={{ marginTop: '0.5rem', marginBottom: 0, fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                {t(locale, 'projects.stripeConnectNote')}
+              </p>
+            </>
+          ) : (
+            <p style={{ margin: 0, fontWeight: 600, color: 'var(--color-primary)' }}>
+              {t(locale, 'projects.stripeConnected')}
+            </p>
+          )}
+        </div>
+      )}
+
       {error && <p style={{ color: 'var(--color-danger)', marginBottom: '1rem' }}>{error}</p>}
-      <button type="submit" className="btn btn-accent" disabled={submitting}>
-        {submitting ? t(locale, 'projects.loading') : isEdit ? t(locale, 'projects.editProject') : t(locale, 'projects.newProject')}
+
+      <button
+        type="submit"
+        className="btn btn-accent"
+        disabled={submitting || !canSubmit}
+        title={!canSubmit ? 'Stripe アカウントを接続してから公開できます' : undefined}
+      >
+        {submitting
+          ? t(locale, 'projects.loading')
+          : isEdit
+            ? t(locale, 'projects.editProject')
+            : t(locale, 'projects.newProject')}
       </button>
+
+      {!isEdit && !stripeConnected && (
+        <p style={{ marginTop: '0.5rem', marginBottom: 0, fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+          Stripe アカウントを接続するとプロジェクトを公開できます。
+        </p>
+      )}
     </form>
   );
 }
