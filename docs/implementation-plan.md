@@ -60,11 +60,13 @@ giving_platform/
 ## データモデル（主要）
 
 - **users**: id, email, name, google_id, github_id, apple_id, password_hash（いずれも NULL 可のプロバイダ別 ID / パスワードハッシュ）, created_at, updated_at。同一ユーザーは email でリンク（idea.md・phase2-plan 参照）。
-- **projects**: id, owner_id, name, description, deadline, monthly_target, status, stripe_account_id, ...
+- **sessions**: id（UUID）, user_id（FK → users）, expires_at, created_at。**DB sessions テーブル方式**。Cookie は `session_id=<UUID>`（HttpOnly, Secure, SameSite=Lax）。ログアウト時は行を削除して確実に無効化。
+- **projects**: id, owner_id, name, description, deadline, monthly_target, **status**（`draft` \| `active` \| `frozen` \| `deleted`）, stripe_account_id, ...
+  ※ **`draft` ステータスを追加**。プロジェクト作成フォーム送信時に draft で保存 → Stripe Connect 完了後に active に変更。Stripe 未接続のままプロジェクト公開は不可。
 - **project_costs**: project_id, server_cost, dev_cost, other_cost, ...
 - **project_alerts**: project_id, warning_threshold, critical_threshold
-- **donations**: id, project_id, **donor_type**（'token' \| 'user'）, **donor_id**（token の UUID または user の UUID）, amount, currency, stripe_payment_id, ...  
-  ※ donor_type + donor_id の 2 カラムで識別（検索・インデックス・トークン→ユーザー移行が明確）。アカウントなし・ありを問わず全寄付を記録。idea.md の「全ての寄付者の寄付行動履歴を保存する」方針に基づく。将来的なデータ分析も想定。
+- **donations**: id, project_id, **donor_type**（'token' \| 'user'）, **donor_id**（token の UUID または user の UUID）, amount, currency, stripe_payment_id, **is_recurring**（BOOLEAN）, **stripe_subscription_id**（TEXT NULL、定期寄付のみ非 NULL）, created_at, ...
+  ※ 単発・定期を同一テーブルで管理。donor_type + donor_id の 2 カラムで識別（検索・インデックス・トークン→ユーザー移行が明確）。アカウントなし・ありを問わず全寄付を記録。idea.md の「全ての寄付者の寄付行動履歴を保存する」方針に基づく。定期寄付の状態管理は stripe_subscription_id + Stripe Webhook で行う。
 - **platform_health**: プラットフォーム全体の健全性（月額必要額、達成率など）
 - **project_updates**: プロジェクトのアップデート投稿
 - **watches**: ウォッチ（ユーザー×プロジェクト）
@@ -272,36 +274,9 @@ giving_platform/
 
 ## バックエンド詳細（Go）
 
-### API 設計（REST）
+**API 仕様（エンドポイント一覧・スキーマ・エラー形式・セッション管理・Stripe Connect フロー・環境変数）は [docs/api-specs.md](api-specs.md) を参照。**
 
-- `GET /api/health` - ヘルスチェック
-- `GET /api/projects` - プロジェクト一覧（クエリ: sort, limit）
-- `GET /api/projects/:id` - プロジェクト詳細
-- `POST /api/projects` - プロジェクト作成（認証必須）
-- `PUT /api/projects/:id` - プロジェクト更新（認証必須）
-- `GET /api/me` - 現在のユーザー情報
-- `GET /api/me/projects` - 自分のプロジェクト一覧
-- `GET /api/me/donations` - 自分の寄付履歴
-- `POST /api/me/migrate-from-token` - トークンに紐づく寄付を現在ユーザーに移行（冪等。詳細は下記「トークン→アカウント移行 API」）
-- `POST /api/auth/google` - Google OAuth コールバック処理
-- `POST /api/donations/checkout` - Stripe Checkout Session 作成
-- `POST /api/webhooks/stripe` - Stripe Webhook
-- `GET /api/host` - プラットフォーム健全性
-
-### トークン→アカウント移行 API（POST /api/me/migrate-from-token）
-
-| 項目 | 内容 |
-|------|------|
-| **目的** | 匿名寄付時につけたトークン（Cookie）に紐づく寄付を、ログイン中のユーザーに紐づけ直す。idea.md の「これまでの寄付をアカウントに引き継ぎますか？」に対応。 |
-| **認証** | 必須。セッションのユーザーに移行する。 |
-| **リクエスト** | トークンは **Cookie** で送る（Body は空で可。または `{ "token": "..." }` でオプション送信も可）。 |
-| **処理** | Cookie の donor_token に紐づく donations（donor_type='token', donor_id=token）を、donor_type='user', donor_id=現在ユーザーID に UPDATE。該当が 0 件の場合は何もしない。 |
-| **冪等** | **冪等とする**。同じトークンで複数回呼んでも、2 回目以降は「すでに移行済み」としてエラーにせず成功扱い。 |
-| **すでに移行済み** | 移行済みのトークンで再呼び出し時は **200 OK** を返す。body で `{ "migrated_count": 0, "already_migrated": true }` のようにし、フロントはエラー表示せず「引き継ぎ済みです」等の表示に利用する。 |
-| **成功時** | 200 OK。`{ "migrated_count": N, "already_migrated": false }`（N は移行した寄付件数）。 |
-| **トークンなし・無効** | Cookie に有効なトークンがない場合は **400 Bad Request** を返す。フロントは Cookie の有無を事前チェックしてから呼び出す前提。 |
-
-### ディレクトリ構成（Go）
+### ディレクトリ構成
 
 - `internal/handler`: HTTP ハンドラ
 - `internal/service`: ビジネスロジック
@@ -309,14 +284,3 @@ giving_platform/
 - `internal/model`: エンティティ定義
 - `pkg/auth`: 認証ミドルウェア
 - `pkg/stripe`: Stripe 連携
-
-## 環境変数
-
-| 変数 | 用途 |
-|------|------|
-| DATABASE_URL | PostgreSQL 接続文字列 |
-| GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET | OAuth |
-| STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET | Stripe |
-| STRIPE_CONNECT_CLIENT_ID | Stripe Connect |
-| FRONTEND_URL | CORS・リダイレクト用 |
-| OFFICIAL_DOMAIN | 公式ドメイン（自ホスト判定用） |

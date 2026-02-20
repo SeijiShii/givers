@@ -221,9 +221,14 @@ main
 
 ## セッション管理
 
-- **Cookie**: HttpOnly, Secure（本番）, SameSite=Lax
-- **セッション ID**: ランダム文字列、サーバー側で Redis または DB に保存
-- Phase 2 では簡易的に署名付き Cookie（JWT または HMAC）でユーザー ID を保持する方式も可（サーバーサイドセッション不要）
+**方式: DB sessions テーブル**（implementation-plan.md と統一）
+
+| 項目 | 内容 |
+|------|------|
+| **テーブル** | `sessions`: `id（UUID PK）, user_id（FK → users）, expires_at, created_at` |
+| **Cookie** | `session_id=<UUID>`（HttpOnly, Secure（本番）, SameSite=Lax）。有効期限 30 日程度。 |
+| **ログアウト** | `DELETE FROM sessions WHERE id = ?` で確実に無効化。 |
+| **有効期限** | `expires_at` を毎リクエストで検証。期限切れは 401。 |
 
 ## 実装済み（Phase 2 完了）
 
@@ -232,7 +237,7 @@ main
 - AuthService インターフェース（GetOrCreateUserFromProvider）、AuthServiceImpl
 - AuthHandler: Google OAuth ログイン/コールバック/ログアウト（他プロバイダは拡張で同様に追加）
 - MeHandler: GET /api/me
-- セッション管理: HMAC 署名付き Cookie
+- セッション管理: **DB sessions テーブル方式**（`sessions` テーブル + UUID Cookie）
 - フロント: AuthStatus（ログイン/ログアウト UI）、/me ページ
 
 ## 手動動作確認（Phase 2）
