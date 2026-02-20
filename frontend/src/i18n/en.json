@@ -4,6 +4,11 @@
     "projects": "Projects",
     "me": "My Page",
     "host": "Donate to GIVErS",
+    "healthSignalLabel": "Service health signal",
+    "financialHealthReached": "Target reached",
+    "financialHealthNotReached": "Not reached ({rate}%)",
+    "financialHealthTitleReached": "Financial health: Donations have reached the target.",
+    "financialHealthTitleNotReached": "Financial health: Donations have not reached the target (currently {rate}%).",
     "adminUsers": "User Management",
     "about": "About",
     "faq": "FAQ"
@@ -40,7 +45,12 @@
     "statusFrozen": "Frozen",
     "statusDeleted": "Deleted",
     "noProjects": "No projects yet.",
-    "loginPrompt": "When logged in, your projects and donation history will be displayed."
+    "loginPrompt": "When logged in, your projects and donation history will be displayed.",
+    "tabWatches": "Watching",
+    "watchList": "Watched projects",
+    "watch": "Watch",
+    "unwatch": "Unwatch",
+    "noWatches": "No watched projects yet."
   },
   "home": {
     "title": "GIVErS",
@@ -165,7 +175,13 @@
     "deleteUpdate": "Delete",
     "deleteUpdateConfirmTitle": "Confirm deletion",
     "deleteUpdateConfirm": "Delete this update?",
-    "relatedTitle": "People who support this project also support"
+    "hideUpdate": "Hide",
+    "hideUpdateConfirmTitle": "Confirm hide",
+    "hideUpdateConfirm": "Hide this update? Other users will no longer see it.",
+    "showUpdate": "Show again",
+    "relatedTitle": "People who support this project also support",
+    "watch": "Watch",
+    "unwatch": "Unwatch"
   },
   "admin": {
     "usersTitle": "User Management",

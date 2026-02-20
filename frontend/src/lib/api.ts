@@ -196,6 +196,8 @@ export interface ProjectUpdate {
   title?: string | null;
   body: string;
   author_name?: string | null;
+  /** 非表示フラグ。false のとき他ユーザーには見えず、オーナーにはグレーアウト＋再表示で表示 */
+  visible?: boolean;
 }
 
 /** 金額表示タイプ: 希望額 / 必要額 / 両方 */
@@ -302,6 +304,27 @@ export async function getRelatedProjects(projectId: string, limit = 4): Promise<
   return all.filter((p) => p.id !== projectId).slice(0, limit);
 }
 
+/** ウォッチ一覧（ログインユーザーがウォッチしているプロジェクト） */
+export async function getWatchedProjects(): Promise<Project[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getWatchedProjects();
+  const res = await fetch(`${API_URL}/api/me/watched-projects`, { credentials: 'include' });
+  if (res.status === 401) return [];
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+/** プロジェクトをウォッチする */
+export async function watchProject(projectId: string): Promise<void> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.watchProject(projectId);
+  await fetchApi(`/api/me/watch/${projectId}`, { method: 'POST' });
+}
+
+/** プロジェクトのウォッチを解除する */
+export async function unwatchProject(projectId: string): Promise<void> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.unwatchProject(projectId);
+  await fetchApi(`/api/me/watch/${projectId}`, { method: 'DELETE' });
+}
+
 // --- Activity Feed (モック時のみ) ---
 
 export type ActivityType = 'project_created' | 'project_updated' | 'donation' | 'milestone';
@@ -353,17 +376,17 @@ export async function createProjectUpdate(projectId: string, input: CreateProjec
   throw new Error('Not implemented');
 }
 
-/** アップデート編集（モック時のみ。オーナー限定） */
+/** アップデート編集（モック時のみ。オーナー限定。visible で非表示/再表示） */
 export async function updateProjectUpdate(
   projectId: string,
   updateId: string,
-  input: { title?: string | null; body?: string }
+  input: { title?: string | null; body?: string; visible?: boolean }
 ): Promise<ProjectUpdate> {
   if (MOCK_MODE) return (await import('./mock-api')).mockApi.updateProjectUpdate(projectId, updateId, input);
   throw new Error('Not implemented');
 }
 
-/** アップデート削除（モック時のみ。オーナー限定） */
+/** アップデート非表示（モック時のみ。オーナー限定。実態は visible: false に更新） */
 export async function deleteProjectUpdate(projectId: string, updateId: string): Promise<void> {
   if (MOCK_MODE) return (await import('./mock-api')).mockApi.deleteProjectUpdate(projectId, updateId);
   throw new Error('Not implemented');

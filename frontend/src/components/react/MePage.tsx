@@ -4,6 +4,8 @@ import {
   getMyDonations,
   getMyRecurringDonations,
   getMyProjects,
+  getWatchedProjects,
+  unwatchProject,
   updateProject,
   updateRecurringDonation,
   pauseRecurringDonation,
@@ -54,6 +56,10 @@ interface Props {
   noProjectsLabel: string;
   loginPromptLabel: string;
   loadingLabel: string;
+  tabWatchesLabel: string;
+  watchListLabel: string;
+  unwatchLabel: string;
+  noWatchesLabel: string;
 }
 
 function formatDate(iso: string, locale: Locale): string {
@@ -62,7 +68,7 @@ function formatDate(iso: string, locale: Locale): string {
   return d.toLocaleDateString(loc, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-type TabId = 'donations' | 'projects';
+type TabId = 'donations' | 'projects' | 'watches';
 
 export default function MePage({
   locale,
@@ -100,6 +106,10 @@ export default function MePage({
   noProjectsLabel,
   loginPromptLabel,
   loadingLabel,
+  tabWatchesLabel,
+  watchListLabel,
+  unwatchLabel,
+  noWatchesLabel,
 }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,6 +117,7 @@ export default function MePage({
   const [donations, setDonations] = useState<Donation[]>([]);
   const [recurring, setRecurring] = useState<RecurringDonation[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [watchedProjects, setWatchedProjects] = useState<Project[]>([]);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null);
   const [editRecurringAmount, setEditRecurringAmount] = useState(0);
@@ -120,14 +131,18 @@ export default function MePage({
     const me = await getMe();
     setUser(me);
     if (me) {
-      const [d, r, p] = await Promise.all([
+      const [d, r, p, w] = await Promise.all([
         getMyDonations(),
         getMyRecurringDonations(),
         getMyProjects(),
+        getWatchedProjects(),
       ]);
       setDonations(d);
       setRecurring(r);
       setProjects(p);
+      setWatchedProjects(w);
+    } else {
+      setWatchedProjects([]);
     }
     setLoading(false);
   };
@@ -146,6 +161,16 @@ export default function MePage({
     window.addEventListener('givers-mock-login-changed', handler);
     return () => window.removeEventListener('givers-mock-login-changed', handler);
   }, []);
+
+  // ウォッチ変更時（プロジェクト詳細でウォッチ/解除したとき）にウォッチ一覧を再取得
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user) return;
+    const handler = () => {
+      getWatchedProjects().then(setWatchedProjects).catch(() => setWatchedProjects([]));
+    };
+    window.addEventListener('givers-watch-changed', handler);
+    return () => window.removeEventListener('givers-watch-changed', handler);
+  }, [user?.id]);
 
   const handleStartEditRecurring = (r: RecurringDonation) => {
     setEditingRecurringId(r.id);
@@ -238,7 +263,7 @@ export default function MePage({
           gap: '0.5rem',
         }}
       >
-        {(['donations', 'projects'] as TabId[]).map((tabId) => (
+        {(['donations', 'projects', 'watches'] as TabId[]).map((tabId) => (
           <button
             key={tabId}
             type="button"
@@ -257,6 +282,7 @@ export default function MePage({
           >
             {tabId === 'donations' && tabDonationsLabel}
             {tabId === 'projects' && tabProjectsLabel}
+            {tabId === 'watches' && tabWatchesLabel}
           </button>
         ))}
       </div>
@@ -453,6 +479,46 @@ export default function MePage({
                         </select>
                       </label>
                     </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'watches' && (
+          <section className="card">
+            <h2 style={{ marginTop: 0 }}>{watchListLabel}</h2>
+            {watchedProjects.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)' }}>{noWatchesLabel}</p>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {watchedProjects.map((p) => (
+                  <li
+                    key={p.id}
+                    style={{
+                      padding: '0.75rem 0',
+                      borderBottom: '1px solid var(--color-border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <a href={`${basePath}/projects/${p.id}`} style={{ fontWeight: 500 }}>
+                      {p.name}
+                    </a>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ fontSize: '0.85rem' }}
+                      onClick={async () => {
+                        await unwatchProject(p.id);
+                        setWatchedProjects((prev) => prev.filter((x) => x.id !== p.id));
+                      }}
+                    >
+                      {unwatchLabel}
+                    </button>
                   </li>
                 ))}
               </ul>

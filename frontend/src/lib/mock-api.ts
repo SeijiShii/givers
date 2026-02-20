@@ -49,9 +49,37 @@ const projectOverviewOverrides = new Map<string, string>();
 /** プロジェクトアップデート（初期値 + セッション内投稿、モック用） */
 const projectUpdatesStore = new Map<string, ProjectUpdate[]>();
 
+/** モック: ウォッチ一覧（localStorage）。{ [userId]: projectId[] } */
+const MOCK_WATCHED_KEY = 'givers_watched_projects';
+
+function getWatchedIds(userId: string): string[] {
+  if (typeof window === 'undefined' || !window.localStorage) return [];
+  try {
+    const raw = window.localStorage.getItem(MOCK_WATCHED_KEY);
+    if (!raw) return [];
+    const obj = JSON.parse(raw) as Record<string, string[]>;
+    return obj[userId] ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function setWatchedIds(userId: string, ids: string[]): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const raw = window.localStorage.getItem(MOCK_WATCHED_KEY);
+    const obj = (raw ? JSON.parse(raw) : {}) as Record<string, string[]>;
+    obj[userId] = ids;
+    window.localStorage.setItem(MOCK_WATCHED_KEY, JSON.stringify(obj));
+  } catch {
+    // ignore
+  }
+}
+
 function getProjectUpdatesList(projectId: string): ProjectUpdate[] {
   if (!projectUpdatesStore.has(projectId)) {
-    projectUpdatesStore.set(projectId, [...(MOCK_PROJECT_UPDATES[projectId] ?? [])]);
+    const initial = (MOCK_PROJECT_UPDATES[projectId] ?? []).map((u) => ({ ...u, visible: u.visible ?? true }));
+    projectUpdatesStore.set(projectId, initial);
   }
   return projectUpdatesStore.get(projectId)!;
 }
@@ -299,6 +327,39 @@ export const mockApi = {
     return hot.filter((p) => p.id !== projectId).slice(0, limit);
   },
 
+  /** ウォッチ一覧（ログインユーザーがウォッチしているプロジェクト） */
+  async getWatchedProjects(): Promise<Project[]> {
+    await delay(MOCK_DELAY);
+    const me = await this.getMe();
+    if (!me) return [];
+    const ids = getWatchedIds(me.id);
+    const projects: Project[] = [];
+    for (const id of ids) {
+      const p = MOCK_PROJECTS.find((x) => x.id === id);
+      if (p) projects.push(toProject(p));
+    }
+    return projects;
+  },
+
+  /** プロジェクトをウォッチする */
+  async watchProject(projectId: string): Promise<void> {
+    await delay(MOCK_DELAY);
+    const me = await this.getMe();
+    if (!me) return;
+    const ids = getWatchedIds(me.id);
+    if (ids.includes(projectId)) return;
+    setWatchedIds(me.id, [...ids, projectId]);
+  },
+
+  /** プロジェクトのウォッチを解除する */
+  async unwatchProject(projectId: string): Promise<void> {
+    await delay(MOCK_DELAY);
+    const me = await this.getMe();
+    if (!me) return;
+    const ids = getWatchedIds(me.id).filter((id) => id !== projectId);
+    setWatchedIds(me.id, ids);
+  },
+
   /** アクティビティフィード */
   async getActivityFeed(limit = 10): Promise<ActivityItem[]> {
     await delay(MOCK_DELAY);
@@ -422,16 +483,17 @@ export const mockApi = {
       title: input.title ?? null,
       body: input.body,
       author_name: me.name,
+      visible: true,
     };
     list.unshift(newUpdate);
     return newUpdate;
   },
 
-  /** アップデート編集（オーナー限定） */
+  /** アップデート編集（オーナー限定。visible で非表示/再表示） */
   async updateProjectUpdate(
     projectId: string,
     updateId: string,
-    input: { title?: string | null; body?: string }
+    input: { title?: string | null; body?: string; visible?: boolean }
   ): Promise<ProjectUpdate> {
     await delay(MOCK_DELAY);
     const me = await this.getMe();
@@ -446,16 +508,16 @@ export const mockApi = {
     return updated;
   },
 
-  /** アップデート削除（オーナー限定） */
+  /** アップデート非表示（オーナー限定。visible: false に更新し、他ユーザーには見えなくする） */
   async deleteProjectUpdate(projectId: string, updateId: string): Promise<void> {
     await delay(MOCK_DELAY);
     const me = await this.getMe();
     const p = MOCK_PROJECTS.find((x) => x.id === projectId);
     if (!p) throw new Error('Project not found');
-    if (!me || p.owner_id !== me.id) throw new Error('Only project owner can delete updates');
+    if (!me || p.owner_id !== me.id) throw new Error('Only project owner can hide updates');
     const list = getProjectUpdatesList(projectId);
     const idx = list.findIndex((u) => u.id === updateId);
     if (idx < 0) throw new Error('Update not found');
-    list.splice(idx, 1);
+    list[idx] = { ...list[idx], visible: false };
   },
 };

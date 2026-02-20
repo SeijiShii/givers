@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Project, ProjectUpdate, User } from '../../lib/api';
-import { getProject, getProjectUpdates, getMe, getRelatedProjects, updateProject, createProjectUpdate, updateProjectUpdate, deleteProjectUpdate, PLATFORM_PROJECT_ID } from '../../lib/api';
+import { getProject, getProjectUpdates, getMe, getRelatedProjects, getWatchedProjects, watchProject, unwatchProject, updateProject, createProjectUpdate, updateProjectUpdate, PLATFORM_PROJECT_ID } from '../../lib/api';
 import DonateForm from './DonateForm';
 import ProjectChart from './charts/ProjectChart';
 import ConfirmDialog from './ConfirmDialog';
@@ -48,7 +48,13 @@ interface Props {
   deleteUpdateLabel: string;
   deleteUpdateConfirmTitle: string;
   deleteUpdateConfirmLabel: string;
+  hideUpdateLabel: string;
+  hideUpdateConfirmTitle: string;
+  hideUpdateConfirmLabel: string;
+  showUpdateLabel: string;
   relatedProjectsLabel: string;
+  watchLabel: string;
+  unwatchLabel: string;
 }
 
 function monthlyTarget(project: Project): number {
@@ -76,7 +82,7 @@ function formatUpdateDate(iso: string, locale: Locale): string {
   return d.toLocaleDateString(loc, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-type TabId = 'support' | 'overview' | 'updates';
+type TabId = 'support' | 'updates';
 
 export default function ProjectDetail({
   id,
@@ -118,11 +124,19 @@ export default function ProjectDetail({
   deleteUpdateLabel,
   deleteUpdateConfirmTitle,
   deleteUpdateConfirmLabel,
+  hideUpdateLabel,
+  hideUpdateConfirmTitle,
+  hideUpdateConfirmLabel,
+  showUpdateLabel,
   relatedProjectsLabel,
+  watchLabel,
+  unwatchLabel,
 }: Props) {
   const [project, setProject] = useState<Project | null>(null);
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
   const [relatedProjects, setRelatedProjects] = useState<Project[]>([]);
+  const [isWatching, setIsWatching] = useState(false);
+  const [loadingWatch, setLoadingWatch] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('support');
@@ -138,6 +152,7 @@ export default function ProjectDetail({
   const [editUpdateBody, setEditUpdateBody] = useState('');
   const [savingUpdateId, setSavingUpdateId] = useState<string | null>(null);
   const [deletingUpdateId, setDeletingUpdateId] = useState<string | null>(null);
+  const [showingUpdateId, setShowingUpdateId] = useState<string | null>(null);
   const [deleteConfirmUpdateId, setDeleteConfirmUpdateId] = useState<string | null>(null);
 
   const isOwner = me && project && project.owner_id === me.id;
@@ -166,6 +181,16 @@ export default function ProjectDetail({
       setRelatedProjects([]);
     }
   }, [project?.id]);
+
+  useEffect(() => {
+    if (me && project?.id) {
+      getWatchedProjects()
+        .then((list) => setIsWatching(list.some((p) => p.id === project.id)))
+        .catch(() => setIsWatching(false));
+    } else {
+      setIsWatching(false);
+    }
+  }, [me?.id, project?.id]);
 
   useEffect(() => {
     if (project && !editingOverview) {
@@ -251,19 +276,31 @@ export default function ProjectDetail({
     setDeleteConfirmUpdateId(updateId);
   };
 
-  const handleConfirmDeleteUpdate = async () => {
+  const handleConfirmHideUpdate = async () => {
     const updateId = deleteConfirmUpdateId;
     if (!updateId) return;
     setDeleteConfirmUpdateId(null);
     setDeletingUpdateId(updateId);
     try {
-      await deleteProjectUpdate(id, updateId);
-      setUpdates((prev) => prev.filter((u) => u.id !== updateId));
+      await updateProjectUpdate(id, updateId, { visible: false });
+      setUpdates((prev) => prev.map((u) => (u.id === updateId ? { ...u, visible: false } : u)));
       if (editingUpdateId === updateId) handleCancelEditUpdate();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete');
+      setError(e instanceof Error ? e.message : 'Failed to hide');
     } finally {
       setDeletingUpdateId(null);
+    }
+  };
+
+  const handleShowUpdate = async (updateId: string) => {
+    setShowingUpdateId(updateId);
+    try {
+      await updateProjectUpdate(id, updateId, { visible: true });
+      setUpdates((prev) => prev.map((u) => (u.id === updateId ? { ...u, visible: true } : u)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to show');
+    } finally {
+      setShowingUpdateId(null);
     }
   };
 
@@ -271,12 +308,12 @@ export default function ProjectDetail({
     <div className="project-detail">
       <ConfirmDialog
         open={deleteConfirmUpdateId !== null}
-        title={deleteUpdateConfirmTitle}
-        message={deleteUpdateConfirmLabel}
-        confirmLabel={deleteUpdateLabel}
+        title={hideUpdateConfirmTitle}
+        message={hideUpdateConfirmLabel}
+        confirmLabel={hideUpdateLabel}
         cancelLabel={cancelLabel}
         danger
-        onConfirm={handleConfirmDeleteUpdate}
+        onConfirm={handleConfirmHideUpdate}
         onCancel={() => setDeleteConfirmUpdateId(null)}
       />
       <a href={backUrl} style={{ color: 'var(--color-primary)', textDecoration: 'none', fontSize: '0.9rem' }}>
@@ -332,6 +369,35 @@ export default function ProjectDetail({
           {ownerLabel}: {project.owner_name}
         </p>
       )}
+      {me && project.owner_id !== me.id ? (
+        <p style={{ marginTop: '0.5rem' }}>
+          <button
+            type="button"
+            className="btn"
+            disabled={loadingWatch}
+            onClick={async () => {
+              if (!project) return;
+              setLoadingWatch(true);
+              try {
+                if (isWatching) {
+                  await unwatchProject(project.id);
+                  setIsWatching(false);
+                } else {
+                  await watchProject(project.id);
+                  setIsWatching(true);
+                }
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('givers-watch-changed'));
+                }
+              } finally {
+                setLoadingWatch(false);
+              }
+            }}
+          >
+            {loadingWatch ? '...' : isWatching ? unwatchLabel : watchLabel}
+          </button>
+        </p>
+      ) : null}
       <p style={{ marginTop: '0.5rem', color: 'var(--color-text-muted)' }}>{project.description || ''}</p>
 
       {(project.owner_want_monthly != null && project.owner_want_monthly > 0) && (
@@ -349,7 +415,79 @@ export default function ProjectDetail({
         </p>
       )}
 
-      {/* タブ */}
+      {/* 概要（常時表示・寄付者をモチベートする大切な情報） */}
+      <section className="project-overview-always" style={{ marginTop: '2rem' }} aria-label={tabOverviewLabel}>
+        <h2 style={{ fontSize: '1.15rem', marginTop: 0, marginBottom: '0.75rem', color: 'var(--color-primary)' }}>
+          {tabOverviewLabel}
+        </h2>
+        <div className="card project-overview-markdown" style={{ padding: '1.5rem' }}>
+          {isOwner && !editingOverview && (
+            <div style={{ marginBottom: '1rem' }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setEditingOverview(true)}
+              >
+                {editOverviewLabel}
+              </button>
+            </div>
+          )}
+          {isOwner && editingOverview ? (
+            <div style={{ maxWidth: '65ch' }}>
+              <textarea
+                value={overviewDraft}
+                onChange={(e) => setOverviewDraft(e.target.value)}
+                rows={16}
+                style={{ width: '100%', padding: '0.75rem', fontFamily: 'inherit', fontSize: '0.95rem', lineHeight: 1.6 }}
+                placeholder="Markdown で概要を記述"
+              />
+              <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleSaveOverview}
+                  disabled={savingOverview}
+                >
+                  {savingOverview ? '...' : saveLabel}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setEditingOverview(false);
+                    setOverviewDraft(overview);
+                  }}
+                  disabled={savingOverview}
+                >
+                  {cancelLabel}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ maxWidth: '65ch' }}>
+              <ReactMarkdown
+                components={{
+                  h1: ({ children }) => <h1 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.4rem' }}>{children}</h1>,
+                  h2: ({ children }) => <h2 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.2rem' }}>{children}</h2>,
+                  h3: ({ children }) => <h3 style={{ marginTop: '1.25rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>{children}</h3>,
+                  p: ({ children }) => <p style={{ margin: '0.5rem 0', lineHeight: 1.7 }}>{children}</p>,
+                  ul: ({ children }) => <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>{children}</ul>,
+                  ol: ({ children }) => <ol style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>{children}</ol>,
+                  li: ({ children }) => <li style={{ margin: '0.25rem 0' }}>{children}</li>,
+                  a: ({ href, children }) => <a href={href} style={{ color: 'var(--color-primary)', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">{children}</a>,
+                  strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+                  pre: ({ children }) => <pre style={{ backgroundColor: 'var(--color-bg-subtle)', padding: '1rem', borderRadius: '8px', overflow: 'auto', fontSize: '0.9em' }}>{children}</pre>,
+                  code: ({ children }) => <code style={{ backgroundColor: 'var(--color-bg-subtle)', padding: '0.1rem 0.3rem', borderRadius: '4px', fontSize: '0.9em' }}>{children}</code>,
+                }}
+              >
+                {overview}
+              </ReactMarkdown>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* タブ（支援状況・アップデート） */}
       <div
         className="project-tabs"
         style={{
@@ -359,7 +497,7 @@ export default function ProjectDetail({
           gap: '0.5rem',
         }}
       >
-        {(['support', 'overview', 'updates'] as TabId[]).map((tabId) => (
+        {(['support', 'updates'] as TabId[]).map((tabId) => (
           <button
             key={tabId}
             type="button"
@@ -377,7 +515,6 @@ export default function ProjectDetail({
             }}
           >
             {tabId === 'support' && tabSupportLabel}
-            {tabId === 'overview' && tabOverviewLabel}
             {tabId === 'updates' && tabUpdatesLabel}
           </button>
         ))}
@@ -449,74 +586,6 @@ export default function ProjectDetail({
           </>
         )}
 
-        {activeTab === 'overview' && (
-          <div className="card project-overview-markdown" style={{ padding: '1.5rem' }}>
-            {isOwner && !editingOverview && (
-              <div style={{ marginBottom: '1rem' }}>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setEditingOverview(true)}
-                >
-                  {editOverviewLabel}
-                </button>
-              </div>
-            )}
-            {isOwner && editingOverview ? (
-              <div style={{ maxWidth: '65ch' }}>
-                <textarea
-                  value={overviewDraft}
-                  onChange={(e) => setOverviewDraft(e.target.value)}
-                  rows={16}
-                  style={{ width: '100%', padding: '0.75rem', fontFamily: 'inherit', fontSize: '0.95rem', lineHeight: 1.6 }}
-                  placeholder="Markdown で概要を記述"
-                />
-                <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={handleSaveOverview}
-                    disabled={savingOverview}
-                  >
-                    {savingOverview ? '...' : saveLabel}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      setEditingOverview(false);
-                      setOverviewDraft(overview);
-                    }}
-                    disabled={savingOverview}
-                  >
-                    {cancelLabel}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ maxWidth: '65ch' }}>
-                <ReactMarkdown
-                  components={{
-                    h1: ({ children }) => <h1 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.4rem' }}>{children}</h1>,
-                    h2: ({ children }) => <h2 style={{ marginTop: '1.5rem', marginBottom: '0.5rem', fontSize: '1.2rem' }}>{children}</h2>,
-                    h3: ({ children }) => <h3 style={{ marginTop: '1.25rem', marginBottom: '0.5rem', fontSize: '1.1rem' }}>{children}</h3>,
-                    p: ({ children }) => <p style={{ margin: '0.5rem 0', lineHeight: 1.7 }}>{children}</p>,
-                    ul: ({ children }) => <ul style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>{children}</ul>,
-                    ol: ({ children }) => <ol style={{ margin: '0.5rem 0', paddingLeft: '1.5rem' }}>{children}</ol>,
-                    li: ({ children }) => <li style={{ margin: '0.25rem 0' }}>{children}</li>,
-                    a: ({ href, children }) => <a href={href} style={{ color: 'var(--color-primary)', textDecoration: 'underline' }} target="_blank" rel="noopener noreferrer">{children}</a>,
-                    strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
-                    pre: ({ children }) => <pre style={{ backgroundColor: 'var(--color-bg-subtle)', padding: '1rem', borderRadius: '8px', overflow: 'auto', fontSize: '0.9em' }}>{children}</pre>,
-                    code: ({ children }) => <code style={{ backgroundColor: 'var(--color-bg-subtle)', padding: '0.1rem 0.3rem', borderRadius: '4px', fontSize: '0.9em' }}>{children}</code>,
-                  }}
-                >
-                  {overview}
-                </ReactMarkdown>
-              </div>
-            )}
-          </div>
-        )}
-
         {activeTab === 'updates' && (
           <div className="card" style={{ padding: '1.5rem' }}>
             {isOwner && (
@@ -542,69 +611,86 @@ export default function ProjectDetail({
                 </button>
               </form>
             )}
-            {updates.length === 0 ? (
-              <p style={{ color: 'var(--color-text-muted)' }}>{updatesEmptyLabel}</p>
-            ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {updates.map((u) => (
-                  <li
-                    key={u.id}
-                    style={{
-                      padding: '1rem 0',
-                      borderBottom: '1px solid var(--color-border-light)',
-                    }}
-                  >
-                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      <span>
-                        {u.author_name && <span>{u.author_name}</span>}
-                        <span style={{ marginLeft: '0.5rem' }}>{formatUpdateDate(u.created_at, locale)}</span>
-                      </span>
-                      {isOwner && editingUpdateId !== u.id && (
-                        <span style={{ display: 'flex', gap: '0.25rem' }}>
-                          <button type="button" className="btn" style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }} onClick={() => handleStartEditUpdate(u)} disabled={!!deletingUpdateId}>
-                            {editUpdateLabel}
-                          </button>
-                          <button type="button" className="btn" style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }} onClick={() => handleRequestDeleteUpdate(u.id)} disabled={!!deletingUpdateId}>
-                            {deletingUpdateId === u.id ? '...' : deleteUpdateLabel}
-                          </button>
-                        </span>
-                      )}
-                    </div>
-                    {editingUpdateId === u.id ? (
-                      <div style={{ marginTop: '0.5rem' }}>
-                        <input
-                          type="text"
-                          value={editUpdateTitle}
-                          onChange={(e) => setEditUpdateTitle(e.target.value)}
-                          placeholder={updateTitlePlaceholder}
-                          style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem' }}
-                        />
-                        <textarea
-                          value={editUpdateBody}
-                          onChange={(e) => setEditUpdateBody(e.target.value)}
-                          placeholder={updateBodyPlaceholder}
-                          rows={4}
-                          style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', fontFamily: 'inherit' }}
-                        />
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button type="button" className="btn btn-primary" style={{ fontSize: '0.85rem' }} onClick={() => handleSaveUpdate(u.id)} disabled={savingUpdateId === u.id}>
-                            {savingUpdateId === u.id ? '...' : saveLabel}
-                          </button>
-                          <button type="button" className="btn" style={{ fontSize: '0.85rem' }} onClick={handleCancelEditUpdate} disabled={!!savingUpdateId}>
-                            {cancelLabel}
-                          </button>
+            {(() => {
+              const visibleUpdates = isOwner ? updates : updates.filter((u) => u.visible !== false);
+              if (visibleUpdates.length === 0) {
+                return <p style={{ color: 'var(--color-text-muted)' }}>{updatesEmptyLabel}</p>;
+              }
+              return (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {visibleUpdates.map((u) => {
+                    const isHidden = u.visible === false;
+                    return (
+                      <li
+                        key={u.id}
+                        style={{
+                          padding: '1rem 0',
+                          borderBottom: '1px solid var(--color-border-light)',
+                          ...(isHidden ? { opacity: 0.7, backgroundColor: 'var(--color-bg-subtle)', padding: '1rem', borderRadius: '8px' } : {}),
+                        }}
+                      >
+                        <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '0.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <span>
+                            {u.author_name && <span>{u.author_name}</span>}
+                            <span style={{ marginLeft: '0.5rem' }}>{formatUpdateDate(u.created_at, locale)}</span>
+                            {isHidden && <span style={{ marginLeft: '0.5rem', fontStyle: 'italic' }}>({hideUpdateLabel})</span>}
+                          </span>
+                          {isOwner && editingUpdateId !== u.id && (
+                            <span style={{ display: 'flex', gap: '0.25rem' }}>
+                              {isHidden ? (
+                                <button type="button" className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }} onClick={() => handleShowUpdate(u.id)} disabled={!!showingUpdateId}>
+                                  {showingUpdateId === u.id ? '...' : showUpdateLabel}
+                                </button>
+                              ) : (
+                                <>
+                                  <button type="button" className="btn" style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }} onClick={() => handleStartEditUpdate(u)} disabled={!!deletingUpdateId}>
+                                    {editUpdateLabel}
+                                  </button>
+                                  <button type="button" className="btn" style={{ fontSize: '0.75rem', padding: '0.2rem 0.4rem' }} onClick={() => handleRequestDeleteUpdate(u.id)} disabled={!!deletingUpdateId}>
+                                    {deletingUpdateId === u.id ? '...' : hideUpdateLabel}
+                                  </button>
+                                </>
+                              )}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    ) : (
-                      <>
-                        {u.title && <h3 style={{ margin: '0.25rem 0', fontSize: '1rem' }}>{u.title}</h3>}
-                        <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{u.body}</p>
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+                        {editingUpdateId === u.id ? (
+                          <div style={{ marginTop: '0.5rem' }}>
+                            <input
+                              type="text"
+                              value={editUpdateTitle}
+                              onChange={(e) => setEditUpdateTitle(e.target.value)}
+                              placeholder={updateTitlePlaceholder}
+                              style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem' }}
+                            />
+                            <textarea
+                              value={editUpdateBody}
+                              onChange={(e) => setEditUpdateBody(e.target.value)}
+                              placeholder={updateBodyPlaceholder}
+                              rows={4}
+                              style={{ width: '100%', padding: '0.5rem', marginBottom: '0.5rem', fontFamily: 'inherit' }}
+                            />
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button type="button" className="btn btn-primary" style={{ fontSize: '0.85rem' }} onClick={() => handleSaveUpdate(u.id)} disabled={savingUpdateId === u.id}>
+                                {savingUpdateId === u.id ? '...' : saveLabel}
+                              </button>
+                              <button type="button" className="btn" style={{ fontSize: '0.85rem' }} onClick={handleCancelEditUpdate} disabled={!!savingUpdateId}>
+                                {cancelLabel}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {u.title && <h3 style={{ margin: '0.25rem 0', fontSize: '1rem' }}>{u.title}</h3>}
+                            <p style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{u.body}</p>
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              );
+            })()}
           </div>
         )}
       </div>

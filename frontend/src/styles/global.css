@@ -57,51 +57,176 @@ body {
   line-height: 1.6;
 }
 
-/* ヘッダー・ナビゲーション */
+/* ヘッダー・ナビゲーション（ハンバーガー＋サイドバーで全画面統一） */
 header {
   background: linear-gradient(180deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
   box-shadow: var(--shadow-md);
 }
 
-header nav {
+/* アプリバー: ロゴ ＋ ハンバーガーのみ（1行でスッキリ） */
+header nav.main-nav {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1.5rem;
+  justify-content: space-between;
   max-width: 1200px;
   margin: 0 auto;
   padding: 1rem 1.5rem;
 }
 
-header nav a {
+/* ハンバーガーボタン（全画面で表示） */
+.nav-toggle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-text-on-primary);
+}
+.nav-toggle-bar {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  margin: 0 auto;
+  transition: transform 0.2s, opacity 0.2s;
+}
+.nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(2) {
+  opacity: 0;
+}
+.nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* サイドバー（右からスライド、開いたときのみ表示） */
+.nav-menu {
+  display: none;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(320px, 100vw);
+  height: 100vh;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 2rem 1.25rem;
+  background: linear-gradient(180deg, var(--color-primary-dark) 0%, #2d4a35 100%);
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  overflow-y: auto;
+  font-size: 1rem; /* サイドバー内フォント統一 */
+}
+.nav-menu.is-open {
+  display: flex;
+}
+
+/* サイドバー内リンク・フォント統一 */
+.nav-menu a {
   color: var(--color-text-on-primary);
   text-decoration: none;
   font-weight: 500;
-  padding: 0.4rem 0.8rem;
+  font-size: 1rem;
+  padding: 0.6rem 0.8rem;
   border-radius: 6px;
-  transition: background-color 0.2s, color 0.2s;
+  transition: background-color 0.2s;
 }
-
-header nav a:hover {
+.nav-menu a:hover {
   background-color: rgba(255, 255, 255, 0.15);
 }
 
-header nav a:first-child,
-header nav a.logo-link {
+/* GIVErSへの寄付リンク横の財政的健全性マーク（目標達成/未達） */
+.nav-menu a.nav-host-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.nav-menu .nav-financial-health-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.nav-menu .nav-financial-health-mark__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-menu .nav-financial-health-mark__icon svg {
+  width: 12px;
+  height: 12px;
+}
+.nav-menu .nav-financial-health-mark--reached {
+  color: #1a3d1a;
+  background: rgba(255, 255, 255, 0.95);
+}
+.nav-menu .nav-financial-health-mark--not-reached {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.nav-menu .locale-switcher,
+.nav-menu .auth-status-wrapper {
+  margin-left: 0;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 1rem;
+}
+.nav-menu .locale-switcher a {
+  font-size: 1rem;
+}
+.nav-menu .auth-status-wrapper {
+  font-size: 1rem;
+}
+.nav-menu .auth-status .btn,
+.nav-menu .auth-user {
+  font-size: 1rem;
+}
+
+/* オーバーレイ（サイドバー開時、クリックで閉じる） */
+.nav-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 999;
+}
+.nav-overlay.is-open {
+  display: block;
+}
+
+/* ロゴ（アプリバー内） */
+header nav.main-nav a.logo-link {
   font-weight: 700;
   font-size: 1.25rem;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  color: var(--color-text-on-primary);
+  text-decoration: none;
+  padding: 0.4rem 0;
+}
+header nav.main-nav a.logo-link:hover {
+  background: none;
+  opacity: 0.95;
 }
 
 header nav a.logo-link .logo-img {
   border-radius: 6px;
   flex-shrink: 0;
-}
-
-.locale-switcher {
-  margin-left: auto;
 }
 
 .locale-switcher a {
@@ -221,6 +346,7 @@ footer p {
   border-radius: 8px;
   padding: 1.25rem;
   box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .card:hover {
@@ -311,10 +437,13 @@ footer p {
   text-decoration: none;
   color: inherit;
   margin-bottom: 1rem;
+  transition: color 0.2s, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .project-card:hover {
   color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .project-list .project-card {
@@ -356,7 +485,8 @@ footer p {
   height: 100%;
   background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
   border-radius: 4px;
-  transition: width 0.3s ease;
+  transition: width 0.5s ease-out;
+  transform-origin: left;
 }
 
 /* アクティビティフィード */

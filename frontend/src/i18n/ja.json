@@ -4,6 +4,11 @@
     "projects": "プロジェクト一覧",
     "me": "マイページ",
     "host": "GIVErS への寄付",
+    "healthSignalLabel": "サービスの健全性シグナル",
+    "financialHealthReached": "目標達成",
+    "financialHealthNotReached": "未達 {rate}%",
+    "financialHealthTitleReached": "財政的健全性：寄付は目標金額に達しています",
+    "financialHealthTitleNotReached": "財政的健全性：寄付は目標金額に未達（現在 {rate}%）",
     "adminUsers": "ユーザー管理",
     "about": "About",
     "faq": "よくある質問"
@@ -40,7 +45,12 @@
     "statusFrozen": "凍結",
     "statusDeleted": "削除済み",
     "noProjects": "プロジェクトはまだありません。",
-    "loginPrompt": "ログインすると、あなたのプロジェクトや寄付履歴が表示されます。"
+    "loginPrompt": "ログインすると、あなたのプロジェクトや寄付履歴が表示されます。",
+    "tabWatches": "ウォッチ",
+    "watchList": "ウォッチ中のプロジェクト",
+    "watch": "ウォッチする",
+    "unwatch": "ウォッチ解除",
+    "noWatches": "ウォッチ中のプロジェクトはありません。"
   },
   "home": {
     "title": "GIVErS",
@@ -165,7 +175,13 @@
     "deleteUpdate": "削除",
     "deleteUpdateConfirmTitle": "削除の確認",
     "deleteUpdateConfirm": "このアップデートを削除しますか？",
-    "relatedTitle": "このプロジェクトを応援している人はこちらも"
+    "hideUpdate": "非表示",
+    "hideUpdateConfirmTitle": "非表示の確認",
+    "hideUpdateConfirm": "このアップデートを非表示にしますか？他のユーザーには表示されなくなります。",
+    "showUpdate": "再表示",
+    "relatedTitle": "このプロジェクトを応援している人はこちらも",
+    "watch": "ウォッチする",
+    "unwatch": "ウォッチ解除"
   },
   "admin": {
     "usersTitle": "ユーザー管理",

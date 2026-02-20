@@ -3,6 +3,7 @@ import '../styles/global.css';
 import { t, type Locale } from '../lib/i18n';
 import AuthStatus from '../components/react/AuthStatus';
 import NavAdminLink from '../components/react/NavAdminLink';
+import NavFinancialHealthMark from '../components/react/NavFinancialHealthMark';
 
 interface Props {
   title: string;
@@ -25,29 +26,71 @@ const basePath = locale === 'en' ? '/en' : '';
   </head>
   <body>
     <header>
-      <nav>
+      <nav class="main-nav">
         <a href={`${basePath}/`} class="logo-link">
           <img src="/givers-logo.png" alt="GIVErS" width="32" height="32" class="logo-img" />
           {t(locale, 'nav.home')}
         </a>
-        <a href={`${basePath}/projects`}>{t(locale, 'nav.projects')}</a>
-        <a href={`${basePath}/me`}>{t(locale, 'nav.me')}</a>
-        <a href={`${basePath}/host`}>{t(locale, 'nav.host')}</a>
-        <NavAdminLink client:load locale={locale} basePath={basePath} />
-        <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
-        <a href={`${basePath}/faq`}>{t(locale, 'nav.faq')}</a>
-        <span class="locale-switcher">
-          {locale === 'ja' ? (
-            <a href={`/en${Astro.url.pathname === '/' ? '' : Astro.url.pathname}`} aria-label="Switch to English">{t(locale, 'locale.en')}</a>
-          ) : (
-            <a href={Astro.url.pathname.replace(/^\/en/, '') || '/'} aria-label="日本語に切り替え">{t(locale, 'locale.ja')}</a>
-          )}
-        </span>
-        <span class="auth-status-wrapper">
-          <AuthStatus client:load locale={locale} />
-        </span>
+        <button type="button" class="nav-toggle" aria-label={locale === 'ja' ? 'メニュー' : 'Menu'} aria-expanded="false" data-nav-toggle>
+          <span class="nav-toggle-bar"></span>
+          <span class="nav-toggle-bar"></span>
+          <span class="nav-toggle-bar"></span>
+        </button>
+        <div class="nav-menu" data-nav-menu>
+          <a href={`${basePath}/projects`}>{t(locale, 'nav.projects')}</a>
+          <a href={`${basePath}/me`}>{t(locale, 'nav.me')}</a>
+          <a href={`${basePath}/host`} class="nav-host-link">
+            {t(locale, 'nav.host')}
+            <NavFinancialHealthMark client:load locale={locale} />
+          </a>
+          <NavAdminLink client:load locale={locale} basePath={basePath} />
+          <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
+          <a href={`${basePath}/faq`}>{t(locale, 'nav.faq')}</a>
+          <span class="locale-switcher">
+            {locale === 'ja' ? (
+              <a href={`/en${Astro.url.pathname === '/' ? '' : Astro.url.pathname}`} aria-label="Switch to English">{t(locale, 'locale.en')}</a>
+            ) : (
+              <a href={Astro.url.pathname.replace(/^\/en/, '') || '/'} aria-label="日本語に切り替え">{t(locale, 'locale.ja')}</a>
+            )}
+          </span>
+          <span class="auth-status-wrapper">
+            <AuthStatus client:load locale={locale} />
+          </span>
+        </div>
       </nav>
     </header>
+    <div class="nav-overlay" data-nav-overlay aria-hidden="true"></div>
+    <script>
+      (function () {
+        const toggle = document.querySelector('[data-nav-toggle]');
+        const menu = document.querySelector('[data-nav-menu]');
+        const overlay = document.querySelector('[data-nav-overlay]');
+        if (!toggle || !menu) return;
+        function closeMenu() {
+          menu?.classList.remove('is-open');
+          toggle?.setAttribute('aria-expanded', 'false');
+          overlay?.classList.remove('is-open');
+          overlay?.setAttribute('aria-hidden', 'true');
+        }
+        function openMenu() {
+          menu?.classList.add('is-open');
+          toggle?.setAttribute('aria-expanded', 'true');
+          overlay?.classList.add('is-open');
+          overlay?.setAttribute('aria-hidden', 'false');
+        }
+        toggle.addEventListener('click', function () {
+          if (menu?.classList.contains('is-open')) closeMenu();
+          else openMenu();
+        });
+        overlay?.addEventListener('click', closeMenu);
+        document.addEventListener('click', function (e) {
+          const target = e.target as Node | null;
+          if (menu?.classList.contains('is-open') && target && !menu.contains(target) && !toggle?.contains(target)) {
+            closeMenu();
+          }
+        });
+      })();
+    </script>
     <main>
       <slot />
     </main>
