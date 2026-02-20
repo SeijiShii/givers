@@ -1,0 +1,31 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { t } from '../../lib/i18n';
+
+const locale = 'en';
+const items = [
+  { q: 'faq.q1', a: 'faq.a1' },
+  { q: 'faq.q2', a: 'faq.a2' },
+  { q: 'faq.q3', a: 'faq.a3' },
+  { q: 'faq.q4', a: 'faq.a4' },
+  { q: 'faq.q5', a: 'faq.a5' },
+  { q: 'faq.q6', a: 'faq.a6' },
+  { q: 'faq.q7', a: 'faq.a7' },
+  { q: 'faq.q8', a: 'faq.a8' },
+];
+---
+
+<BaseLayout title={t(locale, 'faq.title')} locale={locale}>
+  <h1>{t(locale, 'faq.title')}</h1>
+  <p class="faq-intro" style="margin-top: 0.75rem; color: var(--color-text-muted, #555); line-height: 1.6;">{t(locale, 'faq.intro')}</p>
+  <div class="card" style="margin-top: 1rem;">
+    <dl style="display: grid; gap: 1.25rem;">
+      {items.map(({ q, a }) => (
+        <div>
+          <dt style="font-weight: 600; margin-bottom: 0.25rem;">{t(locale, q)}</dt>
+          <dd style="margin: 0; color: var(--color-text-muted, #555); line-height: 1.6;">{t(locale, a)}</dd>
+        </div>
+      ))}
+    </dl>
+  </div>
+</BaseLayout>

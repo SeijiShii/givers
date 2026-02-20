@@ -35,6 +35,7 @@ const basePath = locale === 'en' ? '/en' : '';
         <a href={`${basePath}/host`}>{t(locale, 'nav.host')}</a>
         <NavAdminLink client:load locale={locale} basePath={basePath} />
         <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
+        <a href={`${basePath}/faq`}>{t(locale, 'nav.faq')}</a>
         <span class="locale-switcher">
           {locale === 'ja' ? (
             <a href={`/en${Astro.url.pathname === '/' ? '' : Astro.url.pathname}`} aria-label="Switch to English">{t(locale, 'locale.en')}</a>

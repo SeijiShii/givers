@@ -5,7 +5,8 @@
     "me": "My Page",
     "host": "Donate to GIVErS",
     "adminUsers": "User Management",
-    "about": "About"
+    "about": "About",
+    "faq": "FAQ"
   },
   "me": {
     "title": "My Page",
@@ -62,6 +63,26 @@
     "title": "About GIVErS",
     "official": "The official GIVErS is {url} only (configure in production)",
     "selfHosted": "This site is a self-hosted instance of GIVErS. (shown only when self-hosted)"
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "intro": "GIVErS prioritizes information needed for donation in Japan, with the goal of fostering a culture of giving there. The FAQ below also covers Japan-specific topics such as tax deductions.",
+    "q1": "What is GIVErS?",
+    "a1": "GIVErS is a donation platform that connects the GIVE of creators (making what they believe in without expecting returns) and the GIVE of recipients (wanting to support what they found valuable). It operates with zero fees.",
+    "q2": "Can I donate without creating an account?",
+    "a2": "Yes. One-time donations do not require an account. You will use Stripe's payment page to complete the payment.",
+    "q3": "If I create an account later, what happens to my past donations?",
+    "a3": "If you create an account (log in) in the same browser after donating, you will be asked whether to link your previous donations to your account. If you do, you can see all your donation history on My Page.",
+    "q4": "How do I pay? Is it secure?",
+    "a4": "You enter your card details on Stripe's payment page. Card information is not stored on GIVErS servers; Stripe handles it securely.",
+    "q5": "Who receives my donation?",
+    "a5": "The GIVErS platform does not intermediate donations. Donations go directly to each project owner's Stripe-connected account. GIVErS does not take fees; the recipient is the project owner for each project.",
+    "q6": "Can I get a tax deduction for my donation?",
+    "a6": "In Japan, tax deductions for donations apply only to donations to certified NPOs and similar organizations. Receipts are issued by the recipient owner (organization). Only for projects that are tax-deduction-eligible NPOs does GIVErS provide tools to help with issuing such documents (e.g. name and address collection, export of donation lists for owners). To claim a deduction, you may need to provide your name and address when donating. See the project page or contact the owner for details.",
+    "q7": "How do I cancel or change a recurring donation?",
+    "a7": "After logging in, go to the Donations tab on My Page to see your recurring donations. You can change, pause, or delete each one.",
+    "q8": "How are my donation history and personal data used?",
+    "a8": "Donation history is recorded whether or not you have an account, and can be linked to your account when you create one. Data may be used for anonymous statistics and for project owners' own project reports. We respond to account deletion requests and anonymize donation records when you delete your account. See About and our terms and privacy policy for details."
   },
   "host": {
     "title": "Donate to GIVErS",
@@ -148,6 +169,14 @@
     "suspend": "Suspend",
     "unsuspend": "Unsuspend",
     "projectCount": "Projects"
+  },
+  "auth": {
+    "emailLoginTitle": "Log in with Email",
+    "emailPlaceholder": "Email address",
+    "sendLink": "Send link",
+    "emailSent": "Sent. Please check your email.",
+    "emailSentMock": "Sent. (No email is sent in mock mode.)",
+    "close": "Close"
   },
   "footer": {
     "text": "GIVErS - GIVE spirit / Donation platform for the GIVE spirit."

@@ -1,5 +1,10 @@
 # GIVErS 実装プラン（Astro + React）
 
+## 第一目標と情報提供の優先度
+
+- **日本で寄付の文化を根付かせることを第一目標**とする（idea.md）。
+- そのため**日本での寄付に必要な情報の提供を最優先**する。寄付金控除・領収書、日本語の案内・FAQ、デフォルトロケールを日本とするなど、日本の寄付者が安心して寄付するために必要な情報を優先的に整える。
+
 ## 技術スタック
 
 | 層 | 技術 |
@@ -58,8 +63,8 @@ giving_platform/
 - **projects**: id, owner_id, name, description, deadline, monthly_target, status, stripe_account_id, ...
 - **project_costs**: project_id, server_cost, dev_cost, other_cost, ...
 - **project_alerts**: project_id, warning_threshold, critical_threshold
-- **donations**: id, project_id, donor_token_or_user_id, amount, currency, stripe_payment_id, ...  
-  ※ アカウントなし（トークン）・あり（user_id）を問わず、全寄付を記録する。idea.md の「全ての寄付者の寄付行動履歴を保存する」方針に基づく。将来的なデータ分析での利用も想定する。
+- **donations**: id, project_id, **donor_type**（'token' \| 'user'）, **donor_id**（token の UUID または user の UUID）, amount, currency, stripe_payment_id, ...  
+  ※ donor_type + donor_id の 2 カラムで識別（検索・インデックス・トークン→ユーザー移行が明確）。アカウントなし・ありを問わず全寄付を記録。idea.md の「全ての寄付者の寄付行動履歴を保存する」方針に基づく。将来的なデータ分析も想定。
 - **platform_health**: プラットフォーム全体の健全性（月額必要額、達成率など）
 
 ## 実装フェーズ
@@ -92,13 +97,16 @@ giving_platform/
 - 寄付用 Checkout Session / サブスク作成
 - Webhook で決済完了・サブスク状態の同期
 - フロント: 寄付フォーム（React）、金額・通貨・単発/定期の選択
+- **匿名寄付者トークン**: 単発寄付は決済成功時（Webhook または成功リダイレクト）に donor_token を発行し、donations に記録すると同時に Cookie で返す。Cookie は HttpOnly, Secure（本番）, SameSite=Lax、有効期限は 1 年程度。詳細は `docs/mock-implementation-status.md` 12.2「単発寄付時のトークン発行タイミング」。
+- **利用停止時の決済**: ホストが利用停止したユーザーに紐づく Stripe サブスクは解約する。**凍結時**: 新規寄付・新規サブスク受付停止、既存サブスクは継続。**削除時**: 新規停止に加え既存サブスクも解約。→ `docs/mock-implementation-status.md` 12.5・`docs/idea.md` 参照。
 
 ### Phase 5: プラットフォーム機能
 
 - サービスホストページ（健全性表示: 青/黄/赤）
 - プロジェクト単位の達成率・アラート表示
-- トップページ: 新着・HOT プロジェクト表示
+- トップページ: 新着・HOT プロジェクト表示（新着＝created_at 降順、HOT＝達成率降順。→ `docs/mock-implementation-status.md` 12.5）
 - プロジェクト間リンク・発見導線
+- **利用停止・凍結時のメッセージ**: ホスト権限で利用停止されたアカウント、またはオーナーが凍結・削除したプロジェクトに対して寄付等のアクションを試みたときに、状況を理解できる親切なメッセージを表示する。→ `docs/idea.md`・`docs/user-management-mock-plan.md` 1.3・`docs/mock-implementation-status.md` 12.5 参照。
 
 ### Phase 5.5: チャート表示（推移・進捗）
 
@@ -108,7 +116,7 @@ giving_platform/
 
 ### Phase 6: 仕上げ
 
-- 公式/自ホストの明示（About、フッター、環境変数）
+- 公式/自ホストの明示（About に公式 URL と GitHub リンクを記載。自ホストに寛大で強制しない。悪意あるクローン運営について公式は責任を負わない旨の公言を About 等で検討。→ idea.md・mock-implementation-status 12.6）
 - 本番用 Docker 設定、環境変数管理
 - 基本的な E2E テスト
 - ConoHa での運用設定は [docs/conoha-deployment.md](docs/conoha-deployment.md) を参照
@@ -167,6 +175,8 @@ giving_platform/
 - [ ] プロジェクトページに達成率・アラート状態が表示される
 - [ ] トップページに新着・HOT プロジェクトが表示される
 - [ ] プロジェクト間のリンクで他プロジェクトを発見できる
+- [ ] 利用停止アカウントで寄付等を試みたときに、状況が分かる親切なメッセージが表示される
+- [ ] 凍結・削除されたプロジェクトに寄付等を試みたときに、状況が分かる親切なメッセージが表示される
 
 ### Phase 6: 仕上げ
 
@@ -224,10 +234,24 @@ giving_platform/
 - `GET /api/me` - 現在のユーザー情報
 - `GET /api/me/projects` - 自分のプロジェクト一覧
 - `GET /api/me/donations` - 自分の寄付履歴
+- `POST /api/me/migrate-from-token` - トークンに紐づく寄付を現在ユーザーに移行（冪等。詳細は下記「トークン→アカウント移行 API」）
 - `POST /api/auth/google` - Google OAuth コールバック処理
 - `POST /api/donations/checkout` - Stripe Checkout Session 作成
 - `POST /api/webhooks/stripe` - Stripe Webhook
 - `GET /api/host` - プラットフォーム健全性
+
+### トークン→アカウント移行 API（POST /api/me/migrate-from-token）
+
+| 項目 | 内容 |
+|------|------|
+| **目的** | 匿名寄付時につけたトークン（Cookie）に紐づく寄付を、ログイン中のユーザーに紐づけ直す。idea.md の「これまでの寄付をアカウントに引き継ぎますか？」に対応。 |
+| **認証** | 必須。セッションのユーザーに移行する。 |
+| **リクエスト** | トークンは **Cookie** で送る（Body は空で可。または `{ "token": "..." }` でオプション送信も可）。 |
+| **処理** | Cookie の donor_token に紐づく donations（donor_type='token', donor_id=token）を、donor_type='user', donor_id=現在ユーザーID に UPDATE。該当が 0 件の場合は何もしない。 |
+| **冪等** | **冪等とする**。同じトークンで複数回呼んでも、2 回目以降は「すでに移行済み」としてエラーにせず成功扱い。 |
+| **すでに移行済み** | 移行済みのトークンで再呼び出し時は **200 OK** を返す。body で `{ "migrated_count": 0, "already_migrated": true }` のようにし、フロントはエラー表示せず「引き継ぎ済みです」等の表示に利用する。 |
+| **成功時** | 200 OK。`{ "migrated_count": N, "already_migrated": false }`（N は移行した寄付件数）。 |
+| **トークンなし・無効** | Cookie に有効なトークンがない場合は 400 または 200（migrated_count: 0）のいずれかで統一（実装時にどちらにするか決定）。 |
 
 ### ディレクトリ構成（Go）
 
