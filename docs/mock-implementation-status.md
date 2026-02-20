@@ -406,14 +406,14 @@ frontend/src/components/react/
 
 | 項目 | 検討内容 |
 |------|----------|
-| **匿名寄付→アカウント移行のシナリオ** | **方針決定済み**: モックで再現する手順は、(1) ログアウト状態で寄付フォームから寄付実行（モックではトークン付きで記録）、(2) ログイン（モックではスイッチでログイン）、(3) getMe のレスポンスに `pending_token_migration: true` を返すモックを用意し、フロントで「これまでの寄付をアカウントに引き継ぎますか？」ダイアログを表示、(4) `POST /api/me/migrate-from-token` のモックを呼び、成功後にフラグを false に。実装時は getMe 拡張と migrate-from-token モック、フロントのダイアログを追加。 |
+| **匿名寄付→アカウント移行のシナリオ** | **方針決定済み・モック実装済み**: (1) ログアウトで寄付→(2) モックで「寄付メンバー」にログイン、(3) getMe が `pending_token_migration: true` を返す（donor かつ localStorage で未移行のとき）、(4) フロントで「これまでの寄付をアカウントに引き継ぎますか？」ダイアログ表示、(5) 引き継ぐ→`migrateFromToken()` モックで localStorage に移行済みを記録し次回 getMe でフラグなし。後で→sessionStorage で今回セッションでは非表示。→ api.ts（User 型・migrateFromToken）、mock-api.ts（getMe 拡張・migrateFromToken）、AuthStatus ダイアログで実装済み。 |
 | **Email ボタン押下時のモック** | **方針決定済み**: 「Email でログイン」クリックで**簡易フォーム（メールアドレス入力）**を表示する。モーダルまたはインラインでメールアドレス入力欄と「リンクを送信」ボタンを出し、送信後は「送信しました」旨のメッセージを表示（モックでは実際のメール送信は行わない）。本番では同 UI からマジックリンク送信 API を呼ぶ。→ フロント `AuthStatus` でモーダル実装。 |
 
 ### 12.5 ホスト・運用・決済
 
 | 項目 | 検討内容 |
 |------|----------|
-| **利用停止・凍結時のメッセージ** | **方針**: ホスト権限で利用停止されたアカウント、またはオーナーが凍結・削除したプロジェクトに対して、寄付等のアクションをしようとしたユーザーには**状況を理解できる親切なメッセージ**を表示する。利用停止時は「このアカウントは利用停止されています。ご不明な点は運営までお問い合わせください。」等。凍結時は「このプロジェクトは現在、寄付の受付を停止しています。」削除時は「このプロジェクトは終了しています。」等。API の 403/404 に加え、フロントで理由が分かる文言を表示。→ `docs/idea.md`・`docs/user-management-mock-plan.md` 1.3 に記載。 |
+| **利用停止・凍結時のメッセージ** | **方針・モック実装済み**: 利用停止時は「このアカウントは利用停止されています。ご不明な点は運営までお問い合わせください。」凍結時は「このプロジェクトは現在、寄付の受付を停止しています。」削除時は「このプロジェクトは終了しています。」を表示。**実装**: User に `suspended` を追加。モックは localStorage `givers_mock_suspended_user=true` で getMe が suspended を返す。AuthStatus で利用停止時バナー表示。DonateForm で user.suspended / projectStatus が frozen・deleted のときメッセージ表示（ProjectDetail から me と project.status を渡す）。mock-3 を frozen にし凍結メッセージを検証可能。→ idea.md・user-management-mock-plan 1.3。 |
 | **利用停止ユーザーの決済** | **方針決定済み**: ホストが利用停止したユーザーに紐づく**定期寄付（Stripe サブスク）は停止と同時に解約**する。悪用者から継続入金させないため。API/Webhook で Stripe のサブスクをキャンセルする。寄付履歴は変更しない（12.3 のとおり）。停止解除時は新規寄付・新規サブスクは再開可能。既存サブスクは解約済みのため再開は別途ユーザーが申し込む形。 |
 | **プロジェクト凍結・削除時の寄付** | **方針決定済み**: **凍結時**: 新規寄付・新規サブスクの受付を停止する（API で Checkout 作成を拒否等）。既存サブスクは継続。**削除時**（論理削除）: 新規受付停止に加え、**既存サブスクも解約**する。プロジェクト終了として一貫させる。実装時は Stripe のサブスク一覧を取得し、当該プロジェクト分をキャンセル。 |
 | **新着・HOT のアルゴリズム** | **方針決定済み**: **新着**＝**登録日（created_at）の新しい順**。公開中（active）のプロジェクトのみ対象とする。**HOT**＝**月間目標に対する達成率**（current_monthly / owner_want_monthly）の高い順。同率の場合は登録日で補助ソート（新しい方を優先）でよい。直近の寄付額・支援人数でのソートは将来拡張として保留。モックでは `getNewProjects`（created_at 降順）と `getHotProjects`（達成率降順）で再現済み。→ 本項・`frontend/src/lib/mock-api.ts` に準拠。 |
@@ -435,3 +435,5 @@ frontend/src/components/react/
 - `docs/user-management-mock-plan.md` - ユーザー管理（ホスト・ミュート）のモック実装プラン
 - `docs/conoha-deployment.md` - ConoHa サーバーでの運用設定
 - `docs/tax-deduction-considerations.md` - 寄付者による税額控除等に必要な仕組み（検討）
+- `docs/legal-risk-considerations.md` - 運営上の法的リスクの検討メモ（詐欺幇助・免責・利用規約等）
+- `docs/operator-developer-declarations.md` - 運営者・開発者として宣言・明記する内容の一覧（弁護士相談の一歩手前）

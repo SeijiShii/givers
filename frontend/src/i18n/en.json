@@ -170,6 +170,11 @@
     "unsuspend": "Unsuspend",
     "projectCount": "Projects"
   },
+  "errors": {
+    "accountSuspended": "This account has been suspended. Please contact support if you have questions.",
+    "projectFrozen": "This project is currently not accepting donations.",
+    "projectDeleted": "This project has ended."
+  },
   "auth": {
     "emailLoginTitle": "Log in with Email",
     "emailPlaceholder": "Email address",

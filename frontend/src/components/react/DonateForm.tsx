@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { t, type Locale } from '../../lib/i18n';
+import type { User } from '../../lib/api';
 
 type DonationType = 'one_time' | 'monthly';
 
@@ -19,6 +20,10 @@ interface Props {
   oneTimeLabel: string;
   monthlyLabel: string;
   donationTypeLabel?: string;
+  /** 利用停止アカウントのときは寄付不可。メッセージを表示する */
+  user?: User | null;
+  /** 凍結・削除プロジェクトのときは寄付不可。メッセージを表示する */
+  projectStatus?: string;
 }
 
 export default function DonateForm({
@@ -37,12 +42,36 @@ export default function DonateForm({
   oneTimeLabel,
   monthlyLabel,
   donationTypeLabel = '寄付の種類',
+  user,
+  projectStatus,
 }: Props) {
   const [donationType, setDonationType] = useState<DonationType>('one_time');
   const [selectedAmount, setSelectedAmount] = useState<number | 'custom' | null>(null);
   const [customAmount, setCustomAmount] = useState('');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+
+  if (user?.suspended) {
+    return (
+      <div className="card" style={{ marginTop: '1rem', borderColor: 'var(--color-danger)', background: 'var(--color-danger-muted, rgba(200,0,0,0.08))' }}>
+        <p style={{ margin: 0 }}>{t(locale, 'errors.accountSuspended')}</p>
+      </div>
+    );
+  }
+  if (projectStatus === 'frozen') {
+    return (
+      <div className="card" style={{ marginTop: '1rem', borderColor: 'var(--color-warning)' }}>
+        <p style={{ margin: 0 }}>{t(locale, 'errors.projectFrozen')}</p>
+      </div>
+    );
+  }
+  if (projectStatus === 'deleted') {
+    return (
+      <div className="card" style={{ marginTop: '1rem', borderColor: 'var(--color-text-muted)' }}>
+        <p style={{ margin: 0 }}>{t(locale, 'errors.projectDeleted')}</p>
+      </div>
+    );
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

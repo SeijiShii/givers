@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
-import type { Project, ProjectUpdate } from '../../lib/api';
+import type { Project, ProjectUpdate, User } from '../../lib/api';
 import { getProject, getProjectUpdates, getMe, updateProject, createProjectUpdate, updateProjectUpdate, deleteProjectUpdate, PLATFORM_PROJECT_ID } from '../../lib/api';
 import DonateForm from './DonateForm';
 import ProjectChart from './charts/ProjectChart';
@@ -122,7 +122,7 @@ export default function ProjectDetail({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('support');
-  const [me, setMe] = useState<{ id: string } | null>(null);
+  const [me, setMe] = useState<User | null>(null);
   const [editingOverview, setEditingOverview] = useState(false);
   const [overviewDraft, setOverviewDraft] = useState('');
   const [savingOverview, setSavingOverview] = useState(false);
@@ -146,7 +146,7 @@ export default function ProjectDetail({
   }, [id]);
 
   useEffect(() => {
-    getMe().then((u) => setMe(u ? { id: u.id } : null)).catch(() => setMe(null));
+    getMe().then((u) => setMe(u ?? null)).catch(() => setMe(null));
   }, []);
 
   useEffect(() => {
@@ -430,6 +430,8 @@ export default function ProjectDetail({
                 oneTimeLabel={oneTimeLabel}
                 monthlyLabel={monthlyLabel}
                 donationTypeLabel={donationTypeLabel}
+                user={me}
+                projectStatus={project.status}
               />
             </div>
           </>

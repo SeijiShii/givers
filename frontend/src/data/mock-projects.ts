@@ -85,7 +85,7 @@ JLPT（日本語能力試験）N5〜N1 に対応したコンテンツを順次�
     name: 'アクセシビリティチェックツール',
     description: 'Webサイトのアクセシビリティを無料でチェック。WCAG 2.1 対応。',
     _mockImageUrl: 'https://placehold.co/800x400/6b9b6e/ffffff?text=A11y+Tool',
-    status: 'active',
+    status: 'frozen',
     owner_want_monthly: 30000,
     created_at: day(5),
     updated_at: day(4),

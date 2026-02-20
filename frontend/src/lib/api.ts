@@ -37,6 +37,10 @@ export interface User {
   updated_at: string;
   /** ロール（モック時のみ。host=ホスト, project_owner=プロジェクトオーナー, donor=寄付者のみ） */
   role?: 'host' | 'project_owner' | 'donor';
+  /** トークンで記録された寄付をアカウントに引き継ぐ待ちがあれば true（getMe で返却。migrate-from-token で解消） */
+  pending_token_migration?: boolean;
+  /** ホストにより利用停止されている場合 true（getMe で返却。寄付・作成等は不可） */
+  suspended?: boolean;
 }
 
 /** モック時のログイン切り替え用 localStorage キー */
@@ -62,6 +66,18 @@ export async function getMe(): Promise<User | null> {
   if (res.status === 401) return null;
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
+}
+
+/** トークンで記録された寄付をアカウントに引き継ぐ。冪等。 */
+export async function migrateFromToken(): Promise<{
+  migrated_count: number;
+  already_migrated?: boolean;
+}> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.migrateFromToken();
+  return fetchApi('/api/me/migrate-from-token', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
 }
 
 export async function getGoogleLoginUrl(): Promise<{ url: string }> {

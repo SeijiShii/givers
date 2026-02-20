@@ -10,6 +10,11 @@ import type {
 } from './api';
 import type { AdminUser } from './api';
 import { MOCK_LOGIN_MODE_KEY } from './api';
+
+/** モック: トークン→アカウント移行済みフラグ（localStorage）。true なら getMe で pending_token_migration を返さない */
+const MOCK_MIGRATION_DONE_KEY = 'givers_mock_migration_done';
+/** モック: 利用停止ユーザーをシミュレート（localStorage）。true なら getMe で suspended: true を返す */
+const MOCK_SUSPENDED_USER_KEY = 'givers_mock_suspended_user';
 import { MOCK_HOST_USER, MOCK_MEMBER_USER, MOCK_DONOR_USER, MOCK_ADMIN_USERS } from '../data/mock-users';
 import type { ProjectUpdate, CreateProjectUpdateInput } from './api';
 import { MOCK_PROJECTS, type MockProject } from '../data/mock-projects';
@@ -76,9 +81,32 @@ export const mockApi = {
     }
     const mode = window.localStorage.getItem(MOCK_LOGIN_MODE_KEY);
     if (mode === 'logout') return null;
-    if (mode === 'donor') return MOCK_DONOR_USER;
-    if (mode === 'project_owner' || mode === 'member') return MOCK_MEMBER_USER;
-    return MOCK_HOST_USER;
+    if (mode === 'donor') {
+      const migrationDone = window.localStorage.getItem(MOCK_MIGRATION_DONE_KEY) === 'true';
+      const suspended = window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === 'true';
+      return {
+        ...MOCK_DONOR_USER,
+        pending_token_migration: migrationDone ? undefined : true,
+        ...(suspended ? { suspended: true as const } : {}),
+      };
+    }
+    if (mode === 'project_owner' || mode === 'member') {
+      const suspended = window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === 'true';
+      return { ...MOCK_MEMBER_USER, ...(suspended ? { suspended: true as const } : {}) };
+    }
+    const suspended = window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === 'true';
+    return { ...MOCK_HOST_USER, ...(suspended ? { suspended: true as const } : {}) };
+  },
+
+  async migrateFromToken(): Promise<{ migrated_count: number; already_migrated?: boolean }> {
+    await delay(MOCK_DELAY);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      if (window.localStorage.getItem(MOCK_MIGRATION_DONE_KEY) === 'true') {
+        return { migrated_count: 0, already_migrated: true };
+      }
+      window.localStorage.setItem(MOCK_MIGRATION_DONE_KEY, 'true');
+    }
+    return { migrated_count: 1, already_migrated: false };
   },
 
   async getGoogleLoginUrl(): Promise<{ url: string }> {

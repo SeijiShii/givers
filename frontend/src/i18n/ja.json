@@ -170,6 +170,11 @@
     "unsuspend": "停止解除",
     "projectCount": "プロジェクト数"
   },
+  "errors": {
+    "accountSuspended": "このアカウントは利用停止されています。ご不明な点は運営までお問い合わせください。",
+    "projectFrozen": "このプロジェクトは現在、寄付の受付を停止しています。",
+    "projectDeleted": "このプロジェクトは終了しています。"
+  },
   "auth": {
     "emailLoginTitle": "Email でログイン",
     "emailPlaceholder": "メールアドレス",
