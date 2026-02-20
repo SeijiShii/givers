@@ -74,6 +74,16 @@ export async function getGitHubLoginUrl(): Promise<{ url: string }> {
   return fetchApi('/api/auth/github/login');
 }
 
+export async function getAppleLoginUrl(): Promise<{ url: string }> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getAppleLoginUrl();
+  return fetchApi('/api/auth/apple/login');
+}
+
+export async function getEmailLoginUrl(): Promise<{ url: string }> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getEmailLoginUrl();
+  return fetchApi('/api/auth/email/login');
+}
+
 export async function logout(): Promise<void> {
   if (MOCK_MODE) return (await import('./mock-api')).mockApi.logout();
   await fetch(`${API_URL}/api/auth/logout`, {

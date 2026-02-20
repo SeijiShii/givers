@@ -91,6 +91,16 @@ export const mockApi = {
     return { url: '#' };
   },
 
+  async getAppleLoginUrl(): Promise<{ url: string }> {
+    await delay(MOCK_DELAY);
+    return { url: '#' };
+  },
+
+  async getEmailLoginUrl(): Promise<{ url: string }> {
+    await delay(MOCK_DELAY);
+    return { url: '#' };
+  },
+
   async logout(): Promise<void> {
     await delay(MOCK_DELAY);
   },

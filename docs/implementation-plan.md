@@ -9,7 +9,7 @@
 | フロントエンド | Astro + React (Islands) / TypeScript |
 | DB | PostgreSQL |
 | 決済 | Stripe Connect |
-| 認証 | Google OAuth 2.0 |
+| 認証 | Google / GitHub OAuth。拡張候補: Email（マジックリンクまたはパスワード）、Apple Sign In |
 
 ## プロジェクト構成
 
@@ -54,11 +54,12 @@ giving_platform/
 
 ## データモデル（主要）
 
-- **users**: id, email, google_id, created_at
+- **users**: id, email, name, google_id, github_id, apple_id, password_hash（いずれも NULL 可のプロバイダ別 ID / パスワードハッシュ）, created_at, updated_at。同一ユーザーは email でリンク（idea.md・phase2-plan 参照）。
 - **projects**: id, owner_id, name, description, deadline, monthly_target, status, stripe_account_id, ...
 - **project_costs**: project_id, server_cost, dev_cost, other_cost, ...
 - **project_alerts**: project_id, warning_threshold, critical_threshold
-- **donations**: id, project_id, donor_token_or_user_id, amount, currency, stripe_payment_id, ...
+- **donations**: id, project_id, donor_token_or_user_id, amount, currency, stripe_payment_id, ...  
+  ※ アカウントなし（トークン）・あり（user_id）を問わず、全寄付を記録する。idea.md の「全ての寄付者の寄付行動履歴を保存する」方針に基づく。将来的なデータ分析での利用も想定する。
 - **platform_health**: プラットフォーム全体の健全性（月額必要額、達成率など）
 
 ## 実装フェーズ
@@ -110,6 +111,7 @@ giving_platform/
 - 公式/自ホストの明示（About、フッター、環境変数）
 - 本番用 Docker 設定、環境変数管理
 - 基本的な E2E テスト
+- ConoHa での運用設定は [docs/conoha-deployment.md](docs/conoha-deployment.md) を参照
 
 ---
 
@@ -130,7 +132,7 @@ giving_platform/
 
 ### Phase 2: 認証・ユーザー
 
-- [ ] ナビに「Google」「GitHub」ログインボタンが表示される
+- [ ] ナビに「Google」「GitHub」ログインボタンが表示される（拡張で Apple・Email も追加可能。`docs/mock-implementation-status.md` 3.7 参照）
 - [ ] 「Google」クリックで Google 認証画面にリダイレクトされる（GOOGLE_CLIENT_ID 設定時）
 - [ ] 「GitHub」クリックで GitHub 認証画面にリダイレクトされる（GITHUB_CLIENT_ID 設定時）
 - [ ] 認証完了後、フロントにリダイレクトされ、ユーザー名と「ログアウト」が表示される

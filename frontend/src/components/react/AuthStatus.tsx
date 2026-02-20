@@ -3,6 +3,8 @@ import {
   getMe,
   getGoogleLoginUrl,
   getGitHubLoginUrl,
+  getAppleLoginUrl,
+  getEmailLoginUrl,
   logout,
   MOCK_LOGIN_MODE_KEY,
   type User,
@@ -57,6 +59,16 @@ export default function AuthStatus({ locale = 'ja' }: Props) {
 
   const handleGitHubLogin = async () => {
     const { url } = await getGitHubLoginUrl();
+    window.location.href = url;
+  };
+
+  const handleAppleLogin = async () => {
+    const { url } = await getAppleLoginUrl();
+    window.location.href = url;
+  };
+
+  const handleEmailLogin = async () => {
+    const { url } = await getEmailLoginUrl();
     window.location.href = url;
   };
 
@@ -172,6 +184,12 @@ export default function AuthStatus({ locale = 'ja' }: Props) {
           </button>
           <button type="button" className="btn btn-primary" onClick={handleGitHubLogin}>
             GitHub
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleAppleLogin}>
+            Apple
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleEmailLogin}>
+            Email
           </button>
         </>
       )}
