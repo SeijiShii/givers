@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Project } from '../../lib/api';
 import { getProjects, PLATFORM_PROJECT_ID } from '../../lib/api';
 import type { Locale } from '../../lib/i18n';
+import LoadingSkeleton from './LoadingSkeleton';
 
 interface Props {
   locale: Locale;
@@ -40,7 +41,7 @@ export default function ProjectList({ locale, platformBadge }: Props) {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p>読み込み中...</p>;
+  if (loading) return <LoadingSkeleton variant="projectList" />;
   if (error) return <p style={{ color: 'var(--color-danger)' }}>{error}</p>;
   if (projects.length === 0) return <p>プロジェクトはまだありません。</p>;
 

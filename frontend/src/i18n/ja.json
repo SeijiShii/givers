@@ -61,7 +61,12 @@
   },
   "about": {
     "title": "About GIVErS",
-    "official": "公式 GIVErS は {url} のみ（本番環境で設定）",
+    "official": "公式 GIVErS は {url} で運営されています。",
+    "officialLabel": "公式サイト",
+    "githubLabel": "ソースコード（GitHub）",
+    "githubDescription": "GIVErS のソースコードは OSS として GitHub で公開しており、フォーク・自ホストを許容しています。",
+    "disclaimerTitle": "第三者による悪用について",
+    "disclaimer": "悪用者が悪意を持って本ソフトウェアをクローンし、第三者により運営されるサービスについて、公式（GIVErS の運営）は責任を負いません。OSS として配布・フォークを許容する一方、第三者による悪用については関知しません。開示の要否・範囲は弁護士等の助言に従ってください。",
     "selfHosted": "このサイトは GIVErS の自ホスト版です。（自ホスト時のみ表示）"
   },
   "faq": {
@@ -159,7 +164,8 @@
     "editUpdate": "編集",
     "deleteUpdate": "削除",
     "deleteUpdateConfirmTitle": "削除の確認",
-    "deleteUpdateConfirm": "このアップデートを削除しますか？"
+    "deleteUpdateConfirm": "このアップデートを削除しますか？",
+    "relatedTitle": "このプロジェクトを応援している人はこちらも"
   },
   "admin": {
     "usersTitle": "ユーザー管理",
@@ -168,7 +174,15 @@
     "statusSuspended": "停止中",
     "suspend": "利用停止",
     "unsuspend": "停止解除",
-    "projectCount": "プロジェクト数"
+    "projectCount": "プロジェクト数",
+    "disclosureExportTitle": "開示用データの出力",
+    "disclosureExportDescription": "第三者情報開示請求等に備え、ユーザーID または プロジェクトID を指定してデータを JSON で出力します。",
+    "disclosureExportTypeUser": "ユーザー",
+    "disclosureExportTypeProject": "プロジェクト",
+    "disclosureExportIdPlaceholder": "例: user-1 または mock-1",
+    "disclosureExportButton": "開示用データを出力",
+    "disclosureExportNotice": "出力したデータは法的開示請求等に備えたものです。取り扱いに注意し、開示の要否・範囲は弁護士等の助言に従ってください。",
+    "disclosureExportConfirm": "出力する"
   },
   "errors": {
     "accountSuspended": "このアカウントは利用停止されています。ご不明な点は運営までお問い合わせください。",

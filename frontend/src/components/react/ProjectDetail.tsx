@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { Project, ProjectUpdate, User } from '../../lib/api';
-import { getProject, getProjectUpdates, getMe, updateProject, createProjectUpdate, updateProjectUpdate, deleteProjectUpdate, PLATFORM_PROJECT_ID } from '../../lib/api';
+import { getProject, getProjectUpdates, getMe, getRelatedProjects, updateProject, createProjectUpdate, updateProjectUpdate, deleteProjectUpdate, PLATFORM_PROJECT_ID } from '../../lib/api';
 import DonateForm from './DonateForm';
 import ProjectChart from './charts/ProjectChart';
 import ConfirmDialog from './ConfirmDialog';
+import LoadingSkeleton from './LoadingSkeleton';
 import { t, type Locale } from '../../lib/i18n';
 
 interface Props {
@@ -47,6 +48,7 @@ interface Props {
   deleteUpdateLabel: string;
   deleteUpdateConfirmTitle: string;
   deleteUpdateConfirmLabel: string;
+  relatedProjectsLabel: string;
 }
 
 function monthlyTarget(project: Project): number {
@@ -116,9 +118,11 @@ export default function ProjectDetail({
   deleteUpdateLabel,
   deleteUpdateConfirmTitle,
   deleteUpdateConfirmLabel,
+  relatedProjectsLabel,
 }: Props) {
   const [project, setProject] = useState<Project | null>(null);
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
+  const [relatedProjects, setRelatedProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('support');
@@ -156,12 +160,20 @@ export default function ProjectDetail({
   }, [id]);
 
   useEffect(() => {
+    if (project?.id) {
+      getRelatedProjects(project.id, 4).then(setRelatedProjects).catch(() => setRelatedProjects([]));
+    } else {
+      setRelatedProjects([]);
+    }
+  }, [project?.id]);
+
+  useEffect(() => {
     if (project && !editingOverview) {
       setOverviewDraft(project.overview ?? project.description ?? '');
     }
   }, [project, editingOverview]);
 
-  if (loading) return <p>{t(locale, 'projects.loading')}</p>;
+  if (loading) return <LoadingSkeleton variant="projectDetail" />;
   if (error) return <p style={{ color: 'var(--color-danger)' }}>{error}</p>;
   if (!project) return null;
 
@@ -596,6 +608,40 @@ export default function ProjectDetail({
           </div>
         )}
       </div>
+
+      {relatedProjects.length > 0 && (
+        <div className="card" style={{ marginTop: '2rem' }}>
+          <h2 style={{ fontSize: '1.1rem', marginTop: 0 }}>{relatedProjectsLabel}</h2>
+          <ul style={{ margin: '0.75rem 0 0', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {relatedProjects.map((p) => {
+              const targetVal = monthlyTarget(p);
+              const rate = targetVal > 0 ? Math.round(((p.current_monthly_donations ?? 0) / targetVal) * 100) : 0;
+              return (
+                <li key={p.id}>
+                  <a
+                    href={`${basePath}/projects/${p.id}`}
+                    style={{
+                      display: 'block',
+                      padding: '0.5rem 0',
+                      color: 'var(--color-primary)',
+                      textDecoration: 'none',
+                      fontWeight: 500,
+                      borderBottom: '1px solid var(--color-border-light)',
+                    }}
+                  >
+                    {p.name}
+                    {targetVal > 0 && (
+                      <span style={{ marginLeft: '0.5rem', fontSize: '0.85rem', color: 'var(--color-text-muted)', fontWeight: 400 }}>
+                        — {rate}%
+                      </span>
+                    )}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

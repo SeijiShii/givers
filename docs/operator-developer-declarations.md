@@ -102,11 +102,13 @@
 
 - 上記の宣言を**利用規約・About・README の文案**に落とし込み、**免責・責任制限の文言**を弁護士に確認する（`docs/legal-risk-considerations.md` の推奨アクション参照）。
 - 「悪用」の定義・禁止行為の列挙・利用停止の手続きを、利用規約に簡潔に記載したうえで、弁護士確認を検討する。
+- **弁護士に送付する際**は、相談内容が一括で分かる **`docs/legal-consultation-brief.md`** を利用する（サービス概要・想定リスク・対応方針・実装済み対策・相談したい論点を記載）。
 
 ---
 
 ## 関連ドキュメント
 
+- **`docs/legal-consultation-brief.md`** - 弁護士に送付する相談メモ（サービス概要・想定リスク・対応方針・実装済み対策・相談論点）
 - `docs/idea.md` - 思想・決済・利用停止・公式のスタンス
 - `docs/tax-deduction-considerations.md` - 税額控除・領収書・手助けの範囲
-- `docs/legal-risk-considerations.md` - 法的リスクの検討と弁護士確認の推奨
+- `docs/legal-risk-considerations.md` - 法的リスクの検討・実装済み対策一覧・弁護士相談論点一覧

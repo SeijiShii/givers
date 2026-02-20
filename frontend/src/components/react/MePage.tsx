@@ -15,6 +15,7 @@ import {
   type Project,
 } from '../../lib/api';
 import ConfirmDialog from './ConfirmDialog';
+import LoadingSkeleton from './LoadingSkeleton';
 import type { Locale } from '../../lib/i18n';
 
 interface Props {
@@ -200,7 +201,7 @@ export default function MePage({
   };
 
   if (loading) {
-    return <p>{loadingLabel}</p>;
+    return <LoadingSkeleton variant="mePage" />;
   }
 
   if (!user) {

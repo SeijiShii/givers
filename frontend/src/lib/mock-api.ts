@@ -8,7 +8,7 @@ import type {
   Donation,
   RecurringDonation,
 } from './api';
-import type { AdminUser } from './api';
+import type { AdminUser, DisclosureExportPayload } from './api';
 import { MOCK_LOGIN_MODE_KEY } from './api';
 
 /** モック: トークン→アカウント移行済みフラグ（localStorage）。true なら getMe で pending_token_migration を返さない */
@@ -292,6 +292,13 @@ export const mockApi = {
     return sorted.slice(0, limit).map((x) => toProject(x.p));
   },
 
+  /** 関連プロジェクト（当該を除く HOT 順で最大 limit 件） */
+  async getRelatedProjects(projectId: string, limit = 4): Promise<Project[]> {
+    await delay(MOCK_DELAY);
+    const hot = await this.getHotProjects(limit + MOCK_PROJECTS.length);
+    return hot.filter((p) => p.id !== projectId).slice(0, limit);
+  },
+
   /** アクティビティフィード */
   async getActivityFeed(limit = 10): Promise<ActivityItem[]> {
     await delay(MOCK_DELAY);
@@ -311,6 +318,83 @@ export const mockApi = {
   async getAdminUsers(): Promise<AdminUser[]> {
     await delay(MOCK_DELAY);
     return [...MOCK_ADMIN_USERS];
+  },
+
+  /** 開示用データ出力（ホスト用。第三者情報開示請求等に備える） */
+  async getDisclosureExport(type: 'user' | 'project', id: string): Promise<DisclosureExportPayload> {
+    await delay(MOCK_DELAY);
+    const exported_at = new Date().toISOString();
+    const platform = 'GIVErS';
+
+    if (type === 'user') {
+      const user = MOCK_ADMIN_USERS.find((u) => u.id === id);
+      if (!user) throw new Error('User not found');
+      const user_projects = MOCK_PROJECTS.filter((p) => p.owner_id === id).map((p) => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        created_at: p.created_at,
+      }));
+      const user_donations = (MOCK_DONATIONS[id] ?? []).map((d) => ({
+        id: d.id,
+        project_id: d.project_id,
+        project_name: d.project_name,
+        amount: d.amount,
+        created_at: d.created_at,
+      }));
+      const user_recurring = (MOCK_RECURRING_DONATIONS[id] ?? []).map((r) => ({
+        id: r.id,
+        project_id: r.project_id,
+        project_name: r.project_name,
+        amount: r.amount,
+        created_at: r.created_at,
+        status: r.status,
+        interval: r.interval,
+      }));
+      return {
+        exported_at,
+        platform,
+        type: 'user',
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          created_at: user.created_at,
+          updated_at: user.updated_at,
+          status: user.status,
+          role: user.role,
+        },
+        user_projects,
+        user_donations,
+        user_recurring,
+      };
+    }
+
+    const p = MOCK_PROJECTS.find((x) => x.id === id);
+    if (!p) throw new Error('Project not found');
+    const owner = MOCK_ADMIN_USERS.find((u) => u.id === p.owner_id);
+    const allDonations = Object.values(MOCK_DONATIONS).flat();
+    const projectDonations = allDonations.filter((d) => d.project_id === id).map((d) => ({
+      id: d.id,
+      amount: d.amount,
+      created_at: d.created_at,
+      donor_type: 'user' as const,
+    }));
+    return {
+      exported_at,
+      platform,
+      type: 'project',
+      project: {
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        owner_id: p.owner_id,
+        status: p.status,
+        created_at: p.created_at,
+        owner_name: MOCK_OWNERS[p.owner_id],
+      },
+      project_donations: projectDonations,
+    };
   },
 
   /** プロジェクトオーナーからのアップデート */

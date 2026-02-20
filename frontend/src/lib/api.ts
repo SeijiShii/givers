@@ -58,6 +58,44 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   return [];
 }
 
+/** 開示用データ出力（ホストのみ）。第三者情報開示請求等に備えたエクスポート。 */
+export interface DisclosureExportPayload {
+  exported_at: string;
+  platform: string;
+  type: 'user' | 'project';
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    created_at: string;
+    updated_at: string;
+    status: string;
+    role?: string;
+  };
+  user_projects?: { id: string; name: string; status: string; created_at: string }[];
+  user_donations?: { id: string; project_id: string; project_name: string; amount: number; created_at: string }[];
+  user_recurring?: { id: string; project_id: string; project_name: string; amount: number; created_at: string; status: string; interval?: string }[];
+  project?: {
+    id: string;
+    name: string;
+    description: string;
+    owner_id: string;
+    status: string;
+    created_at: string;
+    owner_name?: string;
+  };
+  project_donations?: { id: string; amount: number; created_at: string; donor_type?: string }[];
+}
+
+export async function getDisclosureExport(type: 'user' | 'project', id: string): Promise<DisclosureExportPayload> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getDisclosureExport(type, id);
+  const res = await fetch(`${API_URL}/api/admin/disclosure-export?type=${type}&id=${encodeURIComponent(id)}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
 export async function getMe(): Promise<User | null> {
   if (MOCK_MODE) return (await import('./mock-api')).mockApi.getMe();
   const res = await fetch(`${API_URL}/api/me`, {
@@ -255,6 +293,13 @@ export async function getNewProjects(limit = 5): Promise<Project[]> {
 export async function getHotProjects(limit = 5): Promise<Project[]> {
   if (MOCK_MODE) return (await import('./mock-api')).mockApi.getHotProjects(limit);
   return getProjects(limit, 0);
+}
+
+/** 関連プロジェクト（プロジェクト詳細用。当該を除く HOT 等） */
+export async function getRelatedProjects(projectId: string, limit = 4): Promise<Project[]> {
+  if (MOCK_MODE) return (await import('./mock-api')).mockApi.getRelatedProjects(projectId, limit);
+  const all = await getProjects(limit + 5, 0);
+  return all.filter((p) => p.id !== projectId).slice(0, limit);
 }
 
 // --- Activity Feed (モック時のみ) ---

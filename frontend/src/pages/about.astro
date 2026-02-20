@@ -3,12 +3,25 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { t } from '../lib/i18n';
 
 const locale = 'ja';
+const officialUrl = import.meta.env.PUBLIC_OFFICIAL_URL || 'https://givers.example.com';
+const githubUrl = import.meta.env.PUBLIC_GITHUB_REPO || 'https://github.com/example/givers';
 ---
 
 <BaseLayout title={t(locale, 'about.title')} locale={locale}>
   <h1>{t(locale, 'about.title')}</h1>
   <div class="card" style="margin-top: 1rem;">
-    <p>{t(locale, 'about.official', { url: 'https://givers.example.com' })}</p>
+    <p>{t(locale, 'about.official', { url: officialUrl })}</p>
+    <p>
+      <strong>{t(locale, 'about.officialLabel')}:</strong>
+      <a href={officialUrl} target="_blank" rel="noopener noreferrer">{officialUrl}</a>
+    </p>
+    <p>
+      <strong>{t(locale, 'about.githubLabel')}:</strong>
+      <a href={githubUrl} target="_blank" rel="noopener noreferrer">{githubUrl}</a>
+    </p>
+    <p>{t(locale, 'about.githubDescription')}</p>
     <p class="accent-line">{t(locale, 'about.selfHosted')}</p>
+    <h2 style="margin-top: 1.5rem;">{t(locale, 'about.disclaimerTitle')}</h2>
+    <p>{t(locale, 'about.disclaimer')}</p>
   </div>
 </BaseLayout>

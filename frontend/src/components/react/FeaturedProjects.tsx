@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { Project } from '../../lib/api';
 import { getNewProjects, getHotProjects, PLATFORM_PROJECT_ID } from '../../lib/api';
 import type { Locale } from '../../lib/i18n';
+import LoadingSkeleton from './LoadingSkeleton';
 
 interface Props {
   locale: Locale;
@@ -99,7 +100,7 @@ export default function FeaturedProjects({ locale, newTitle, hotTitle, viewAll, 
   if (loading) {
     return (
       <div style={{ marginTop: '2rem' }}>
-        <p style={{ color: 'var(--color-text-muted)' }}>読み込み中...</p>
+        <LoadingSkeleton variant="spinner" />
       </div>
     );
   }

@@ -61,7 +61,12 @@
   },
   "about": {
     "title": "About GIVErS",
-    "official": "The official GIVErS is {url} only (configure in production)",
+    "official": "The official GIVErS is operated at {url}.",
+    "officialLabel": "Official site",
+    "githubLabel": "Source code (GitHub)",
+    "githubDescription": "GIVErS source code is open source on GitHub. Forks and self-hosting are permitted.",
+    "disclaimerTitle": "Third-party misuse",
+    "disclaimer": "The official GIVErS operators do not take responsibility for services run by third parties that maliciously clone this software. We allow distribution and forking as OSS but do not oversee misuse by third parties. Follow legal advice on whether and what to disclose.",
     "selfHosted": "This site is a self-hosted instance of GIVErS. (shown only when self-hosted)"
   },
   "faq": {
@@ -159,7 +164,8 @@
     "editUpdate": "Edit",
     "deleteUpdate": "Delete",
     "deleteUpdateConfirmTitle": "Confirm deletion",
-    "deleteUpdateConfirm": "Delete this update?"
+    "deleteUpdateConfirm": "Delete this update?",
+    "relatedTitle": "People who support this project also support"
   },
   "admin": {
     "usersTitle": "User Management",
@@ -168,7 +174,15 @@
     "statusSuspended": "Suspended",
     "suspend": "Suspend",
     "unsuspend": "Unsuspend",
-    "projectCount": "Projects"
+    "projectCount": "Projects",
+    "disclosureExportTitle": "Disclosure data export",
+    "disclosureExportDescription": "For third-party disclosure requests, export data as JSON by user ID or project ID.",
+    "disclosureExportTypeUser": "User",
+    "disclosureExportTypeProject": "Project",
+    "disclosureExportIdPlaceholder": "e.g. user-1 or mock-1",
+    "disclosureExportButton": "Export disclosure data",
+    "disclosureExportNotice": "Exported data is for legal disclosure requests. Handle with care; follow legal advice on whether and what to disclose.",
+    "disclosureExportConfirm": "Export"
   },
   "errors": {
     "accountSuspended": "This account has been suspended. Please contact support if you have questions.",
