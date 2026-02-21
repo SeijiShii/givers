@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/givers/backend/internal/model"
+	"github.com/givers/backend/internal/repository"
 	"github.com/givers/backend/internal/service"
 	"github.com/givers/backend/pkg/auth"
 )
@@ -240,4 +242,44 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(existing)
+}
+
+// Delete は DELETE /api/projects/{id} を処理する（認証必須・オーナーのみ）。
+// 論理削除（status を "deleted" に更新）。
+func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	id := r.PathValue("id")
+
+	existing, err := h.projectService.GetByID(r.Context(), id)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
+		return
+	}
+	if existing.OwnerID != userID {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "forbidden"})
+		return
+	}
+
+	if err := h.projectService.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "delete_failed"})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }

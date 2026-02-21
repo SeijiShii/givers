@@ -156,10 +156,20 @@ func (r *PgProjectRepository) Update(ctx context.Context, project *model.Project
 	return nil
 }
 
-// Delete はプロジェクトを削除する
+// Delete はプロジェクトを論理削除する（status を "deleted" に更新）。
+// 対象が存在しない場合は ErrNotFound を返す。
 func (r *PgProjectRepository) Delete(ctx context.Context, id string) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM projects WHERE id = $1`, id)
-	return err
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE projects SET status='deleted', updated_at=NOW() WHERE id=$1 AND status != 'deleted'`,
+		id,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *PgProjectRepository) upsertCosts(ctx context.Context, c *model.ProjectCosts) error {

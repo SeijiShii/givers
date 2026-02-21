@@ -267,3 +267,123 @@ func TestProjectHandler_Update_Forbidden(t *testing.T) {
 		t.Errorf("expected 403, got %d", rec.Code)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// DELETE /api/projects/{id} tests
+// ---------------------------------------------------------------------------
+
+func TestProjectHandler_Delete_Success(t *testing.T) {
+	var deletedID string
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "u1", Name: "P1"}, nil
+		},
+		deleteFunc: func(ctx context.Context, id string) error {
+			deletedID = id
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
+
+	req := httptest.NewRequest("DELETE", "/api/projects/p1", nil)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if deletedID != "p1" {
+		t.Errorf("expected Delete called with p1, got %q", deletedID)
+	}
+	var resp map[string]bool
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if !resp["ok"] {
+		t.Error("expected ok=true in response")
+	}
+}
+
+func TestProjectHandler_Delete_Unauthorized(t *testing.T) {
+	h := NewProjectHandler(&mockProjectService{})
+
+	mux := http.NewServeMux()
+	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
+
+	req := httptest.NewRequest("DELETE", "/api/projects/p1", nil)
+	// no auth in context
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestProjectHandler_Delete_NotFound(t *testing.T) {
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return nil, errors.New("not found")
+		},
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
+
+	req := httptest.NewRequest("DELETE", "/api/projects/no-such", nil)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestProjectHandler_Delete_Forbidden(t *testing.T) {
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: "p1", OwnerID: "other-user", Name: "P1"}, nil
+		},
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
+
+	req := httptest.NewRequest("DELETE", "/api/projects/p1", nil)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestProjectHandler_Delete_ServiceError(t *testing.T) {
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: "p1", OwnerID: "u1"}, nil
+		},
+		deleteFunc: func(ctx context.Context, id string) error {
+			return errors.New("db error")
+		},
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
+
+	req := httptest.NewRequest("DELETE", "/api/projects/p1", nil)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
