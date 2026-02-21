@@ -44,10 +44,12 @@ func main() {
 	projectRepo := repository.NewPgProjectRepository(pool)
 	contactRepo := repository.NewPgContactRepository(pool)
 	watchRepo := repository.NewPgWatchRepository(pool)
+	projectUpdateRepo := repository.NewPgProjectUpdateRepository(pool)
 	authService := service.NewAuthService(userRepo)
 	projectService := service.NewProjectService(projectRepo)
 	contactService := service.NewContactService(contactRepo)
 	watchService := service.NewWatchService(watchRepo)
+	projectUpdateService := service.NewProjectUpdateService(projectUpdateRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
@@ -78,6 +80,7 @@ func main() {
 	contactHandler := handler.NewContactHandler(contactService)
 	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})
 	watchHandler := handler.NewWatchHandler(watchService)
+	updateHandler := handler.NewProjectUpdateHandler(projectUpdateService, projectService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.Health)
@@ -105,6 +108,12 @@ func main() {
 	mux.Handle("GET /api/me/projects", wrapAuth(http.HandlerFunc(projectHandler.MyProjects)))
 	mux.Handle("POST /api/projects", wrapAuth(http.HandlerFunc(projectHandler.Create)))
 	mux.Handle("PUT /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Update)))
+
+	// プロジェクト更新 API
+	mux.Handle("GET /api/projects/{id}/updates", http.HandlerFunc(updateHandler.List))
+	mux.Handle("POST /api/projects/{id}/updates", wrapAuth(http.HandlerFunc(updateHandler.Create)))
+	mux.Handle("PUT /api/projects/{id}/updates/{uid}", wrapAuth(http.HandlerFunc(updateHandler.UpdateUpdate)))
+	mux.Handle("DELETE /api/projects/{id}/updates/{uid}", wrapAuth(http.HandlerFunc(updateHandler.Delete)))
 
 	// ウォッチ API（認証必須）
 	mux.Handle("POST /api/projects/{id}/watch", wrapAuth(http.HandlerFunc(watchHandler.Watch)))
