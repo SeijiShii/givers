@@ -45,6 +45,9 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** モック用の擬似遅延（体感用、0 にしても可） */
 const MOCK_DELAY = 150;
 
+/** 問い合わせ既読 ID（セッション内のみ、モック用） */
+const readContactIds = new Set<string>(["contact-mock-2"]);
+
 /** 定期寄付キャンセル済み ID（セッション内のみ、モック用） */
 const cancelledRecurringIds = new Set<string>();
 
@@ -600,33 +603,47 @@ export const mockApi = {
   },
 
   /** お問い合わせ一覧（ホスト用） */
-  async getAdminContacts(_params?: {
+  async getAdminContacts(params?: {
     status?: string;
     limit?: number;
     offset?: number;
   }): Promise<ContactMessage[]> {
     await delay(MOCK_DELAY);
-    const now = new Date().toISOString();
-    return [
+    const base: ContactMessage[] = [
       {
         id: "contact-mock-1",
         email: "sender@example.com",
         name: "テストユーザー",
         message: "これはモックのお問い合わせメッセージです。",
-        status: "unread",
-        created_at: now,
-        updated_at: now,
+        status: readContactIds.has("contact-mock-1") ? "read" : "unread",
+        created_at: "2026-02-21T10:00:00Z",
+        updated_at: "2026-02-21T10:00:00Z",
       },
       {
         id: "contact-mock-2",
         email: "another@example.com",
         name: null,
-        message: "匿名のお問い合わせです。",
-        status: "read",
-        created_at: now,
-        updated_at: now,
+        message: "匿名のお問い合わせです。返信不要で結構です。",
+        status: readContactIds.has("contact-mock-2") ? "read" : "unread",
+        created_at: "2026-02-20T15:30:00Z",
+        updated_at: "2026-02-20T15:30:00Z",
       },
     ];
+    const filtered =
+      params?.status === "unread"
+        ? base.filter((m) => m.status === "unread")
+        : params?.status === "read"
+          ? base.filter((m) => m.status === "read")
+          : base;
+    const offset = params?.offset ?? 0;
+    const limit = params?.limit ?? 20;
+    return filtered.slice(offset, offset + limit);
+  },
+
+  /** 問い合わせを既読にする（モック: セッション内 Set で管理） */
+  async markContactRead(id: string): Promise<void> {
+    await delay(MOCK_DELAY);
+    readContactIds.add(id);
   },
 
   /** 法的文書取得（モックでは固定テキストを返す） */

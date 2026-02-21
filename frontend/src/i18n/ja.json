@@ -214,7 +214,17 @@
     "disclosureExportIdPlaceholder": "例: user-1 または mock-1",
     "disclosureExportButton": "開示用データを出力",
     "disclosureExportNotice": "出力したデータは法的開示請求等に備えたものです。取り扱いに注意し、開示の要否・範囲は弁護士等の助言に従ってください。",
-    "disclosureExportConfirm": "出力する"
+    "disclosureExportConfirm": "出力する",
+    "contactsTitle": "問い合わせ一覧",
+    "contactsEmpty": "問い合わせはまだありません。",
+    "contactStatusUnread": "未読",
+    "contactStatusRead": "既読",
+    "contactMarkRead": "既読にする",
+    "contactFrom": "送信者",
+    "contactDate": "日時",
+    "contactMessage": "メッセージ",
+    "contactFilterAll": "すべて",
+    "contactFilterUnread": "未読のみ"
   },
   "errors": {
     "accountSuspended": "このアカウントは利用停止されています。ご不明な点は運営までお問い合わせください。",

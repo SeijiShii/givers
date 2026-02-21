@@ -232,7 +232,17 @@ export async function getAdminContacts(params?: {
   if (params?.limit != null) q.set("limit", String(params.limit));
   if (params?.offset != null) q.set("offset", String(params.offset));
   const qs = q.toString();
-  return fetchApi(`/api/admin/contacts${qs ? "?" + qs : ""}`);
+  const res = await fetchApi<{ messages: ContactMessage[] }>(
+    `/api/admin/contacts${qs ? "?" + qs : ""}`,
+  );
+  return res.messages ?? [];
+}
+
+/** 問い合わせメッセージを既読にする（ホスト用） */
+export async function markContactRead(id: string): Promise<void> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.markContactRead(id);
+  // TODO: PATCH /api/admin/contacts/:id/status が実装されたら有効化
 }
 
 // --- Legal API ---

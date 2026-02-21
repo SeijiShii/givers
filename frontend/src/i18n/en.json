@@ -214,7 +214,17 @@
     "disclosureExportIdPlaceholder": "e.g. user-1 or mock-1",
     "disclosureExportButton": "Export disclosure data",
     "disclosureExportNotice": "Exported data is for legal disclosure requests. Handle with care; follow legal advice on whether and what to disclose.",
-    "disclosureExportConfirm": "Export"
+    "disclosureExportConfirm": "Export",
+    "contactsTitle": "Contact messages",
+    "contactsEmpty": "No messages yet.",
+    "contactStatusUnread": "Unread",
+    "contactStatusRead": "Read",
+    "contactMarkRead": "Mark as read",
+    "contactFrom": "From",
+    "contactDate": "Date",
+    "contactMessage": "Message",
+    "contactFilterAll": "All",
+    "contactFilterUnread": "Unread only"
   },
   "errors": {
     "accountSuspended": "This account has been suspended. Please contact support if you have questions.",
