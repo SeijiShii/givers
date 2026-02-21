@@ -109,6 +109,7 @@ func main() {
 	mux.Handle("POST /api/projects", wrapAuth(http.HandlerFunc(projectHandler.Create)))
 	mux.Handle("PUT /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Update)))
 	mux.Handle("DELETE /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Delete)))
+	mux.Handle("PATCH /api/projects/{id}/status", wrapAuth(http.HandlerFunc(projectHandler.PatchStatus)))
 
 	// プロジェクト更新 API
 	mux.Handle("GET /api/projects/{id}/updates", http.HandlerFunc(updateHandler.List))

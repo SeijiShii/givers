@@ -387,3 +387,143 @@ func TestProjectHandler_Delete_ServiceError(t *testing.T) {
 		t.Errorf("expected 500, got %d", rec.Code)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// PATCH /api/projects/{id}/status tests
+// ---------------------------------------------------------------------------
+
+func TestProjectHandler_PatchStatus_Success_Owner(t *testing.T) {
+	var updated *model.Project
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "u1", Status: "active"}, nil
+		},
+		updateFunc: func(ctx context.Context, p *model.Project) error {
+			updated = p
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
+
+	body := bytes.NewBufferString(`{"status":"frozen"}`)
+	req := httptest.NewRequest("PATCH", "/api/projects/p1/status", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if updated == nil || updated.Status != "frozen" {
+		t.Errorf("expected status=frozen updated, got %v", updated)
+	}
+}
+
+func TestProjectHandler_PatchStatus_Success_Host(t *testing.T) {
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "other-user", Status: "active"}, nil
+		},
+		updateFunc: func(ctx context.Context, p *model.Project) error { return nil },
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
+
+	body := bytes.NewBufferString(`{"status":"frozen"}`)
+	req := httptest.NewRequest("PATCH", "/api/projects/p1/status", body)
+	ctx := auth.WithUserID(context.Background(), "host-user")
+	ctx = auth.WithIsHost(ctx, true)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for host, got %d", rec.Code)
+	}
+}
+
+func TestProjectHandler_PatchStatus_Unauthorized(t *testing.T) {
+	h := NewProjectHandler(&mockProjectService{})
+
+	mux := http.NewServeMux()
+	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
+
+	req := httptest.NewRequest("PATCH", "/api/projects/p1/status", bytes.NewBufferString(`{"status":"frozen"}`))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestProjectHandler_PatchStatus_Forbidden(t *testing.T) {
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "other-user", Status: "active"}, nil
+		},
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
+
+	body := bytes.NewBufferString(`{"status":"frozen"}`)
+	req := httptest.NewRequest("PATCH", "/api/projects/p1/status", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", rec.Code)
+	}
+}
+
+func TestProjectHandler_PatchStatus_InvalidStatus(t *testing.T) {
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "u1", Status: "active"}, nil
+		},
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
+
+	body := bytes.NewBufferString(`{"status":"deleted"}`)
+	req := httptest.NewRequest("PATCH", "/api/projects/p1/status", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid status, got %d", rec.Code)
+	}
+}
+
+func TestProjectHandler_PatchStatus_NotFound(t *testing.T) {
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return nil, errors.New("not found")
+		},
+	}
+	h := NewProjectHandler(mock)
+
+	mux := http.NewServeMux()
+	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
+
+	body := bytes.NewBufferString(`{"status":"frozen"}`)
+	req := httptest.NewRequest("PATCH", "/api/projects/no-such/status", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rec.Code)
+	}
+}

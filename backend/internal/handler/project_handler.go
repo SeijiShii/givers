@@ -244,6 +244,59 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(existing)
 }
 
+// PatchStatus は PATCH /api/projects/{id}/status を処理する（認証必須・オーナーまたはホスト）。
+// 許可されるステータス: "active", "frozen"
+func (h *ProjectHandler) PatchStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	id := r.PathValue("id")
+
+	existing, err := h.projectService.GetByID(r.Context(), id)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
+		return
+	}
+
+	isHost := auth.IsHostFromContext(r.Context())
+	if !isHost && existing.OwnerID != userID {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "forbidden"})
+		return
+	}
+
+	var req struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_json"})
+		return
+	}
+
+	if req.Status != "active" && req.Status != "frozen" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_status"})
+		return
+	}
+
+	existing.Status = req.Status
+	if err := h.projectService.Update(r.Context(), existing); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "update_failed"})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(existing)
+}
+
 // Delete は DELETE /api/projects/{id} を処理する（認証必須・オーナーのみ）。
 // 論理削除（status を "deleted" に更新）。
 func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
