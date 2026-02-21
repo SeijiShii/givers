@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/givers/backend/internal/model"
+	"github.com/givers/backend/internal/repository"
 )
 
 // ---------------------------------------------------------------------------
@@ -14,8 +15,9 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockContactRepository struct {
-	saveFunc func(ctx context.Context, msg *model.ContactMessage) error
-	listFunc func(ctx context.Context, opts model.ContactListOptions) ([]*model.ContactMessage, error)
+	saveFunc         func(ctx context.Context, msg *model.ContactMessage) error
+	listFunc         func(ctx context.Context, opts model.ContactListOptions) ([]*model.ContactMessage, error)
+	updateStatusFunc func(ctx context.Context, id string, status string) error
 }
 
 func (m *mockContactRepository) Save(ctx context.Context, msg *model.ContactMessage) error {
@@ -30,6 +32,13 @@ func (m *mockContactRepository) List(ctx context.Context, opts model.ContactList
 		return m.listFunc(ctx, opts)
 	}
 	return nil, nil
+}
+
+func (m *mockContactRepository) UpdateStatus(ctx context.Context, id string, status string) error {
+	if m.updateStatusFunc != nil {
+		return m.updateStatusFunc(ctx, id, status)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +178,64 @@ func TestContactService_List_RepositoryError(t *testing.T) {
 	svc := NewContactService(mock)
 
 	_, err := svc.List(context.Background(), model.ContactListOptions{})
+	if err == nil {
+		t.Error("expected error from repository, got nil")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// UpdateStatus tests
+// ---------------------------------------------------------------------------
+
+// TestContactService_UpdateStatus_DelegatestoRepo verifies that the service
+// calls the repository with the correct arguments.
+func TestContactService_UpdateStatus_DelegatestoRepo(t *testing.T) {
+	var capturedID, capturedStatus string
+	mock := &mockContactRepository{
+		updateStatusFunc: func(ctx context.Context, id string, status string) error {
+			capturedID = id
+			capturedStatus = status
+			return nil
+		},
+	}
+	svc := NewContactService(mock)
+
+	if err := svc.UpdateStatus(context.Background(), "msg-1", "read"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedID != "msg-1" {
+		t.Errorf("expected id=msg-1, got %q", capturedID)
+	}
+	if capturedStatus != "read" {
+		t.Errorf("expected status=read, got %q", capturedStatus)
+	}
+}
+
+// TestContactService_UpdateStatus_NotFound propagates ErrNotFound.
+func TestContactService_UpdateStatus_NotFound(t *testing.T) {
+	mock := &mockContactRepository{
+		updateStatusFunc: func(ctx context.Context, id string, status string) error {
+			return repository.ErrNotFound
+		},
+	}
+	svc := NewContactService(mock)
+
+	err := svc.UpdateStatus(context.Background(), "no-such-id", "read")
+	if !errors.Is(err, repository.ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+// TestContactService_UpdateStatus_RepoError propagates arbitrary errors.
+func TestContactService_UpdateStatus_RepoError(t *testing.T) {
+	mock := &mockContactRepository{
+		updateStatusFunc: func(ctx context.Context, id string, status string) error {
+			return errors.New("db write failed")
+		},
+	}
+	svc := NewContactService(mock)
+
+	err := svc.UpdateStatus(context.Background(), "msg-1", "read")
 	if err == nil {
 		t.Error("expected error from repository, got nil")
 	}

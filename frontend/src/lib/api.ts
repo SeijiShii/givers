@@ -242,7 +242,10 @@ export async function getAdminContacts(params?: {
 export async function markContactRead(id: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.markContactRead(id);
-  // TODO: PATCH /api/admin/contacts/:id/status が実装されたら有効化
+  await fetchApi(`/api/admin/contacts/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "read" }),
+  });
 }
 
 // --- Legal API ---

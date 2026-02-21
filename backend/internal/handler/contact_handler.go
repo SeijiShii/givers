@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/givers/backend/internal/model"
+	"github.com/givers/backend/internal/repository"
 	"github.com/givers/backend/internal/service"
 	"github.com/givers/backend/pkg/auth"
 )
@@ -137,4 +139,55 @@ func (h *ContactHandler) AdminList(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(adminListResponse{Messages: messages})
+}
+
+// updateStatusRequest is the expected JSON body for PATCH /api/admin/contacts/{id}/status.
+type updateStatusRequest struct {
+	Status string `json:"status"`
+}
+
+// UpdateStatus handles PATCH /api/admin/contacts/{id}/status (host-only).
+// Accepts {"status": "read"} or {"status": "unread"}.
+func (h *ContactHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	_, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		return
+	}
+	if !auth.IsHostFromContext(r.Context()) {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "forbidden"})
+		return
+	}
+
+	id := r.PathValue("id")
+
+	var req updateStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_json"})
+		return
+	}
+
+	if req.Status != "read" && req.Status != "unread" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_status"})
+		return
+	}
+
+	if err := h.contactService.UpdateStatus(r.Context(), id, req.Status); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "update_failed"})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }

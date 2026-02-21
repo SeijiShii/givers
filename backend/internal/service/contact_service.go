@@ -14,4 +14,9 @@ type ContactService interface {
 
 	// List returns contact messages according to the given options.
 	List(ctx context.Context, opts model.ContactListOptions) ([]*model.ContactMessage, error)
+
+	// UpdateStatus changes the status of a contact message.
+	// status must be "read" or "unread".
+	// Returns repository.ErrNotFound if the message does not exist.
+	UpdateStatus(ctx context.Context, id string, status string) error
 }

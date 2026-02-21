@@ -32,3 +32,8 @@ func (s *contactServiceImpl) Submit(ctx context.Context, msg *model.ContactMessa
 func (s *contactServiceImpl) List(ctx context.Context, opts model.ContactListOptions) ([]*model.ContactMessage, error) {
 	return s.repo.List(ctx, opts)
 }
+
+// UpdateStatus changes the status of a contact message.
+func (s *contactServiceImpl) UpdateStatus(ctx context.Context, id string, status string) error {
+	return s.repo.UpdateStatus(ctx, id, status)
+}

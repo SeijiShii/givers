@@ -122,6 +122,7 @@ func main() {
 
 	// Admin routes (host-only — handler enforces IsHostFromContext)
 	mux.Handle("GET /api/admin/contacts", wrapAuth(http.HandlerFunc(contactHandler.AdminList)))
+	mux.Handle("PATCH /api/admin/contacts/{id}/status", wrapAuth(http.HandlerFunc(contactHandler.UpdateStatus)))
 
 	server := &http.Server{
 		Addr:         ":8080",

@@ -13,6 +13,9 @@ import (
 type ContactRepository interface {
 	Save(ctx context.Context, msg *model.ContactMessage) error
 	List(ctx context.Context, opts model.ContactListOptions) ([]*model.ContactMessage, error)
+	// UpdateStatus changes the status of a contact message to "read" or "unread".
+	// Returns ErrNotFound if no message with the given id exists.
+	UpdateStatus(ctx context.Context, id string, status string) error
 }
 
 // PgContactRepository is the PostgreSQL implementation of ContactRepository.
@@ -80,6 +83,22 @@ func (r *PgContactRepository) List(ctx context.Context, opts model.ContactListOp
 		messages = append(messages, &m)
 	}
 	return messages, rows.Err()
+}
+
+// UpdateStatus changes the status of a contact message identified by id.
+// Returns ErrNotFound if no row with the given id exists.
+func (r *PgContactRepository) UpdateStatus(ctx context.Context, id string, status string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE contact_messages SET status=$1, updated_at=NOW() WHERE id=$2`,
+		status, id,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // itoa converts a small positive integer to its string representation.
