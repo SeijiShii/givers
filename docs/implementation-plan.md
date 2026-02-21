@@ -14,7 +14,7 @@
 | フロントエンド | Astro + React (Islands) / TypeScript |
 | DB | PostgreSQL |
 | 決済 | Stripe Connect |
-| 認証 | Google / GitHub OAuth。拡張候補: Email（マジックリンクまたはパスワード）、Apple Sign In |
+| 認証 | Google OAuth（**必須**）+ 環境変数で選択可能なオプションプロバイダ（GitHub / Apple Sign In / Email マジックリンク）。有効プロバイダは `GET /api/auth/providers` で取得しフロントが動的に表示 |
 
 ## プロジェクト構成
 
@@ -71,6 +71,7 @@ giving_platform/
 - **project_updates**: プロジェクトのアップデート投稿
 - **watches**: ウォッチ（ユーザー×プロジェクト）
 - **project_mutes**: ミュート（プロジェクトオーナーが寄付者をミュート、プロジェクト単位）
+- **contact_messages**: サービスホストへの問い合わせ。`id（UUID PK）, email（NOT NULL）, name（TEXT NULL）, message（TEXT NOT NULL）, status（'unread' | 'read'）, created_at`
 
 ### 未定義テーブルの詳細スキーマ
 
@@ -126,7 +127,9 @@ giving_platform/
 
 ### Phase 2: 認証・ユーザー
 
-- Google OAuth 2.0 実装（Go）
+- Google OAuth 2.0 実装（Go）。`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` は**必須**（未設定ならサーバー起動拒否）
+- GitHub OAuth など追加プロバイダは環境変数設定のみで有効化（`GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` など）
+- `GET /api/auth/providers` でフロントエンドに有効プロバイダ一覧を返す（フロントはこれを見てボタンを動的表示）
 - トークン（Cookie）による匿名寄付者トラッキング
 - アカウント作成時のトークン→ユーザー移行フロー
 - フロント: ログイン/ログアウト UI（React Island）
@@ -156,6 +159,8 @@ giving_platform/
 - プロジェクト間リンク・発見導線
 - **利用停止・凍結時のメッセージ**: ホスト権限で利用停止されたアカウント、またはオーナーが凍結・削除したプロジェクトに対して寄付等のアクションを試みたときに、状況を理解できる親切なメッセージを表示する。→ `docs/idea.md`・`docs/user-management-mock-plan.md` 1.3・`docs/mock-implementation-status.md` 12.5 参照。
 - **開示用データの出力**: 第三者情報開示請求等に備え、管理画面から**ユーザーID または プロジェクトID 指定で開示用データ（JSON）を出力**できるようにする。ホストのみ実行可能。→ `docs/legal-risk-considerations.md` 4・`docs/user-management-mock-plan.md` 1.4。
+- **問い合わせフォーム** (`/contact`): メールアドレス必須でホストにメッセージを送信。認証不要。メッセージは DB 保存し、`CONTACT_NOTIFY_EMAIL` 設定時は受信通知メールを送信。
+- **問い合わせ閲覧** (`/host/contacts`): ホスト権限で問い合わせ一覧を閲覧・既読管理できる管理ページ。
 
 ### Phase 5.5: チャート表示（推移・進捗）
 
@@ -189,9 +194,10 @@ giving_platform/
 
 ### Phase 2: 認証・ユーザー
 
-- [ ] ナビに「Google」「GitHub」ログインボタンが表示される（拡張で Apple・Email も追加可能。`docs/mock-implementation-status.md` 3.7 参照）
-- [ ] 「Google」クリックで Google 認証画面にリダイレクトされる（GOOGLE_CLIENT_ID 設定時）
-- [ ] 「GitHub」クリックで GitHub 認証画面にリダイレクトされる（GITHUB_CLIENT_ID 設定時）
+- [ ] ナビに Google ログインボタンが常時表示される（Google は必須）
+- [ ] GitHub・Apple・Email は `GET /api/auth/providers` で有効と返された場合のみボタンが表示される
+- [ ] 「Google」クリックで Google 認証画面にリダイレクトされる
+- [ ] 「GitHub」クリックで GitHub 認証画面にリダイレクトされる（`GITHUB_CLIENT_ID` 設定時のみ表示）
 - [ ] 認証完了後、フロントにリダイレクトされ、ユーザー名と「ログアウト」が表示される
 - [ ] ログアウト後、「Google でログイン」が再表示される
 - [ ] 未ログインで GET /api/me が 401 を返す
@@ -227,6 +233,9 @@ giving_platform/
 - [ ] 利用停止アカウントで寄付等を試みたときに、状況が分かる親切なメッセージが表示される
 - [ ] 凍結・削除されたプロジェクトに寄付等を試みたときに、状況が分かる親切なメッセージが表示される
 - [ ] ホストが管理画面からユーザーIDまたはプロジェクトIDを指定して開示用データ（JSON）を出力できる
+- [ ] `/contact` にアクセスするとメールアドレス入力必須の問い合わせフォームが表示される
+- [ ] フォーム送信後に「送信しました」メッセージが表示される
+- [ ] `/host/contacts` でホストが問い合わせ一覧を閲覧できる（未読/既読管理）
 
 ### Phase 6: 仕上げ
 
@@ -252,6 +261,8 @@ giving_platform/
 | /me | 動的 | マイページ（プロジェクト一覧、寄付履歴） |
 | /host | 静的 | プラットフォーム健全性（数値は API から fetch） |
 | /about | 静的 | 公式ドメイン等の説明 |
+| /contact | 静的+動的 | ホストへの問い合わせフォーム（送信フォームは React Island） |
+| /host/contacts | 動的 | 問い合わせ一覧（ホスト権限必須） |
 
 ### React Islands の使い分け
 

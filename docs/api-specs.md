@@ -75,6 +75,7 @@
 | Method | Path | 認証 | 説明 |
 |--------|------|------|------|
 | GET | `/api/host` | 不要 | プラットフォーム健全性（計算済み rate・signal を含む） |
+| POST | `/api/contact` | 不要 | サービスホストへの問い合わせ送信 |
 
 ### 管理（ホスト権限必須）
 
@@ -83,6 +84,7 @@
 | GET | `/api/admin/users` | 必須（ホスト） | ユーザー一覧 |
 | PATCH | `/api/admin/users/:id/suspend` | 必須（ホスト） | ユーザー利用停止・解除 |
 | GET | `/api/admin/disclosure-export` | 必須（ホスト） | 開示用データ出力（`?type=user&id=xxx` または `?type=project&id=xxx`） |
+| GET | `/api/admin/contacts` | 必須（ホスト） | 問い合わせ一覧 |
 
 ---
 
@@ -224,7 +226,71 @@
 
 `signal` は `"green"` / `"yellow"` / `"red"` のいずれか。
 
+### POST /api/contact
+
+サービスホストへの問い合わせを送信する。認証不要（未ログインユーザーも可）。
+
+**リクエスト**
+```json
+{
+  "email": "user@example.com",
+  "name": "山田 太郎",
+  "message": "問い合わせ内容"
+}
+```
+
+| フィールド | 必須 | 説明 |
+|-----------|------|------|
+| `email` | ◎ | 返信先メールアドレス |
+| `name` | ✕ | 送信者名（任意） |
+| `message` | ◎ | 本文（最大 5000 文字） |
+
+**レスポンス (200)**
+```json
+{ "ok": true }
+```
+
+- メッセージは `contact_messages` テーブルに保存する
+- `CONTACT_NOTIFY_EMAIL` が設定されている場合、受信時にそのアドレスへ通知メールを送信する（未実装は保存のみ）
+
+### GET /api/admin/contacts
+
+問い合わせ一覧を返す（ホスト権限必須）。
+
+**クエリパラメータ**
+
+| パラメータ | デフォルト | 説明 |
+|-----------|-----------|------|
+| `limit` | 50 | 最大 200 |
+| `cursor` | なし | カーソルベースページネーション |
+| `status` | `all` | `all` / `unread` / `read` |
+
+**レスポンス (200)**
+```json
+{
+  "contacts": [
+    {
+      "id": "uuid",
+      "email": "user@example.com",
+      "name": "山田 太郎",
+      "message": "問い合わせ内容",
+      "status": "unread",
+      "created_at": "2026-02-21T00:00:00Z"
+    }
+  ],
+  "next_cursor": "uuid or null"
+}
+```
+
 ### GET /api/auth/providers
+
+有効な認証プロバイダの一覧を返す。フロントエンドはこのレスポンスに基づきログインボタンを動的に表示する。
+
+**ルール**
+- `google` は常時含まれる（必須プロバイダ。`GOOGLE_CLIENT_ID` 未設定の場合はサーバー起動時にエラー）
+- `github` は `GITHUB_CLIENT_ID` が設定されている場合のみ含まれる
+- `apple` は `APPLE_CLIENT_ID` が設定されている場合のみ含まれる（将来実装）
+- `email` は `ENABLE_EMAIL_LOGIN=true` が設定されている場合のみ含まれる（将来実装）
 
 **レスポンス (200)**
 ```json
@@ -277,11 +343,14 @@
 | 変数 | 用途 |
 |------|------|
 | `DATABASE_URL` | PostgreSQL 接続文字列 |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth（未設定なら Google ログイン無効） |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth（未設定なら GitHub ログイン無効） |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth（**必須**。未設定の場合はサーバー起動を拒否） |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth（オプション。未設定なら GitHub ログイン無効） |
+| `APPLE_CLIENT_ID` / `APPLE_CLIENT_SECRET` / `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Apple Sign In（オプション。将来実装。未設定なら Apple ログイン無効） |
+| `ENABLE_EMAIL_LOGIN` | `true` でメールログイン（マジックリンク）を有効化（オプション。将来実装） |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe |
 | `STRIPE_CONNECT_CLIENT_ID` | Stripe Connect |
 | `FRONTEND_URL` | CORS・リダイレクト用 |
 | `OFFICIAL_DOMAIN` | 公式ドメイン（自ホスト判定用） |
 | `AUTH_REQUIRED` | `true` で認証ミドルウェアを有効化（本番）。未設定または `false` で開発モード（認証スキップ） |
 | `HOST_USER_ID` | ホスト権限を持つユーザー ID（admin API のアクセス制御用） |
+| `CONTACT_NOTIFY_EMAIL` | 問い合わせ受信時の通知先メールアドレス（オプション。未設定なら DB 保存のみ） |
