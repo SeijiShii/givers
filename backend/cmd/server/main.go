@@ -45,11 +45,16 @@ func main() {
 	contactRepo := repository.NewPgContactRepository(pool)
 	watchRepo := repository.NewPgWatchRepository(pool)
 	projectUpdateRepo := repository.NewPgProjectUpdateRepository(pool)
+	platformHealthRepo := repository.NewPgPlatformHealthRepository(pool)
+	donationRepo := repository.NewPgDonationRepository(pool)
 	authService := service.NewAuthService(userRepo)
 	projectService := service.NewProjectService(projectRepo)
 	contactService := service.NewContactService(contactRepo)
 	watchService := service.NewWatchService(watchRepo)
 	projectUpdateService := service.NewProjectUpdateService(projectUpdateRepo)
+	platformHealthService := service.NewPlatformHealthService(platformHealthRepo)
+	adminUserService := service.NewAdminUserService(userRepo)
+	donationService := service.NewDonationService(donationRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
@@ -81,6 +86,9 @@ func main() {
 	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})
 	watchHandler := handler.NewWatchHandler(watchService)
 	updateHandler := handler.NewProjectUpdateHandler(projectUpdateService, projectService)
+	hostHandler := handler.NewHostHandler(platformHealthService)
+	adminUserHandler := handler.NewAdminUserHandler(adminUserService, projectService)
+	donationHandler := handler.NewDonationHandler(donationService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.Health)
@@ -125,6 +133,18 @@ func main() {
 	// Admin routes (host-only — handler enforces IsHostFromContext)
 	mux.Handle("GET /api/admin/contacts", wrapAuth(http.HandlerFunc(contactHandler.AdminList)))
 	mux.Handle("PATCH /api/admin/contacts/{id}/status", wrapAuth(http.HandlerFunc(contactHandler.UpdateStatus)))
+	mux.Handle("GET /api/admin/users", wrapAuth(http.HandlerFunc(adminUserHandler.List)))
+	mux.Handle("PATCH /api/admin/users/{id}/suspend", wrapAuth(http.HandlerFunc(adminUserHandler.Suspend)))
+	mux.Handle("GET /api/admin/disclosure-export", wrapAuth(http.HandlerFunc(adminUserHandler.DisclosureExport)))
+
+	// Platform health (no auth required)
+	mux.HandleFunc("GET /api/host", hostHandler.Get)
+
+	// Donation routes (auth required)
+	mux.Handle("GET /api/me/donations", wrapAuth(http.HandlerFunc(donationHandler.List)))
+	mux.Handle("PATCH /api/me/donations/{id}", wrapAuth(http.HandlerFunc(donationHandler.Patch)))
+	mux.Handle("DELETE /api/me/donations/{id}", wrapAuth(http.HandlerFunc(donationHandler.Delete)))
+	mux.Handle("POST /api/me/migrate-from-token", wrapAuth(http.HandlerFunc(donationHandler.MigrateFromToken)))
 
 	server := &http.Server{
 		Addr:         ":8080",

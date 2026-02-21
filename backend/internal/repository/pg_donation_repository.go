@@ -1,0 +1,130 @@
+package repository
+
+import (
+	"context"
+
+	"github.com/givers/backend/internal/model"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type pgDonationRepository struct {
+	pool *pgxpool.Pool
+}
+
+// NewPgDonationRepository returns a PostgreSQL-backed DonationRepository.
+func NewPgDonationRepository(pool *pgxpool.Pool) DonationRepository {
+	return &pgDonationRepository{pool: pool}
+}
+
+const donationSelectCols = `id, project_id, donor_type, donor_id, amount, currency,
+	COALESCE(message, ''), is_recurring, COALESCE(stripe_payment_id, ''),
+	COALESCE(stripe_subscription_id, ''), paused, created_at, updated_at`
+
+func scanDonation(scan func(...any) error) (*model.Donation, error) {
+	d := &model.Donation{}
+	return d, scan(
+		&d.ID, &d.ProjectID, &d.DonorType, &d.DonorID,
+		&d.Amount, &d.Currency, &d.Message,
+		&d.IsRecurring, &d.StripePaymentID, &d.StripeSubscriptionID,
+		&d.Paused, &d.CreatedAt, &d.UpdatedAt,
+	)
+}
+
+func (r *pgDonationRepository) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+donationSelectCols+`
+		 FROM donations
+		 WHERE donor_type = 'user' AND donor_id = $1
+		 ORDER BY created_at DESC
+		 LIMIT $2 OFFSET $3`,
+		userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []*model.Donation
+	for rows.Next() {
+		d, err := scanDonation(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, d)
+	}
+	return list, rows.Err()
+}
+
+func (r *pgDonationRepository) GetByID(ctx context.Context, id string) (*model.Donation, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT `+donationSelectCols+` FROM donations WHERE id = $1`, id)
+	d, err := scanDonation(row.Scan)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+func (r *pgDonationRepository) Patch(ctx context.Context, id string, patch model.DonationPatch) error {
+	if patch.Amount == nil && patch.Paused == nil {
+		return nil
+	}
+
+	if patch.Amount != nil && patch.Paused != nil {
+		tag, err := r.pool.Exec(ctx,
+			`UPDATE donations SET amount = $1, paused = $2, updated_at = NOW() WHERE id = $3`,
+			*patch.Amount, *patch.Paused, id)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	}
+
+	if patch.Amount != nil {
+		tag, err := r.pool.Exec(ctx,
+			`UPDATE donations SET amount = $1, updated_at = NOW() WHERE id = $2`,
+			*patch.Amount, id)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	}
+
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE donations SET paused = $1, updated_at = NOW() WHERE id = $2`,
+		*patch.Paused, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *pgDonationRepository) Delete(ctx context.Context, id string) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM donations WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (r *pgDonationRepository) MigrateToken(ctx context.Context, token string, userID string) (int, error) {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE donations SET donor_type = 'user', donor_id = $1, updated_at = NOW()
+		 WHERE donor_type = 'token' AND donor_id = $2`,
+		userID, token)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}

@@ -36,6 +36,14 @@ func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error
 	return nil
 }
 
+func (m *mockUserRepository) List(ctx context.Context, limit, offset int) ([]*model.User, error) {
+	return nil, nil
+}
+
+func (m *mockUserRepository) Suspend(ctx context.Context, id string, suspend bool) error {
+	return nil
+}
+
 func TestAuthService_GetOrCreateUserFromGoogle_ExistingUser(t *testing.T) {
 	ctx := context.Background()
 	existingUser := &model.User{ID: "1", Email: "a@example.com", GoogleID: "google-123", Name: "A"}

@@ -17,4 +17,6 @@ type UserRepository interface {
 	FindByGoogleID(ctx context.Context, googleID string) (*model.User, error)
 	FindByGitHubID(ctx context.Context, githubID string) (*model.User, error)
 	Create(ctx context.Context, user *model.User) error
+	List(ctx context.Context, limit, offset int) ([]*model.User, error)
+	Suspend(ctx context.Context, id string, suspend bool) error
 }
