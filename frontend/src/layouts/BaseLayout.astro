@@ -46,6 +46,7 @@ const basePath = locale === 'en' ? '/en' : '';
           <NavAdminLink client:load locale={locale} basePath={basePath} />
           <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
           <a href={`${basePath}/faq`}>{t(locale, 'nav.faq')}</a>
+          <a href={`${basePath}/contact`}>{t(locale, 'nav.contact')}</a>
           <span class="locale-switcher">
             {locale === 'ja' ? (
               <a href={`/en${Astro.url.pathname === '/' ? '' : Astro.url.pathname}`} aria-label="Switch to English">{t(locale, 'locale.en')}</a>
@@ -96,6 +97,15 @@ const basePath = locale === 'en' ? '/en' : '';
     </main>
     <footer>
       <p>{t(locale, 'footer.text')}</p>
+      <nav class="footer-legal" aria-label={locale === 'ja' ? '法的文書' : 'Legal'}>
+        <a href={`${basePath}/terms`}>{t(locale, 'legal.terms')}</a>
+        <span aria-hidden="true"> · </span>
+        <a href={`${basePath}/privacy`}>{t(locale, 'legal.privacy')}</a>
+        <span aria-hidden="true"> · </span>
+        <a href={`${basePath}/disclaimer`}>{t(locale, 'legal.disclaimer')}</a>
+        <span aria-hidden="true"> · </span>
+        <a href={`${basePath}/contact`}>{t(locale, 'nav.contact')}</a>
+      </nav>
     </footer>
   </body>
 </html>

@@ -11,7 +11,8 @@
     "financialHealthTitleNotReached": "財政的健全性：寄付は目標金額に未達（現在 {rate}%）",
     "adminUsers": "ユーザー管理",
     "about": "About",
-    "faq": "よくある質問"
+    "faq": "よくある質問",
+    "contact": "お問い合わせ"
   },
   "me": {
     "title": "マイページ",
@@ -227,6 +228,29 @@
     "emailSent": "送信しました。メールをご確認ください。",
     "emailSentMock": "送信しました。（モックのため実際のメールは送信されません）",
     "close": "閉じる"
+  },
+  "contact": {
+    "title": "お問い合わせ",
+    "description": "ご質問・ご要望はこちらからお気軽にどうぞ。",
+    "emailLabel": "メールアドレス（必須）",
+    "emailPlaceholder": "your@email.com",
+    "nameLabel": "お名前（任意）",
+    "namePlaceholder": "お名前",
+    "messageLabel": "メッセージ（必須）",
+    "messagePlaceholder": "お問い合わせ内容を入力してください",
+    "submit": "送信する",
+    "sending": "送信中...",
+    "successTitle": "送信しました",
+    "successMessage": "お問い合わせを受け付けました。通常数日以内にご返信します。",
+    "errorRequired": "メールアドレスとメッセージは必須です。",
+    "errorFailed": "送信に失敗しました。時間をおいて再度お試しください。"
+  },
+  "legal": {
+    "terms": "利用規約",
+    "privacy": "プライバシーポリシー",
+    "disclaimer": "免責事項",
+    "notConfigured": "このページはまだ設定されていません。",
+    "backToTop": "トップに戻る"
   },
   "footer": {
     "text": "GIVErS - GIVEの精神 / Donation platform for the GIVE spirit."

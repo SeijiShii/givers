@@ -7,21 +7,38 @@ import type {
   User,
   Donation,
   RecurringDonation,
-} from './api';
-import type { AdminUser, DisclosureExportPayload } from './api';
-import { MOCK_LOGIN_MODE_KEY } from './api';
+  AuthProviders,
+  ContactInput,
+  ContactMessage,
+  LegalDoc,
+} from "./api";
+import type { AdminUser, DisclosureExportPayload } from "./api";
+import { MOCK_LOGIN_MODE_KEY } from "./api";
 
 /** モック: トークン→アカウント移行済みフラグ（localStorage）。true なら getMe で pending_token_migration を返さない */
-const MOCK_MIGRATION_DONE_KEY = 'givers_mock_migration_done';
+const MOCK_MIGRATION_DONE_KEY = "givers_mock_migration_done";
 /** モック: 利用停止ユーザーをシミュレート（localStorage）。true なら getMe で suspended: true を返す */
-const MOCK_SUSPENDED_USER_KEY = 'givers_mock_suspended_user';
-import { MOCK_HOST_USER, MOCK_MEMBER_USER, MOCK_DONOR_USER, MOCK_ADMIN_USERS } from '../data/mock-users';
-import type { ProjectUpdate, CreateProjectUpdateInput } from './api';
-import { MOCK_PROJECTS, type MockProject } from '../data/mock-projects';
-import { MOCK_ACTIVITIES, MOCK_OWNERS, MOCK_RECENT_SUPPORTERS, type ActivityItem } from '../data/mock-activities';
-import { MOCK_CHART_DATA, type ChartDataPoint } from '../data/mock-chart-data';
-import { MOCK_PROJECT_UPDATES } from '../data/mock-project-updates';
-import { MOCK_DONATIONS, MOCK_RECURRING_DONATIONS } from '../data/mock-donations';
+const MOCK_SUSPENDED_USER_KEY = "givers_mock_suspended_user";
+import {
+  MOCK_HOST_USER,
+  MOCK_MEMBER_USER,
+  MOCK_DONOR_USER,
+  MOCK_ADMIN_USERS,
+} from "../data/mock-users";
+import type { ProjectUpdate, CreateProjectUpdateInput } from "./api";
+import { MOCK_PROJECTS, type MockProject } from "../data/mock-projects";
+import {
+  MOCK_ACTIVITIES,
+  MOCK_OWNERS,
+  MOCK_RECENT_SUPPORTERS,
+  type ActivityItem,
+} from "../data/mock-activities";
+import { MOCK_CHART_DATA, type ChartDataPoint } from "../data/mock-chart-data";
+import { MOCK_PROJECT_UPDATES } from "../data/mock-project-updates";
+import {
+  MOCK_DONATIONS,
+  MOCK_RECURRING_DONATIONS,
+} from "../data/mock-donations";
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -38,7 +55,10 @@ const pausedRecurringIds = new Set<string>();
 const deletedRecurringIds = new Set<string>();
 
 /** 定期寄付の変更（金額・タイミング）上書き（セッション内のみ、モック用） */
-const recurringOverrides = new Map<string, { amount?: number; interval?: 'monthly' | 'yearly' }>();
+const recurringOverrides = new Map<
+  string,
+  { amount?: number; interval?: "monthly" | "yearly" }
+>();
 
 /** プロジェクトステータス上書き（セッション内のみ、モック用） */
 const projectStatusOverrides = new Map<string, string>();
@@ -50,10 +70,10 @@ const projectOverviewOverrides = new Map<string, string>();
 const projectUpdatesStore = new Map<string, ProjectUpdate[]>();
 
 /** モック: ウォッチ一覧（localStorage）。{ [userId]: projectId[] } */
-const MOCK_WATCHED_KEY = 'givers_watched_projects';
+const MOCK_WATCHED_KEY = "givers_watched_projects";
 
 function getWatchedIds(userId: string): string[] {
-  if (typeof window === 'undefined' || !window.localStorage) return [];
+  if (typeof window === "undefined" || !window.localStorage) return [];
   try {
     const raw = window.localStorage.getItem(MOCK_WATCHED_KEY);
     if (!raw) return [];
@@ -65,7 +85,7 @@ function getWatchedIds(userId: string): string[] {
 }
 
 function setWatchedIds(userId: string, ids: string[]): void {
-  if (typeof window === 'undefined' || !window.localStorage) return;
+  if (typeof window === "undefined" || !window.localStorage) return;
   try {
     const raw = window.localStorage.getItem(MOCK_WATCHED_KEY);
     const obj = (raw ? JSON.parse(raw) : {}) as Record<string, string[]>;
@@ -78,7 +98,10 @@ function setWatchedIds(userId: string, ids: string[]): void {
 
 function getProjectUpdatesList(projectId: string): ProjectUpdate[] {
   if (!projectUpdatesStore.has(projectId)) {
-    const initial = (MOCK_PROJECT_UPDATES[projectId] ?? []).map((u) => ({ ...u, visible: u.visible ?? true }));
+    const initial = (MOCK_PROJECT_UPDATES[projectId] ?? []).map((u) => ({
+      ...u,
+      visible: u.visible ?? true,
+    }));
     projectUpdatesStore.set(projectId, initial);
   }
   return projectUpdatesStore.get(projectId)!;
@@ -99,62 +122,75 @@ function toProject(p: MockProject): Project {
 export const mockApi = {
   async healthCheck(): Promise<{ status: string; message: string }> {
     await delay(MOCK_DELAY);
-    return { status: 'ok', message: 'GIVErS API (Mock)' };
+    return { status: "ok", message: "GIVErS API (Mock)" };
   },
 
   async getMe(): Promise<User | null> {
     await delay(MOCK_DELAY);
-    if (typeof window === 'undefined' || !window.localStorage) {
+    if (typeof window === "undefined" || !window.localStorage) {
       return MOCK_HOST_USER;
     }
     const mode = window.localStorage.getItem(MOCK_LOGIN_MODE_KEY);
-    if (mode === 'logout') return null;
-    if (mode === 'donor') {
-      const migrationDone = window.localStorage.getItem(MOCK_MIGRATION_DONE_KEY) === 'true';
-      const suspended = window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === 'true';
+    if (mode === "logout") return null;
+    if (mode === "donor") {
+      const migrationDone =
+        window.localStorage.getItem(MOCK_MIGRATION_DONE_KEY) === "true";
+      const suspended =
+        window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === "true";
       return {
         ...MOCK_DONOR_USER,
         pending_token_migration: migrationDone ? undefined : true,
         ...(suspended ? { suspended: true as const } : {}),
       };
     }
-    if (mode === 'project_owner' || mode === 'member') {
-      const suspended = window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === 'true';
-      return { ...MOCK_MEMBER_USER, ...(suspended ? { suspended: true as const } : {}) };
+    if (mode === "project_owner" || mode === "member") {
+      const suspended =
+        window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === "true";
+      return {
+        ...MOCK_MEMBER_USER,
+        ...(suspended ? { suspended: true as const } : {}),
+      };
     }
-    const suspended = window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === 'true';
-    return { ...MOCK_HOST_USER, ...(suspended ? { suspended: true as const } : {}) };
+    const suspended =
+      window.localStorage.getItem(MOCK_SUSPENDED_USER_KEY) === "true";
+    return {
+      ...MOCK_HOST_USER,
+      ...(suspended ? { suspended: true as const } : {}),
+    };
   },
 
-  async migrateFromToken(): Promise<{ migrated_count: number; already_migrated?: boolean }> {
+  async migrateFromToken(): Promise<{
+    migrated_count: number;
+    already_migrated?: boolean;
+  }> {
     await delay(MOCK_DELAY);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      if (window.localStorage.getItem(MOCK_MIGRATION_DONE_KEY) === 'true') {
+    if (typeof window !== "undefined" && window.localStorage) {
+      if (window.localStorage.getItem(MOCK_MIGRATION_DONE_KEY) === "true") {
         return { migrated_count: 0, already_migrated: true };
       }
-      window.localStorage.setItem(MOCK_MIGRATION_DONE_KEY, 'true');
+      window.localStorage.setItem(MOCK_MIGRATION_DONE_KEY, "true");
     }
     return { migrated_count: 1, already_migrated: false };
   },
 
   async getGoogleLoginUrl(): Promise<{ url: string }> {
     await delay(MOCK_DELAY);
-    return { url: '#' };
+    return { url: "#" };
   },
 
   async getGitHubLoginUrl(): Promise<{ url: string }> {
     await delay(MOCK_DELAY);
-    return { url: '#' };
+    return { url: "#" };
   },
 
   async getAppleLoginUrl(): Promise<{ url: string }> {
     await delay(MOCK_DELAY);
-    return { url: '#' };
+    return { url: "#" };
   },
 
   async getEmailLoginUrl(): Promise<{ url: string }> {
     await delay(MOCK_DELAY);
-    return { url: '#' };
+    return { url: "#" };
   },
 
   async logout(): Promise<void> {
@@ -170,7 +206,7 @@ export const mockApi = {
   async getProject(id: string): Promise<Project> {
     await delay(MOCK_DELAY);
     const p = MOCK_PROJECTS.find((x) => x.id === id);
-    if (!p) throw new Error('Project not found');
+    if (!p) throw new Error("Project not found");
     const overridden = projectStatusOverrides.get(id);
     const merged = overridden ? { ...p, status: overridden } : p;
     const project = toProject(merged);
@@ -195,7 +231,10 @@ export const mockApi = {
     const me = await this.getMe();
     if (!me) return [];
     const list = MOCK_DONATIONS[me.id] ?? [];
-    return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return [...list].sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
   },
 
   async getMyRecurringDonations(): Promise<RecurringDonation[]> {
@@ -207,13 +246,13 @@ export const mockApi = {
       .map((r) => {
         const overrides = recurringOverrides.get(r.id);
         let status = r.status;
-        if (cancelledRecurringIds.has(r.id)) status = 'cancelled';
-        else if (pausedRecurringIds.has(r.id)) status = 'paused';
+        if (cancelledRecurringIds.has(r.id)) status = "cancelled";
+        else if (pausedRecurringIds.has(r.id)) status = "paused";
         return {
           ...r,
           ...overrides,
           status,
-          interval: overrides?.interval ?? r.interval ?? 'monthly',
+          interval: overrides?.interval ?? r.interval ?? "monthly",
         };
       });
     return list;
@@ -226,19 +265,21 @@ export const mockApi = {
 
   async updateRecurringDonation(
     id: string,
-    input: { amount?: number; interval?: 'monthly' | 'yearly' }
+    input: { amount?: number; interval?: "monthly" | "yearly" },
   ): Promise<RecurringDonation> {
     await delay(MOCK_DELAY);
     const me = await this.getMe();
-    if (!me) throw new Error('Not logged in');
-    const list = (MOCK_RECURRING_DONATIONS[me.id] ?? []).filter((r) => !deletedRecurringIds.has(r.id));
+    if (!me) throw new Error("Not logged in");
+    const list = (MOCK_RECURRING_DONATIONS[me.id] ?? []).filter(
+      (r) => !deletedRecurringIds.has(r.id),
+    );
     const r = list.find((x) => x.id === id);
-    if (!r) throw new Error('Recurring donation not found');
+    if (!r) throw new Error("Recurring donation not found");
     const current = recurringOverrides.get(id) ?? {};
     recurringOverrides.set(id, { ...current, ...input });
     const all = await this.getMyRecurringDonations();
     const updated = all.find((u) => u.id === id);
-    if (!updated) throw new Error('Recurring donation not found');
+    if (!updated) throw new Error("Recurring donation not found");
     return updated;
   },
 
@@ -260,15 +301,15 @@ export const mockApi = {
   async createProject(input: CreateProjectInput): Promise<Project> {
     await delay(MOCK_DELAY);
     const me = await this.getMe();
-    const ownerId = me?.id ?? 'user-mock';
+    const ownerId = me?.id ?? "user-mock";
     const id = `mock-new-${Date.now()}`;
     const now = new Date().toISOString();
     const newProject: Project = {
       id,
       owner_id: ownerId,
       name: input.name,
-      description: input.description ?? '',
-      status: input.status ?? 'active',
+      description: input.description ?? "",
+      status: input.status ?? "active",
       owner_want_monthly: input.owner_want_monthly ?? null,
       created_at: now,
       updated_at: now,
@@ -281,9 +322,10 @@ export const mockApi = {
   async updateProject(id: string, input: UpdateProjectInput): Promise<Project> {
     await delay(MOCK_DELAY);
     const p = MOCK_PROJECTS.find((x) => x.id === id);
-    if (!p) throw new Error('Project not found');
+    if (!p) throw new Error("Project not found");
     if (input.status != null) projectStatusOverrides.set(id, input.status);
-    if (input.overview != null) projectOverviewOverrides.set(id, input.overview);
+    if (input.overview != null)
+      projectOverviewOverrides.set(id, input.overview);
     const merged = {
       ...p,
       ...input,
@@ -302,7 +344,8 @@ export const mockApi = {
   async getNewProjects(limit = 5): Promise<Project[]> {
     await delay(MOCK_DELAY);
     const sorted = [...MOCK_PROJECTS].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
     return sorted.slice(0, limit).map(toProject);
   },
@@ -364,7 +407,8 @@ export const mockApi = {
   async getActivityFeed(limit = 10): Promise<ActivityItem[]> {
     await delay(MOCK_DELAY);
     const sorted = [...MOCK_ACTIVITIES].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
     return sorted.slice(0, limit);
   },
@@ -382,20 +426,25 @@ export const mockApi = {
   },
 
   /** 開示用データ出力（ホスト用。第三者情報開示請求等に備える） */
-  async getDisclosureExport(type: 'user' | 'project', id: string): Promise<DisclosureExportPayload> {
+  async getDisclosureExport(
+    type: "user" | "project",
+    id: string,
+  ): Promise<DisclosureExportPayload> {
     await delay(MOCK_DELAY);
     const exported_at = new Date().toISOString();
-    const platform = 'GIVErS';
+    const platform = "GIVErS";
 
-    if (type === 'user') {
+    if (type === "user") {
       const user = MOCK_ADMIN_USERS.find((u) => u.id === id);
-      if (!user) throw new Error('User not found');
-      const user_projects = MOCK_PROJECTS.filter((p) => p.owner_id === id).map((p) => ({
-        id: p.id,
-        name: p.name,
-        status: p.status,
-        created_at: p.created_at,
-      }));
+      if (!user) throw new Error("User not found");
+      const user_projects = MOCK_PROJECTS.filter((p) => p.owner_id === id).map(
+        (p) => ({
+          id: p.id,
+          name: p.name,
+          status: p.status,
+          created_at: p.created_at,
+        }),
+      );
       const user_donations = (MOCK_DONATIONS[id] ?? []).map((d) => ({
         id: d.id,
         project_id: d.project_id,
@@ -415,7 +464,7 @@ export const mockApi = {
       return {
         exported_at,
         platform,
-        type: 'user',
+        type: "user",
         user: {
           id: user.id,
           email: user.email,
@@ -432,19 +481,21 @@ export const mockApi = {
     }
 
     const p = MOCK_PROJECTS.find((x) => x.id === id);
-    if (!p) throw new Error('Project not found');
+    if (!p) throw new Error("Project not found");
     const owner = MOCK_ADMIN_USERS.find((u) => u.id === p.owner_id);
     const allDonations = Object.values(MOCK_DONATIONS).flat();
-    const projectDonations = allDonations.filter((d) => d.project_id === id).map((d) => ({
-      id: d.id,
-      amount: d.amount,
-      created_at: d.created_at,
-      donor_type: 'user' as const,
-    }));
+    const projectDonations = allDonations
+      .filter((d) => d.project_id === id)
+      .map((d) => ({
+        id: d.id,
+        amount: d.amount,
+        created_at: d.created_at,
+        donor_type: "user" as const,
+      }));
     return {
       exported_at,
       platform,
-      type: 'project',
+      type: "project",
       project: {
         id: p.id,
         name: p.name,
@@ -459,21 +510,31 @@ export const mockApi = {
   },
 
   /** プロジェクトオーナーからのアップデート */
-  async getProjectUpdates(projectId: string, limit = 20): Promise<ProjectUpdate[]> {
+  async getProjectUpdates(
+    projectId: string,
+    limit = 20,
+  ): Promise<ProjectUpdate[]> {
     await delay(MOCK_DELAY);
     const list = getProjectUpdatesList(projectId);
     return list
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
       .slice(0, limit);
   },
 
   /** アップデート投稿（オーナー限定） */
-  async createProjectUpdate(projectId: string, input: CreateProjectUpdateInput): Promise<ProjectUpdate> {
+  async createProjectUpdate(
+    projectId: string,
+    input: CreateProjectUpdateInput,
+  ): Promise<ProjectUpdate> {
     await delay(MOCK_DELAY);
     const me = await this.getMe();
     const p = MOCK_PROJECTS.find((x) => x.id === projectId);
-    if (!p) throw new Error('Project not found');
-    if (!me || p.owner_id !== me.id) throw new Error('Only project owner can post updates');
+    if (!p) throw new Error("Project not found");
+    if (!me || p.owner_id !== me.id)
+      throw new Error("Only project owner can post updates");
     const list = getProjectUpdatesList(projectId);
     const now = new Date().toISOString();
     const newUpdate: ProjectUpdate = {
@@ -493,31 +554,94 @@ export const mockApi = {
   async updateProjectUpdate(
     projectId: string,
     updateId: string,
-    input: { title?: string | null; body?: string; visible?: boolean }
+    input: { title?: string | null; body?: string; visible?: boolean },
   ): Promise<ProjectUpdate> {
     await delay(MOCK_DELAY);
     const me = await this.getMe();
     const p = MOCK_PROJECTS.find((x) => x.id === projectId);
-    if (!p) throw new Error('Project not found');
-    if (!me || p.owner_id !== me.id) throw new Error('Only project owner can edit updates');
+    if (!p) throw new Error("Project not found");
+    if (!me || p.owner_id !== me.id)
+      throw new Error("Only project owner can edit updates");
     const list = getProjectUpdatesList(projectId);
     const idx = list.findIndex((u) => u.id === updateId);
-    if (idx < 0) throw new Error('Update not found');
+    if (idx < 0) throw new Error("Update not found");
     const updated = { ...list[idx], ...input };
     list[idx] = updated;
     return updated;
   },
 
   /** アップデート非表示（オーナー限定。visible: false に更新し、他ユーザーには見えなくする） */
-  async deleteProjectUpdate(projectId: string, updateId: string): Promise<void> {
+  async deleteProjectUpdate(
+    projectId: string,
+    updateId: string,
+  ): Promise<void> {
     await delay(MOCK_DELAY);
     const me = await this.getMe();
     const p = MOCK_PROJECTS.find((x) => x.id === projectId);
-    if (!p) throw new Error('Project not found');
-    if (!me || p.owner_id !== me.id) throw new Error('Only project owner can hide updates');
+    if (!p) throw new Error("Project not found");
+    if (!me || p.owner_id !== me.id)
+      throw new Error("Only project owner can hide updates");
     const list = getProjectUpdatesList(projectId);
     const idx = list.findIndex((u) => u.id === updateId);
-    if (idx < 0) throw new Error('Update not found');
+    if (idx < 0) throw new Error("Update not found");
     list[idx] = { ...list[idx], visible: false };
+  },
+
+  /** 認証プロバイダー一覧（モックでは google + github を返す） */
+  async getAuthProviders(): Promise<AuthProviders> {
+    await delay(MOCK_DELAY);
+    return { providers: ["google", "github"] };
+  },
+
+  /** お問い合わせ送信（モックでは常に成功） */
+  async submitContact(_input: ContactInput): Promise<{ ok: boolean }> {
+    await delay(MOCK_DELAY);
+    return { ok: true };
+  },
+
+  /** お問い合わせ一覧（ホスト用） */
+  async getAdminContacts(_params?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<ContactMessage[]> {
+    await delay(MOCK_DELAY);
+    const now = new Date().toISOString();
+    return [
+      {
+        id: "contact-mock-1",
+        email: "sender@example.com",
+        name: "テストユーザー",
+        message: "これはモックのお問い合わせメッセージです。",
+        status: "unread",
+        created_at: now,
+        updated_at: now,
+      },
+      {
+        id: "contact-mock-2",
+        email: "another@example.com",
+        name: null,
+        message: "匿名のお問い合わせです。",
+        status: "read",
+        created_at: now,
+        updated_at: now,
+      },
+    ];
+  },
+
+  /** 法的文書取得（モックでは固定テキストを返す） */
+  async getLegalDoc(
+    type: "terms" | "privacy" | "disclaimer",
+  ): Promise<LegalDoc | null> {
+    await delay(MOCK_DELAY);
+    const labels: Record<string, string> = {
+      terms: "利用規約",
+      privacy: "プライバシーポリシー",
+      disclaimer: "免責事項",
+    };
+    return {
+      type,
+      content: `# ${labels[type] ?? type}\n\nこれはモックの${labels[type] ?? type}です。\n\n実際のコンテンツはサーバー上の Markdown ファイルから読み込まれます。`,
+    };
   },
 };

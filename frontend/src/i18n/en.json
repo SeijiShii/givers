@@ -11,7 +11,8 @@
     "financialHealthTitleNotReached": "Financial health: Donations have not reached the target (currently {rate}%).",
     "adminUsers": "User Management",
     "about": "About",
-    "faq": "FAQ"
+    "faq": "FAQ",
+    "contact": "Contact"
   },
   "me": {
     "title": "My Page",
@@ -227,6 +228,29 @@
     "emailSent": "Sent. Please check your email.",
     "emailSentMock": "Sent. (No email is sent in mock mode.)",
     "close": "Close"
+  },
+  "contact": {
+    "title": "Contact",
+    "description": "Feel free to reach out with any questions or feedback.",
+    "emailLabel": "Email address (required)",
+    "emailPlaceholder": "your@email.com",
+    "nameLabel": "Name (optional)",
+    "namePlaceholder": "Your name",
+    "messageLabel": "Message (required)",
+    "messagePlaceholder": "Enter your message here",
+    "submit": "Send",
+    "sending": "Sending...",
+    "successTitle": "Message sent",
+    "successMessage": "Your message has been received. We'll reply within a few days.",
+    "errorRequired": "Email and message are required.",
+    "errorFailed": "Failed to send. Please try again later."
+  },
+  "legal": {
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "disclaimer": "Disclaimer",
+    "notConfigured": "This page has not been configured yet.",
+    "backToTop": "Back to top"
   },
   "footer": {
     "text": "GIVErS - GIVE spirit / Donation platform for the GIVE spirit."
