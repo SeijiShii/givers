@@ -1,0 +1,11 @@
+# 環境変数
+.env
+.env.local
+
+# Go カバレッジ出力
+*.out
+*.test
+
+# OS
+.DS_Store
+Thumbs.db
