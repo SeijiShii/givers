@@ -444,7 +444,7 @@ export async function getRelatedProjects(
 export async function getWatchedProjects(): Promise<Project[]> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getWatchedProjects();
-  const res = await fetch(`${API_URL}/api/me/watched-projects`, {
+  const res = await fetch(`${API_URL}/api/me/watches`, {
     credentials: "include",
   });
   if (res.status === 401) return [];
@@ -456,14 +456,14 @@ export async function getWatchedProjects(): Promise<Project[]> {
 export async function watchProject(projectId: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.watchProject(projectId);
-  await fetchApi(`/api/me/watch/${projectId}`, { method: "POST" });
+  await fetchApi(`/api/projects/${projectId}/watch`, { method: "POST" });
 }
 
 /** プロジェクトのウォッチを解除する */
 export async function unwatchProject(projectId: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.unwatchProject(projectId);
-  await fetchApi(`/api/me/watch/${projectId}`, { method: "DELETE" });
+  await fetchApi(`/api/projects/${projectId}/watch`, { method: "DELETE" });
 }
 
 // --- Activity Feed (モック時のみ) ---
