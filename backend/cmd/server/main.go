@@ -42,11 +42,18 @@ func main() {
 
 	userRepo := repository.NewPgUserRepository(pool)
 	projectRepo := repository.NewPgProjectRepository(pool)
+	contactRepo := repository.NewPgContactRepository(pool)
 	authService := service.NewAuthService(userRepo)
 	projectService := service.NewProjectService(projectRepo)
+	contactService := service.NewContactService(contactRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
+
+	legalDocsDir := os.Getenv("LEGAL_DOCS_DIR")
+	if legalDocsDir == "" {
+		legalDocsDir = "./legal"
+	}
 
 	h := handler.New(pool, frontendURL)
 	authHandler := handler.NewAuthHandler(authService, handler.AuthConfig{
@@ -59,17 +66,27 @@ func main() {
 		SessionSecret:      sessionSecret,
 		FrontendURL:        frontendURL,
 	})
+	providersHandler := handler.NewProvidersHandler(handler.ProvidersConfig{
+		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),
+		AppleClientID:  os.Getenv("APPLE_CLIENT_ID"),
+		EnableEmail:    os.Getenv("ENABLE_EMAIL_LOGIN") == "true",
+	})
 	meHandler := handler.NewMeHandler(userRepo, sessionSecretBytes)
 	projectHandler := handler.NewProjectHandler(projectService)
+	contactHandler := handler.NewContactHandler(contactService)
+	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.Health)
+	mux.HandleFunc("GET /api/auth/providers", providersHandler.Providers)
 	mux.HandleFunc("GET /api/auth/google/login", authHandler.GoogleLoginURL)
 	mux.HandleFunc("GET /api/auth/google/callback", authHandler.GoogleCallback)
 	mux.HandleFunc("GET /api/auth/github/login", authHandler.GitHubLoginURL)
 	mux.HandleFunc("GET /api/auth/github/callback", authHandler.GitHubCallback)
 	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
 	mux.HandleFunc("GET /api/me", meHandler.Me)
+	mux.HandleFunc("POST /api/contact", contactHandler.Submit)
+	mux.HandleFunc("GET /api/legal/{type}", legalHandler.Legal)
 
 	// プロジェクト API（一覧・詳細は認証不要）
 	mux.Handle("GET /api/projects", http.HandlerFunc(projectHandler.List))
@@ -85,6 +102,9 @@ func main() {
 	mux.Handle("GET /api/me/projects", wrapAuth(http.HandlerFunc(projectHandler.MyProjects)))
 	mux.Handle("POST /api/projects", wrapAuth(http.HandlerFunc(projectHandler.Create)))
 	mux.Handle("PUT /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Update)))
+
+	// Admin routes (host-only — handler enforces IsHostFromContext)
+	mux.Handle("GET /api/admin/contacts", wrapAuth(http.HandlerFunc(contactHandler.AdminList)))
 
 	server := &http.Server{
 		Addr:         ":8080",

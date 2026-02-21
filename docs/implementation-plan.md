@@ -171,6 +171,7 @@ giving_platform/
 ### Phase 6: 仕上げ
 
 - 公式/自ホストの明示（About に公式 URL と GitHub リンクを記載。自ホストに寛大で強制しない。悪意あるクローン運営について公式は責任を負わない旨の公言を About 等で検討。→ idea.md・mock-implementation-status 12.6）
+- **法的文書ページ** (`/terms`, `/privacy`, `/disclaimer`): `LEGAL_DOCS_DIR` に Markdown ファイルを配置すると表示される。`GET /api/legal/:type` で内容取得 → フロントでレンダリング。ファイルが存在しないページはリンクを非表示。自ホスト向けにサンプル Markdown テンプレートを `legal/` ディレクトリに同梱する。
 - 本番用 Docker 設定、環境変数管理
 - 基本的な E2E テスト
 - ConoHa での運用設定は [docs/conoha-deployment.md](docs/conoha-deployment.md) を参照
@@ -241,6 +242,8 @@ giving_platform/
 
 - [ ] About / フッターに公式ドメインが明記されている
 - [ ] 自ホスト版で「自ホスト版です」の表示ができる
+- [ ] `LEGAL_DOCS_DIR` に `terms.md` を配置すると `/terms` に内容が表示される
+- [ ] ファイル未配置の法的文書ページはフッターリンクが非表示になる
 - [ ] 本番用環境変数で動作する
 - [ ] E2E テストが通る
 
@@ -263,6 +266,9 @@ giving_platform/
 | /about | 静的 | 公式ドメイン等の説明 |
 | /contact | 静的+動的 | ホストへの問い合わせフォーム（送信フォームは React Island） |
 | /host/contacts | 動的 | 問い合わせ一覧（ホスト権限必須） |
+| /terms | 静的 | 利用規約（Markdown レンダリング。ファイル未配置なら「設定されていません」表示） |
+| /privacy | 静的 | プライバシーポリシー（同上） |
+| /disclaimer | 静的 | 免責事項（同上） |
 
 ### React Islands の使い分け
 
