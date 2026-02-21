@@ -24,7 +24,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	for i, name := range []string{"001_create_users", "002_add_github_id", "003_create_projects", "004_insert_dev_user", "005_add_owner_want_monthly"} {
+	for i, name := range []string{"001_create_users", "002_add_github_id", "003_create_projects", "004_insert_dev_user", "005_add_owner_want_monthly", "006_create_contact_messages"} {
 		sql, err := os.ReadFile("migrations/" + name + ".up.sql")
 		if err != nil {
 			log.Fatalf("read migration %s: %v", name, err)
