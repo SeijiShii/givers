@@ -43,9 +43,11 @@ func main() {
 	userRepo := repository.NewPgUserRepository(pool)
 	projectRepo := repository.NewPgProjectRepository(pool)
 	contactRepo := repository.NewPgContactRepository(pool)
+	watchRepo := repository.NewPgWatchRepository(pool)
 	authService := service.NewAuthService(userRepo)
 	projectService := service.NewProjectService(projectRepo)
 	contactService := service.NewContactService(contactRepo)
+	watchService := service.NewWatchService(watchRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
@@ -75,6 +77,7 @@ func main() {
 	projectHandler := handler.NewProjectHandler(projectService)
 	contactHandler := handler.NewContactHandler(contactService)
 	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})
+	watchHandler := handler.NewWatchHandler(watchService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.Health)
@@ -102,6 +105,11 @@ func main() {
 	mux.Handle("GET /api/me/projects", wrapAuth(http.HandlerFunc(projectHandler.MyProjects)))
 	mux.Handle("POST /api/projects", wrapAuth(http.HandlerFunc(projectHandler.Create)))
 	mux.Handle("PUT /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Update)))
+
+	// ウォッチ API（認証必須）
+	mux.Handle("POST /api/projects/{id}/watch", wrapAuth(http.HandlerFunc(watchHandler.Watch)))
+	mux.Handle("DELETE /api/projects/{id}/watch", wrapAuth(http.HandlerFunc(watchHandler.Unwatch)))
+	mux.Handle("GET /api/me/watches", wrapAuth(http.HandlerFunc(watchHandler.ListWatches)))
 
 	// Admin routes (host-only — handler enforces IsHostFromContext)
 	mux.Handle("GET /api/admin/contacts", wrapAuth(http.HandlerFunc(contactHandler.AdminList)))
