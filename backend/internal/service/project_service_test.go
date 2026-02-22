@@ -60,6 +60,10 @@ func (m *mockProjectRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *mockProjectRepository) UpdateStripeConnect(_ context.Context, _, _ string) error {
+	return nil
+}
+
 func TestProjectService_List(t *testing.T) {
 	ctx := context.Background()
 	want := []*model.Project{{ID: "1", Name: "P1"}}

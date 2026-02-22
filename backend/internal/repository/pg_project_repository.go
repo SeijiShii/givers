@@ -19,7 +19,7 @@ func NewPgProjectRepository(pool *pgxpool.Pool) *PgProjectRepository {
 	return &PgProjectRepository{pool: pool}
 }
 
-const projectSelectCols = `id, owner_id, name, description, deadline, status, owner_want_monthly, monthly_target, created_at, updated_at`
+const projectSelectCols = `id, owner_id, name, description, deadline, status, owner_want_monthly, monthly_target, COALESCE(stripe_account_id, ''), created_at, updated_at`
 
 // List はプロジェクト一覧を取得する
 func (r *PgProjectRepository) List(ctx context.Context, limit, offset int) ([]*model.Project, error) {
@@ -36,7 +36,7 @@ func (r *PgProjectRepository) List(ctx context.Context, limit, offset int) ([]*m
 	var projects []*model.Project
 	for rows.Next() {
 		var p model.Project
-		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)
@@ -49,7 +49,7 @@ func (r *PgProjectRepository) GetByID(ctx context.Context, id string) (*model.Pr
 	var p model.Project
 	err := r.pool.QueryRow(ctx,
 		`SELECT `+projectSelectCols+` FROM projects WHERE id = $1`, id,
-	).Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (r *PgProjectRepository) ListByOwnerID(ctx context.Context, ownerID string)
 	var projects []*model.Project
 	for rows.Next() {
 		var p model.Project
-		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)
@@ -209,6 +209,33 @@ func (r *PgProjectRepository) Delete(ctx context.Context, id string) error {
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE projects SET status='deleted', updated_at=NOW() WHERE id=$1 AND status != 'deleted'`,
 		id,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetStripeAccountID はプロジェクトの stripe_account_id を返す（StripeService で使用）
+func (r *PgProjectRepository) GetStripeAccountID(ctx context.Context, projectID string) (string, error) {
+	var id string
+	err := r.pool.QueryRow(ctx,
+		`SELECT COALESCE(stripe_account_id, '') FROM projects WHERE id=$1`, projectID,
+	).Scan(&id)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// UpdateStripeConnect は Stripe Connect 完了後に stripe_account_id と status='active' を保存する
+func (r *PgProjectRepository) UpdateStripeConnect(ctx context.Context, projectID, stripeAccountID string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE projects SET stripe_account_id=$1, status='active', updated_at=NOW() WHERE id=$2`,
+		stripeAccountID, projectID,
 	)
 	if err != nil {
 		return err

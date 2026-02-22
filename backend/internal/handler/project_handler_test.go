@@ -72,7 +72,7 @@ func TestProjectHandler_List(t *testing.T) {
 			return want, nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/projects", http.HandlerFunc(h.List))
@@ -99,7 +99,7 @@ func TestProjectHandler_Get_NotFound(t *testing.T) {
 			return nil, errors.New("not found")
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/projects/{id}", http.HandlerFunc(h.Get))
@@ -123,7 +123,7 @@ func TestProjectHandler_Get_Success(t *testing.T) {
 			return nil, errors.New("not found")
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/projects/{id}", http.HandlerFunc(h.Get))
@@ -146,7 +146,7 @@ func TestProjectHandler_Get_Success(t *testing.T) {
 
 func TestProjectHandler_MyProjects_Unauthorized(t *testing.T) {
 	mock := &mockProjectService{}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/me/projects", http.HandlerFunc(h.MyProjects))
@@ -170,7 +170,7 @@ func TestProjectHandler_MyProjects_WithAuth(t *testing.T) {
 			return want, nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/me/projects", http.HandlerFunc(h.MyProjects))
@@ -194,7 +194,7 @@ func TestProjectHandler_MyProjects_WithAuth(t *testing.T) {
 
 func TestProjectHandler_Create_Unauthorized(t *testing.T) {
 	mock := &mockProjectService{}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	body := bytes.NewBufferString(`{"name":"New Project"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
@@ -208,7 +208,7 @@ func TestProjectHandler_Create_Unauthorized(t *testing.T) {
 
 func TestProjectHandler_Create_NameRequired(t *testing.T) {
 	mock := &mockProjectService{}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	body := bytes.NewBufferString(`{"description":"only desc"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
@@ -230,7 +230,7 @@ func TestProjectHandler_Create_Success(t *testing.T) {
 			return nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	body := bytes.NewBufferString(`{"name":"New Project","description":"Desc"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
@@ -252,7 +252,7 @@ func TestProjectHandler_Update_Forbidden(t *testing.T) {
 			return &model.Project{ID: "p1", OwnerID: "other-user", Name: "P1"}, nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("PUT /api/projects/{id}", http.HandlerFunc(h.Update))
@@ -283,7 +283,7 @@ func TestProjectHandler_Delete_Success(t *testing.T) {
 			return nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
@@ -307,7 +307,7 @@ func TestProjectHandler_Delete_Success(t *testing.T) {
 }
 
 func TestProjectHandler_Delete_Unauthorized(t *testing.T) {
-	h := NewProjectHandler(&mockProjectService{})
+	h := NewProjectHandler(&mockProjectService{}, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
@@ -328,7 +328,7 @@ func TestProjectHandler_Delete_NotFound(t *testing.T) {
 			return nil, errors.New("not found")
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
@@ -349,7 +349,7 @@ func TestProjectHandler_Delete_Forbidden(t *testing.T) {
 			return &model.Project{ID: "p1", OwnerID: "other-user", Name: "P1"}, nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
@@ -373,7 +373,7 @@ func TestProjectHandler_Delete_ServiceError(t *testing.T) {
 			return errors.New("db error")
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("DELETE /api/projects/{id}", http.HandlerFunc(h.Delete))
@@ -403,7 +403,7 @@ func TestProjectHandler_PatchStatus_Success_Owner(t *testing.T) {
 			return nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
@@ -429,7 +429,7 @@ func TestProjectHandler_PatchStatus_Success_Host(t *testing.T) {
 		},
 		updateFunc: func(ctx context.Context, p *model.Project) error { return nil },
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
@@ -448,7 +448,7 @@ func TestProjectHandler_PatchStatus_Success_Host(t *testing.T) {
 }
 
 func TestProjectHandler_PatchStatus_Unauthorized(t *testing.T) {
-	h := NewProjectHandler(&mockProjectService{})
+	h := NewProjectHandler(&mockProjectService{}, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
@@ -468,7 +468,7 @@ func TestProjectHandler_PatchStatus_Forbidden(t *testing.T) {
 			return &model.Project{ID: id, OwnerID: "other-user", Status: "active"}, nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
@@ -490,7 +490,7 @@ func TestProjectHandler_PatchStatus_InvalidStatus(t *testing.T) {
 			return &model.Project{ID: id, OwnerID: "u1", Status: "active"}, nil
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))
@@ -512,7 +512,7 @@ func TestProjectHandler_PatchStatus_NotFound(t *testing.T) {
 			return nil, errors.New("not found")
 		},
 	}
-	h := NewProjectHandler(mock)
+	h := NewProjectHandler(mock, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("PATCH /api/projects/{id}/status", http.HandlerFunc(h.PatchStatus))

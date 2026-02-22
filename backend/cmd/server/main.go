@@ -13,6 +13,7 @@ import (
 	"github.com/givers/backend/internal/repository"
 	"github.com/givers/backend/internal/service"
 	"github.com/givers/backend/pkg/auth"
+	pkgstripe "github.com/givers/backend/pkg/stripe"
 	"github.com/joho/godotenv"
 )
 
@@ -58,6 +59,14 @@ func main() {
 	donationService := service.NewDonationService(donationRepo)
 	costPresetService := service.NewCostPresetService(costPresetRepo)
 
+	// Stripe 設定（未設定の場合は Stripe 機能を無効化）
+	stripeClient := pkgstripe.NewClient(
+		os.Getenv("STRIPE_SECRET_KEY"),
+		os.Getenv("STRIPE_CONNECT_CLIENT_ID"),
+		os.Getenv("STRIPE_WEBHOOK_SECRET"),
+	)
+	stripeService := service.NewStripeService(stripeClient, projectRepo, frontendURL)
+
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
 
@@ -83,7 +92,13 @@ func main() {
 		EnableEmail:    os.Getenv("ENABLE_EMAIL_LOGIN") == "true",
 	})
 	meHandler := handler.NewMeHandler(userRepo, sessionSecretBytes)
-	projectHandler := handler.NewProjectHandler(projectService)
+	// Stripe が設定されている場合のみ Connect URL を生成する関数を渡す
+	var connectURLFunc func(string) string
+	if os.Getenv("STRIPE_CONNECT_CLIENT_ID") != "" {
+		connectURLFunc = stripeService.GenerateConnectURL
+	}
+	stripeHandler := handler.NewStripeHandler(stripeService, frontendURL)
+	projectHandler := handler.NewProjectHandler(projectService, connectURLFunc)
 	contactHandler := handler.NewContactHandler(contactService)
 	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})
 	watchHandler := handler.NewWatchHandler(watchService)
@@ -155,6 +170,11 @@ func main() {
 	mux.Handle("PUT /api/me/cost-presets/reorder", wrapAuth(http.HandlerFunc(costPresetHandler.Reorder)))
 	mux.Handle("PUT /api/me/cost-presets/{id}", wrapAuth(http.HandlerFunc(costPresetHandler.Update)))
 	mux.Handle("DELETE /api/me/cost-presets/{id}", wrapAuth(http.HandlerFunc(costPresetHandler.Delete)))
+
+	// Stripe routes (no auth — Stripe handles security via signatures/state)
+	mux.HandleFunc("GET /api/stripe/connect/callback", stripeHandler.ConnectCallback)
+	mux.HandleFunc("POST /api/donations/checkout", stripeHandler.Checkout)
+	mux.HandleFunc("POST /api/webhooks/stripe", stripeHandler.Webhook)
 
 	server := &http.Server{
 		Addr:         ":8080",
