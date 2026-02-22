@@ -18,6 +18,8 @@ type DonationRepository interface {
 	Patch(ctx context.Context, id string, patch model.DonationPatch) error
 	// Delete removes a donation (cancels recurring subscription).
 	Delete(ctx context.Context, id string) error
+	// DeleteByStripeSubscriptionID removes a donation by its stripe_subscription_id.
+	DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error
 	// MigrateToken migrates donations from donor_type='token' to donor_type='user'.
 	// Returns the number of rows updated.
 	MigrateToken(ctx context.Context, token string, userID string) (int, error)

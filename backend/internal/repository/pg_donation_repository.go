@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"github.com/givers/backend/internal/model"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,6 +40,9 @@ func (r *pgDonationRepository) Create(ctx context.Context, d *model.Donation) er
 		d.ProjectID, d.DonorType, d.DonorID, d.Amount, d.Currency,
 		d.Message, d.IsRecurring, d.StripePaymentID, d.StripeSubscriptionID,
 	)
+	if err != nil && strings.Contains(err.Error(), "duplicate key") {
+		return ErrDuplicate
+	}
 	return err
 }
 
@@ -128,6 +132,12 @@ func (r *pgDonationRepository) Delete(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *pgDonationRepository) DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error {
+	_, err := r.pool.Exec(ctx,
+		`DELETE FROM donations WHERE stripe_subscription_id = $1`, subscriptionID)
+	return err
 }
 
 func (r *pgDonationRepository) MigrateToken(ctx context.Context, token string, userID string) (int, error) {

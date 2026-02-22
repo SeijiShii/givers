@@ -22,6 +22,12 @@ type Project struct {
 	StripeConnectURL string `json:"stripe_connect_url,omitempty"`
 }
 
+// ProjectListResult はカーソルベースページネーション付きのプロジェクト一覧
+type ProjectListResult struct {
+	Projects   []*Project `json:"projects"`
+	NextCursor string     `json:"next_cursor"`
+}
+
 type ProjectAlerts struct {
 	ID                string    `json:"id"`
 	ProjectID         string    `json:"project_id"`

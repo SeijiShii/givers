@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/givers/backend/internal/model"
+	"github.com/givers/backend/internal/repository"
 	pkgstripe "github.com/givers/backend/pkg/stripe"
 )
 
@@ -28,9 +29,10 @@ type StripeProjectRepo interface {
 	UpdateStripeConnect(ctx context.Context, projectID, stripeAccountID string) error
 }
 
-// StripeDonationRepo は Webhook イベントで寄付レコードを作成するためのミニマムインターフェース
+// StripeDonationRepo は Webhook イベントで寄付レコードを操作するためのミニマムインターフェース
 type StripeDonationRepo interface {
 	Create(ctx context.Context, d *model.Donation) error
+	DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error
 }
 
 // StripeService は Stripe 連携のビジネスロジック
@@ -128,6 +130,10 @@ func (s *StripeServiceImpl) ProcessWebhook(ctx context.Context, payload []byte, 
 	switch event.Type {
 	case "payment_intent.succeeded":
 		return s.handlePaymentIntentSucceeded(ctx, event)
+	case "customer.subscription.created":
+		return s.handleSubscriptionCreated(ctx, event)
+	case "customer.subscription.deleted":
+		return s.handleSubscriptionDeleted(ctx, event)
 	}
 	return nil
 }
@@ -160,5 +166,55 @@ func (s *StripeServiceImpl) handlePaymentIntentSucceeded(ctx context.Context, ev
 		IsRecurring:     obj.Metadata["is_recurring"] == "true",
 		StripePaymentID: obj.ID,
 	}
-	return s.donationRepo.Create(ctx, d)
+	if err := s.donationRepo.Create(ctx, d); err != nil && !errors.Is(err, repository.ErrDuplicate) {
+		return err
+	}
+	return nil
+}
+
+func (s *StripeServiceImpl) handleSubscriptionCreated(ctx context.Context, event pkgstripe.WebhookEvent) error {
+	obj := event.Data.Object
+	projectID := obj.Metadata["project_id"]
+	if projectID == "" {
+		return errors.New("stripe webhook: customer.subscription.created missing project_id in metadata")
+	}
+
+	donorType := obj.Metadata["donor_type"]
+	if donorType == "" {
+		donorType = "token"
+	}
+	donorID := obj.Metadata["donor_id"]
+
+	amount := obj.Amount
+	currency := obj.Currency
+	if obj.Plan != nil {
+		amount = obj.Plan.Amount
+		currency = obj.Plan.Currency
+	}
+	if currency == "" {
+		currency = "jpy"
+	}
+
+	d := &model.Donation{
+		ProjectID:            projectID,
+		DonorType:            donorType,
+		DonorID:              donorID,
+		Amount:               amount,
+		Currency:             currency,
+		Message:              obj.Metadata["message"],
+		IsRecurring:          true,
+		StripeSubscriptionID: obj.ID,
+	}
+	if err := s.donationRepo.Create(ctx, d); err != nil && !errors.Is(err, repository.ErrDuplicate) {
+		return err
+	}
+	return nil
+}
+
+func (s *StripeServiceImpl) handleSubscriptionDeleted(ctx context.Context, event pkgstripe.WebhookEvent) error {
+	subscriptionID := event.Data.Object.ID
+	if subscriptionID == "" {
+		return errors.New("stripe webhook: customer.subscription.deleted missing subscription ID")
+	}
+	return s.donationRepo.DeleteByStripeSubscriptionID(ctx, subscriptionID)
 }

@@ -21,13 +21,62 @@ func NewPgProjectRepository(pool *pgxpool.Pool) *PgProjectRepository {
 
 const projectSelectCols = `id, owner_id, name, description, deadline, status, owner_want_monthly, monthly_target, COALESCE(stripe_account_id, ''), created_at, updated_at`
 
-// List はプロジェクト一覧を取得する
-func (r *PgProjectRepository) List(ctx context.Context, limit, offset int) ([]*model.Project, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT `+projectSelectCols+`
-		 FROM projects ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
-		limit, offset,
-	)
+// List はプロジェクト一覧を取得する。sort は "new"（デフォルト）または "hot"（達成率降順）。
+// cursor はカーソルベースページネーション用（前回最後のプロジェクト ID）。
+func (r *PgProjectRepository) List(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+	// limit+1 をフェッチして next_cursor の有無を判定
+	fetchLimit := limit + 1
+	var rows pgx.Rows
+	var err error
+
+	switch sort {
+	case "hot":
+		if cursor == "" {
+			rows, err = r.pool.Query(ctx,
+				`SELECT `+projectSelectCols+`
+				 FROM projects p
+				 LEFT JOIN LATERAL (
+				   SELECT COALESCE(SUM(amount), 0) AS total
+				   FROM donations
+				   WHERE project_id = p.id
+				     AND created_at >= date_trunc('month', NOW())
+				 ) d ON true
+				 WHERE p.status = 'active'
+				 ORDER BY CASE WHEN p.monthly_target > 0 THEN d.total::float / p.monthly_target ELSE 0 END DESC,
+				          p.created_at DESC
+				 LIMIT $1`, fetchLimit)
+		} else {
+			// hot ソートでのカーソル: cursor ID より後のものを取得
+			// 達成率は変動するため、cursor の位置を created_at で近似する
+			rows, err = r.pool.Query(ctx,
+				`SELECT `+projectSelectCols+`
+				 FROM projects p
+				 LEFT JOIN LATERAL (
+				   SELECT COALESCE(SUM(amount), 0) AS total
+				   FROM donations
+				   WHERE project_id = p.id
+				     AND created_at >= date_trunc('month', NOW())
+				 ) d ON true
+				 WHERE p.status = 'active'
+				   AND (p.created_at, p.id) < ((SELECT created_at FROM projects WHERE id = $2), $2)
+				 ORDER BY CASE WHEN p.monthly_target > 0 THEN d.total::float / p.monthly_target ELSE 0 END DESC,
+				          p.created_at DESC
+				 LIMIT $1`, fetchLimit, cursor)
+		}
+	default:
+		if cursor == "" {
+			rows, err = r.pool.Query(ctx,
+				`SELECT `+projectSelectCols+`
+				 FROM projects ORDER BY created_at DESC, id DESC LIMIT $1`, fetchLimit)
+		} else {
+			rows, err = r.pool.Query(ctx,
+				`SELECT `+projectSelectCols+`
+				 FROM projects
+				 WHERE (created_at, id) < ((SELECT created_at FROM projects WHERE id = $2), $2)
+				 ORDER BY created_at DESC, id DESC
+				 LIMIT $1`, fetchLimit, cursor)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +90,18 @@ func (r *PgProjectRepository) List(ctx context.Context, limit, offset int) ([]*m
 		}
 		projects = append(projects, &p)
 	}
-	return projects, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	result := &model.ProjectListResult{}
+	if len(projects) > limit {
+		result.NextCursor = projects[limit-1].ID
+		result.Projects = projects[:limit]
+	} else {
+		result.Projects = projects
+	}
+	return result, nil
 }
 
 // GetByID は ID でプロジェクトを取得する（コスト項目・アラートも含む）

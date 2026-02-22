@@ -18,8 +18,11 @@ func NewProjectService(projectRepo repository.ProjectRepository) ProjectService 
 }
 
 // List はプロジェクト一覧を取得する
-func (s *ProjectServiceImpl) List(ctx context.Context, limit, offset int) ([]*model.Project, error) {
-	return s.projectRepo.List(ctx, limit, offset)
+func (s *ProjectServiceImpl) List(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+	if sort == "" {
+		sort = "new"
+	}
+	return s.projectRepo.List(ctx, sort, limit, cursor)
 }
 
 // GetByID は ID でプロジェクトを取得する

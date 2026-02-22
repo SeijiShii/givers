@@ -31,20 +31,16 @@ func NewProjectHandler(projectService service.ProjectService, connectURLFunc fun
 
 // List は GET /api/projects を処理する
 func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
+	sort := r.URL.Query().Get("sort")     // "new" (default) or "hot"
+	cursor := r.URL.Query().Get("cursor") // cursor-based pagination
 	limit := 20
-	offset := 0
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 100 {
 			limit = n
 		}
 	}
-	if o := r.URL.Query().Get("offset"); o != "" {
-		if n, err := strconv.Atoi(o); err == nil && n >= 0 {
-			offset = n
-		}
-	}
 
-	projects, err := h.projectService.List(r.Context(), limit, offset)
+	result, err := h.projectService.List(r.Context(), sort, limit, cursor)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal_error"})
@@ -52,7 +48,7 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(projects)
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 // Get は GET /api/projects/{id} を処理する

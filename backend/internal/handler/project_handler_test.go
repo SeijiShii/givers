@@ -15,7 +15,7 @@ import (
 
 // mockProjectService は ProjectService のモック
 type mockProjectService struct {
-	listFunc          func(ctx context.Context, limit, offset int) ([]*model.Project, error)
+	listFunc          func(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error)
 	getByIDFunc       func(ctx context.Context, id string) (*model.Project, error)
 	listByOwnerIDFunc func(ctx context.Context, ownerID string) ([]*model.Project, error)
 	createFunc        func(ctx context.Context, project *model.Project) error
@@ -23,11 +23,11 @@ type mockProjectService struct {
 	deleteFunc        func(ctx context.Context, id string) error
 }
 
-func (m *mockProjectService) List(ctx context.Context, limit, offset int) ([]*model.Project, error) {
+func (m *mockProjectService) List(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx, limit, offset)
+		return m.listFunc(ctx, sort, limit, cursor)
 	}
-	return nil, nil
+	return &model.ProjectListResult{}, nil
 }
 
 func (m *mockProjectService) GetByID(ctx context.Context, id string) (*model.Project, error) {
@@ -66,10 +66,12 @@ func (m *mockProjectService) Delete(ctx context.Context, id string) error {
 }
 
 func TestProjectHandler_List(t *testing.T) {
-	want := []*model.Project{{ID: "1", Name: "P1"}}
+	result := &model.ProjectListResult{
+		Projects: []*model.Project{{ID: "1", Name: "P1"}},
+	}
 	mock := &mockProjectService{
-		listFunc: func(ctx context.Context, limit, offset int) ([]*model.Project, error) {
-			return want, nil
+		listFunc: func(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+			return result, nil
 		},
 	}
 	h := NewProjectHandler(mock, nil)
@@ -84,12 +86,74 @@ func TestProjectHandler_List(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
-	var got []*model.Project
+	var got model.ProjectListResult
 	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(got) != 1 || got[0].Name != "P1" {
-		t.Errorf("expected %v, got %v", want, got)
+	if len(got.Projects) != 1 || got.Projects[0].Name != "P1" {
+		t.Errorf("expected 1 project P1, got %v", got.Projects)
+	}
+}
+
+func TestProjectHandler_List_SortHot(t *testing.T) {
+	var capturedSort string
+	mock := &mockProjectService{
+		listFunc: func(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+			capturedSort = sort
+			return &model.ProjectListResult{
+				Projects: []*model.Project{{ID: "hot-1", Name: "Hot"}},
+			}, nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /api/projects", http.HandlerFunc(h.List))
+
+	req := httptest.NewRequest("GET", "/api/projects?sort=hot", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+	if capturedSort != "hot" {
+		t.Errorf("expected sort=hot passed to service, got %q", capturedSort)
+	}
+}
+
+func TestProjectHandler_List_WithCursor(t *testing.T) {
+	var capturedCursor string
+	mock := &mockProjectService{
+		listFunc: func(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+			capturedCursor = cursor
+			return &model.ProjectListResult{
+				Projects:   []*model.Project{{ID: "2", Name: "P2"}},
+				NextCursor: "next-id",
+			}, nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /api/projects", http.HandlerFunc(h.List))
+
+	req := httptest.NewRequest("GET", "/api/projects?cursor=prev-id", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+	if capturedCursor != "prev-id" {
+		t.Errorf("expected cursor=prev-id, got %q", capturedCursor)
+	}
+	var got model.ProjectListResult
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.NextCursor != "next-id" {
+		t.Errorf("expected next_cursor=next-id, got %q", got.NextCursor)
 	}
 }
 

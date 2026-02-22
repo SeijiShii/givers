@@ -49,8 +49,8 @@ type mockProjectServiceForAdmin struct {
 	getByIDFunc func(ctx context.Context, id string) (*model.Project, error)
 }
 
-func (m *mockProjectServiceForAdmin) List(ctx context.Context, limit, offset int) ([]*model.Project, error) {
-	return nil, nil
+func (m *mockProjectServiceForAdmin) List(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+	return &model.ProjectListResult{}, nil
 }
 func (m *mockProjectServiceForAdmin) GetByID(ctx context.Context, id string) (*model.Project, error) {
 	if m.getByIDFunc != nil {

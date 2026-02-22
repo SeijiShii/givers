@@ -306,6 +306,10 @@ export interface Project {
   image_url?: string | null;
   /** プロジェクト概要・詳細説明（2000文字程度、モック/Phase5以降） */
   overview?: string | null;
+  /** Stripe Connect URL（プロジェクト作成直後のみ、一時的） */
+  stripe_connect_url?: string;
+  /** 月額目標（cost_items の合計） */
+  monthly_target?: number;
 }
 
 /** プロジェクトオーナーからのアップデート（モック/Phase5以降） */
@@ -337,6 +341,31 @@ export async function getProject(id: string): Promise<Project> {
 export async function getMyProjects(): Promise<Project[]> {
   if (MOCK_MODE) return (await import("./mock-api")).mockApi.getMyProjects();
   return fetchApi<Project[]>("/api/me/projects");
+}
+
+// --- Checkout (Stripe 決済) ---
+
+export interface CheckoutRequest {
+  project_id: string;
+  amount: number;
+  currency?: string;
+  is_recurring: boolean;
+  message?: string;
+  locale?: string;
+  donor_token?: string;
+}
+
+export async function createCheckout(
+  req: CheckoutRequest,
+): Promise<{ checkout_url: string }> {
+  if (MOCK_MODE) {
+    // モック: フェイク URL を返す
+    return { checkout_url: `/projects/${req.project_id}?donated=1` };
+  }
+  return fetchApi<{ checkout_url: string }>("/api/donations/checkout", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
 }
 
 // --- Donations (マイページ用、モック時のみ) ---

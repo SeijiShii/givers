@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/givers/backend/internal/model"
+	"github.com/givers/backend/internal/repository"
 	pkgstripe "github.com/givers/backend/pkg/stripe"
 )
 
@@ -305,6 +306,73 @@ func TestStripeService_ProcessWebhook_PaymentIntentSucceeded_CreatesDonation(t *
 	}
 }
 
+func TestStripeService_ProcessWebhook_PaymentIntentSucceeded_Idempotent(t *testing.T) {
+	ctx := context.Background()
+
+	obj := pkgstripe.WebhookEventObject{
+		ID:       "pi_duplicate",
+		Amount:   1500,
+		Currency: "jpy",
+		Metadata: map[string]string{
+			"project_id": "proj-1",
+			"donor_type": "user",
+			"donor_id":   "user-1",
+		},
+	}
+	event := pkgstripe.WebhookEvent{Type: "payment_intent.succeeded", ID: "evt_dup"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	donationRepo := &mockStripeDonationRepo{
+		createFunc: func(_ context.Context, _ *model.Donation) error {
+			return repository.ErrDuplicate // simulate UNIQUE constraint violation
+		},
+	}
+	svc := newTestStripeServiceFull(stripeClient, &mockStripeProjectRepo{}, donationRepo)
+
+	// Duplicate should be silently ignored — no error returned
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("expected no error for duplicate payment_intent, got: %v", err)
+	}
+}
+
+func TestStripeService_ProcessWebhook_SubscriptionCreated_Idempotent(t *testing.T) {
+	ctx := context.Background()
+
+	obj := pkgstripe.WebhookEventObject{
+		ID: "sub_duplicate",
+		Metadata: map[string]string{
+			"project_id": "proj-1",
+			"donor_type": "user",
+			"donor_id":   "user-1",
+		},
+		Plan: &struct {
+			Amount   int    `json:"amount"`
+			Currency string `json:"currency"`
+		}{Amount: 2000, Currency: "jpy"},
+	}
+	event := pkgstripe.WebhookEvent{Type: "customer.subscription.created", ID: "evt_dup_sub"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	donationRepo := &mockStripeDonationRepo{
+		createFunc: func(_ context.Context, _ *model.Donation) error {
+			return repository.ErrDuplicate
+		},
+	}
+	svc := newTestStripeServiceFull(stripeClient, &mockStripeProjectRepo{}, donationRepo)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("expected no error for duplicate subscription, got: %v", err)
+	}
+}
+
 func TestStripeService_ProcessWebhook_PaymentIntentSucceeded_MissingProjectID(t *testing.T) {
 	ctx := context.Background()
 	obj := pkgstripe.WebhookEventObject{
@@ -324,6 +392,89 @@ func TestStripeService_ProcessWebhook_PaymentIntentSucceeded_MissingProjectID(t 
 
 	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err == nil {
 		t.Error("expected error when project_id missing from metadata")
+	}
+}
+
+func TestStripeService_ProcessWebhook_SubscriptionCreated_CreatesDonation(t *testing.T) {
+	ctx := context.Background()
+	var createdDonation *model.Donation
+
+	obj := pkgstripe.WebhookEventObject{
+		ID:       "sub_test",
+		Amount:   0, // subscription の amount はトップレベルではなく plan に
+		Currency: "",
+		Metadata: map[string]string{
+			"project_id":   "proj-2",
+			"donor_type":   "user",
+			"donor_id":     "user-2",
+			"message":      "毎月応援します",
+			"is_recurring":  "true",
+		},
+		Plan: &struct {
+			Amount   int    `json:"amount"`
+			Currency string `json:"currency"`
+		}{Amount: 2000, Currency: "jpy"},
+	}
+	event := pkgstripe.WebhookEvent{Type: "customer.subscription.created", ID: "evt_sub"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	donationRepo := &mockStripeDonationRepo{
+		createFunc: func(_ context.Context, d *model.Donation) error {
+			createdDonation = d
+			return nil
+		},
+	}
+	svc := newTestStripeServiceFull(stripeClient, &mockStripeProjectRepo{}, donationRepo)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if createdDonation == nil {
+		t.Fatal("expected donation to be created for subscription")
+	}
+	if createdDonation.ProjectID != "proj-2" {
+		t.Errorf("expected ProjectID=proj-2, got %q", createdDonation.ProjectID)
+	}
+	if createdDonation.Amount != 2000 {
+		t.Errorf("expected Amount=2000, got %d", createdDonation.Amount)
+	}
+	if !createdDonation.IsRecurring {
+		t.Error("expected IsRecurring=true")
+	}
+	if createdDonation.StripeSubscriptionID != "sub_test" {
+		t.Errorf("expected StripeSubscriptionID=sub_test, got %q", createdDonation.StripeSubscriptionID)
+	}
+}
+
+func TestStripeService_ProcessWebhook_SubscriptionDeleted_DeletesDonation(t *testing.T) {
+	ctx := context.Background()
+	var deletedSubID string
+
+	obj := pkgstripe.WebhookEventObject{ID: "sub_to_delete"}
+	event := pkgstripe.WebhookEvent{Type: "customer.subscription.deleted", ID: "evt_del"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	donationRepo := &mockStripeDonationRepo{
+		deleteBySubscriptionIDFunc: func(_ context.Context, subID string) error {
+			deletedSubID = subID
+			return nil
+		},
+	}
+	svc := newTestStripeServiceFull(stripeClient, &mockStripeProjectRepo{}, donationRepo)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deletedSubID != "sub_to_delete" {
+		t.Errorf("expected deleted sub_to_delete, got %q", deletedSubID)
 	}
 }
 
@@ -350,12 +501,20 @@ func (m *mockStripeProjectRepo) UpdateStripeConnect(ctx context.Context, project
 }
 
 type mockStripeDonationRepo struct {
-	createFunc func(ctx context.Context, d *model.Donation) error
+	createFunc                 func(ctx context.Context, d *model.Donation) error
+	deleteBySubscriptionIDFunc func(ctx context.Context, subscriptionID string) error
 }
 
 func (m *mockStripeDonationRepo) Create(ctx context.Context, d *model.Donation) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, d)
+	}
+	return nil
+}
+
+func (m *mockStripeDonationRepo) DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error {
+	if m.deleteBySubscriptionIDFunc != nil {
+		return m.deleteBySubscriptionIDFunc(ctx, subscriptionID)
 	}
 	return nil
 }

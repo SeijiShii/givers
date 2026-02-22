@@ -10,19 +10,19 @@ import (
 
 // mockProjectRepository は ProjectRepository のモック
 type mockProjectRepository struct {
-	listFunc           func(ctx context.Context, limit, offset int) ([]*model.Project, error)
-	getByIDFunc        func(ctx context.Context, id string) (*model.Project, error)
-	listByOwnerIDFunc  func(ctx context.Context, ownerID string) ([]*model.Project, error)
-	createFunc         func(ctx context.Context, project *model.Project) error
-	updateFunc         func(ctx context.Context, project *model.Project) error
-	deleteFunc         func(ctx context.Context, id string) error
+	listFunc          func(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error)
+	getByIDFunc       func(ctx context.Context, id string) (*model.Project, error)
+	listByOwnerIDFunc func(ctx context.Context, ownerID string) ([]*model.Project, error)
+	createFunc        func(ctx context.Context, project *model.Project) error
+	updateFunc        func(ctx context.Context, project *model.Project) error
+	deleteFunc        func(ctx context.Context, id string) error
 }
 
-func (m *mockProjectRepository) List(ctx context.Context, limit, offset int) ([]*model.Project, error) {
+func (m *mockProjectRepository) List(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx, limit, offset)
+		return m.listFunc(ctx, sort, limit, cursor)
 	}
-	return nil, nil
+	return &model.ProjectListResult{}, nil
 }
 
 func (m *mockProjectRepository) GetByID(ctx context.Context, id string) (*model.Project, error) {
@@ -66,24 +66,83 @@ func (m *mockProjectRepository) UpdateStripeConnect(_ context.Context, _, _ stri
 
 func TestProjectService_List(t *testing.T) {
 	ctx := context.Background()
-	want := []*model.Project{{ID: "1", Name: "P1"}}
+	want := &model.ProjectListResult{
+		Projects: []*model.Project{{ID: "1", Name: "P1"}},
+	}
 
 	mock := &mockProjectRepository{
-		listFunc: func(ctx context.Context, limit, offset int) ([]*model.Project, error) {
-			if limit != 10 || offset != 5 {
-				t.Errorf("expected limit=10 offset=5, got limit=%d offset=%d", limit, offset)
+		listFunc: func(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+			if sort != "new" {
+				t.Errorf("expected sort=new (default), got %q", sort)
+			}
+			if limit != 10 {
+				t.Errorf("expected limit=10, got %d", limit)
+			}
+			if cursor != "" {
+				t.Errorf("expected empty cursor, got %q", cursor)
 			}
 			return want, nil
 		},
 	}
 
 	svc := NewProjectService(mock)
-	got, err := svc.List(ctx, 10, 5)
+	got, err := svc.List(ctx, "", 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(got) != 1 || got[0].ID != "1" {
-		t.Errorf("expected %v, got %v", want, got)
+	if len(got.Projects) != 1 || got.Projects[0].ID != "1" {
+		t.Errorf("expected 1 project, got %v", got.Projects)
+	}
+}
+
+func TestProjectService_List_SortHot(t *testing.T) {
+	ctx := context.Background()
+	want := &model.ProjectListResult{
+		Projects: []*model.Project{{ID: "hot-1", Name: "Hot Project"}},
+	}
+
+	mock := &mockProjectRepository{
+		listFunc: func(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+			if sort != "hot" {
+				t.Errorf("expected sort=hot, got %q", sort)
+			}
+			return want, nil
+		},
+	}
+
+	svc := NewProjectService(mock)
+	got, err := svc.List(ctx, "hot", 20, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Projects) != 1 || got.Projects[0].ID != "hot-1" {
+		t.Errorf("expected %v, got %v", want, got.Projects)
+	}
+}
+
+func TestProjectService_List_WithCursor(t *testing.T) {
+	ctx := context.Background()
+	want := &model.ProjectListResult{
+		Projects:   []*model.Project{{ID: "2", Name: "P2"}},
+		NextCursor: "cursor-next",
+	}
+
+	mock := &mockProjectRepository{
+		listFunc: func(ctx context.Context, sort string, limit int, cursor string) (*model.ProjectListResult, error) {
+			if cursor != "cursor-abc" {
+				t.Errorf("expected cursor=cursor-abc, got %q", cursor)
+			}
+			return want, nil
+		},
+	}
+
+	svc := NewProjectService(mock)
+	got, err := svc.List(ctx, "new", 20, "cursor-abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.NextCursor != "cursor-next" {
+		t.Errorf("expected next_cursor=cursor-next, got %q", got.NextCursor)
 	}
 }
 

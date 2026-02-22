@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { t, type Locale } from "../../lib/i18n";
-import type { User } from "../../lib/api";
+import { createCheckout, type User } from "../../lib/api";
 
 type DonationType = "one_time" | "monthly";
 
 interface Props {
   locale: Locale;
+  projectId: string;
   projectName: string;
   donateLabel: string;
   amountPresets: number[];
@@ -28,6 +29,7 @@ interface Props {
 
 export default function DonateForm({
   locale,
+  projectId,
   projectName,
   donateLabel,
   amountPresets,
@@ -51,7 +53,8 @@ export default function DonateForm({
   >(null);
   const [customAmount, setCustomAmount] = useState("");
   const [message, setMessage] = useState("");
-  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (user?.suspended) {
     return (
@@ -88,64 +91,50 @@ export default function DonateForm({
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount =
       selectedAmount === "custom"
         ? parseInt(customAmount.replace(/\D/g, ""), 10) || 0
         : (selectedAmount ?? 0);
     if (amount <= 0) return;
-    setSubmitted(true);
-  };
 
-  if (submitted) {
-    const amount =
-      selectedAmount === "custom"
-        ? parseInt(customAmount.replace(/\D/g, ""), 10) || 0
-        : (selectedAmount ?? 0);
-    const messageKey =
-      donationType === "monthly"
-        ? thankYouMessageMonthlyKey
-        : thankYouMessageKey;
-    const isAnonymous = !user;
-    return (
-      <div
-        className="card"
-        style={{ marginTop: "1rem", borderColor: "var(--color-primary)" }}
-      >
-        <h3 style={{ marginTop: 0, color: "var(--color-primary)" }}>
-          {thankYouTitle}
-        </h3>
-        <p style={{ marginBottom: isAnonymous ? "0.75rem" : 0 }}>
-          {t(locale, messageKey, {
-            amount: `¥${amount.toLocaleString()}`,
-            project: projectName,
-          })}
-        </p>
-        {isAnonymous && donationType === "one_time" && (
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.875rem",
-              color: "var(--color-text-muted)",
-            }}
-          >
-            {t(locale, "projects.thankYouAnonymousHint")}{" "}
-            <a
-              href={locale === "en" ? "/en/me" : "/me"}
-              style={{ color: "var(--color-primary)" }}
-            >
-              {t(locale, "projects.thankYouLoginLink")}
-            </a>
-          </p>
-        )}
-      </div>
-    );
-  }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { checkout_url } = await createCheckout({
+        project_id: projectId,
+        amount,
+        currency: "jpy",
+        is_recurring: donationType === "monthly",
+        message: message || undefined,
+        locale: locale === "en" ? "en" : "ja",
+      });
+      // Stripe Checkout にリダイレクト
+      window.location.href = checkout_url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "決済の開始に失敗しました");
+      setSubmitting(false);
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit} style={{ marginTop: "1rem" }}>
       <h3 style={{ marginTop: 0, marginBottom: "0.75rem" }}>{donateLabel}</h3>
+      {error && (
+        <div
+          style={{
+            padding: "0.5rem 0.75rem",
+            marginBottom: "1rem",
+            borderRadius: "6px",
+            background: "var(--color-danger-muted, rgba(200,0,0,0.08))",
+            color: "var(--color-danger, #c00)",
+            fontSize: "0.9rem",
+          }}
+        >
+          {error}
+        </div>
+      )}
       <div style={{ marginBottom: "1rem" }}>
         <p
           style={{ margin: "0 0 0.5rem", fontSize: "0.95rem", fontWeight: 500 }}
@@ -279,13 +268,18 @@ export default function DonateForm({
         type="submit"
         className="btn btn-accent"
         disabled={
+          submitting ||
           selectedAmount === null ||
           (selectedAmount === "custom" &&
             (!customAmount ||
               parseInt(customAmount.replace(/\D/g, ""), 10) <= 0))
         }
       >
-        {donationType === "monthly" ? submitLabelMonthly : submitLabel}
+        {submitting
+          ? "処理中..."
+          : donationType === "monthly"
+            ? submitLabelMonthly
+            : submitLabel}
       </button>
     </form>
   );
