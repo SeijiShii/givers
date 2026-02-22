@@ -41,7 +41,7 @@
 - [x] 寄付確定時（Webhook）に `donation` イベントを activities に INSERT
 - [x] プロジェクト作成時に `project_created` イベントを INSERT
 - [x] プロジェクト更新時に `project_updated` イベントを INSERT
-- [ ] マイルストーン到達時に `milestone` イベントを INSERT（仕様未定）
+- [x] マイルストーン到達時に `milestone` イベントを INSERT（月間達成率 50% / 100%）
 
 ### 6. 開示用データ出力 API
 - `GET /api/admin/disclosure-export` — ルート登録済み
@@ -56,8 +56,8 @@
 ## インフラ・運用
 
 - [ ] **`docker-compose.prod.yml`** 作成（本番デプロイ用）
-- [ ] **法的文書**のコンテンツ作成（利用規約・プライバシーポリシー）
-  - `legal_handler.go` でファイル配信する仕組みは実装済み
+- [x] **法的文書**ドラフト作成済み（`backend/legal/` に terms.md / privacy.md / disclaimer.md）
+  - `legal_handler.go` でファイル配信する仕組みも実装済み — 弁護士レビュー後に内容修正
 
 ---
 

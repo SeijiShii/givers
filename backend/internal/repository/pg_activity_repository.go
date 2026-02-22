@@ -25,6 +25,23 @@ func (r *pgActivityRepository) Insert(ctx context.Context, a *model.ActivityItem
 	return err
 }
 
+// ExistsMilestoneThisMonth checks if a milestone activity at the given rate
+// already exists for the project in the current month.
+func (r *pgActivityRepository) ExistsMilestoneThisMonth(ctx context.Context, projectID string, rate int) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM activities
+			WHERE type = 'milestone'
+			  AND project_id = $1
+			  AND rate = $2
+			  AND created_at >= DATE_TRUNC('month', NOW())
+		)`,
+		projectID, rate,
+	).Scan(&exists)
+	return exists, err
+}
+
 const activitySelectQuery = `
 	SELECT a.id, a.type, a.project_id, p.name,
 	       CASE WHEN a.actor_id IS NOT NULL THEN COALESCE(u.name, '匿名') ELSE NULL END,

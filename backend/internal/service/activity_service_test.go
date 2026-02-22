@@ -37,6 +37,9 @@ func (m *mockActivityRepository) ListByProject(ctx context.Context, projectID st
 	}
 	return nil, nil
 }
+func (m *mockActivityRepository) ExistsMilestoneThisMonth(_ context.Context, _ string, _ int) (bool, error) {
+	return false, nil
+}
 
 // ---------------------------------------------------------------------------
 // Record tests

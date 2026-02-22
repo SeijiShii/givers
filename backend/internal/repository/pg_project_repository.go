@@ -306,6 +306,15 @@ func (r *PgProjectRepository) UpdateStripeConnect(ctx context.Context, projectID
 	return nil
 }
 
+// GetMonthlyTarget returns the monthly_target for a project (used by MilestoneService).
+func (r *PgProjectRepository) GetMonthlyTarget(ctx context.Context, projectID string) (int, error) {
+	var target int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COALESCE(monthly_target, 0) FROM projects WHERE id = $1`, projectID,
+	).Scan(&target)
+	return target, err
+}
+
 func (r *PgProjectRepository) upsertAlerts(ctx context.Context, a *model.ProjectAlerts) error {
 	return r.pool.QueryRow(ctx,
 		`INSERT INTO project_alerts (project_id, warning_threshold, critical_threshold)

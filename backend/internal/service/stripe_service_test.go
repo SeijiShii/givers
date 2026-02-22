@@ -701,5 +701,5 @@ func (m *mockStripeActivityRecorder) Insert(ctx context.Context, a *model.Activi
 }
 
 func newTestStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, activityRecorder StripeActivityRecorder) StripeService {
-	return NewStripeServiceWithActivity(client, projectRepo, donationRepo, "https://example.com", activityRecorder)
+	return NewStripeServiceWithActivity(client, projectRepo, donationRepo, "https://example.com", activityRecorder, nil)
 }

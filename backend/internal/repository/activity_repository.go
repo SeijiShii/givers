@@ -14,4 +14,6 @@ type ActivityRepository interface {
 	ListGlobal(ctx context.Context, limit int) ([]*model.ActivityItem, error)
 	// ListByProject returns the most recent activities for a specific project.
 	ListByProject(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error)
+	// ExistsMilestoneThisMonth checks if a milestone activity at the given rate exists this month.
+	ExistsMilestoneThisMonth(ctx context.Context, projectID string, rate int) (bool, error)
 }

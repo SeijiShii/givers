@@ -151,6 +151,19 @@ func (r *pgDonationRepository) MigrateToken(ctx context.Context, token string, u
 	return int(tag.RowsAffected()), nil
 }
 
+// CurrentMonthSumByProject returns the total donation amount for a project in the current month.
+func (r *pgDonationRepository) CurrentMonthSumByProject(ctx context.Context, projectID string) (int, error) {
+	var sum int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COALESCE(SUM(amount), 0)::int
+		 FROM donations
+		 WHERE project_id = $1
+		   AND created_at >= DATE_TRUNC('month', NOW())`,
+		projectID,
+	).Scan(&sum)
+	return sum, err
+}
+
 func (r *pgDonationRepository) MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,

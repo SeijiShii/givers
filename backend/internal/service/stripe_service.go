@@ -40,6 +40,11 @@ type StripeActivityRecorder interface {
 	Insert(ctx context.Context, a *model.ActivityItem) error
 }
 
+// StripeMilestoneNotifier は寄付確定時にマイルストーンチェックを行うインターフェース
+type StripeMilestoneNotifier interface {
+	NotifyDonation(ctx context.Context, projectID string) error
+}
+
 // StripeService は Stripe 連携のビジネスロジック
 type StripeService interface {
 	// GenerateConnectURL は Stripe Connect OAuth URL を生成する（API コールなし）
@@ -57,8 +62,9 @@ type StripeServiceImpl struct {
 	client           pkgstripe.Client
 	projectRepo      StripeProjectRepo
 	donationRepo     StripeDonationRepo
-	activityRecorder StripeActivityRecorder // optional, nil = skip
-	frontendURL      string
+	activityRecorder   StripeActivityRecorder   // optional, nil = skip
+	milestoneNotifier  StripeMilestoneNotifier  // optional, nil = skip
+	frontendURL        string
 }
 
 // NewStripeService は StripeServiceImpl を生成する
@@ -71,14 +77,15 @@ func NewStripeService(client pkgstripe.Client, projectRepo StripeProjectRepo, do
 	}
 }
 
-// NewStripeServiceWithActivity は ActivityRecorder 付きの StripeServiceImpl を生成する
-func NewStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, frontendURL string, activityRecorder StripeActivityRecorder) StripeService {
+// NewStripeServiceWithActivity は ActivityRecorder + MilestoneNotifier 付きの StripeServiceImpl を生成する
+func NewStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, frontendURL string, activityRecorder StripeActivityRecorder, milestoneNotifier StripeMilestoneNotifier) StripeService {
 	return &StripeServiceImpl{
-		client:           client,
-		projectRepo:      projectRepo,
-		donationRepo:     donationRepo,
-		activityRecorder: activityRecorder,
-		frontendURL:      frontendURL,
+		client:            client,
+		projectRepo:       projectRepo,
+		donationRepo:      donationRepo,
+		activityRecorder:  activityRecorder,
+		milestoneNotifier: milestoneNotifier,
+		frontendURL:       frontendURL,
 	}
 }
 
@@ -187,6 +194,7 @@ func (s *StripeServiceImpl) handlePaymentIntentSucceeded(ctx context.Context, ev
 		return err
 	}
 	s.recordDonationActivity(ctx, projectID, donorID, obj.Amount, obj.Metadata["message"])
+	s.notifyMilestone(ctx, projectID)
 	return nil
 }
 
@@ -227,6 +235,7 @@ func (s *StripeServiceImpl) handleSubscriptionCreated(ctx context.Context, event
 		return err
 	}
 	s.recordDonationActivity(ctx, projectID, donorID, amount, obj.Metadata["message"])
+	s.notifyMilestone(ctx, projectID)
 	return nil
 }
 
@@ -246,6 +255,14 @@ func (s *StripeServiceImpl) recordDonationActivity(ctx context.Context, projectI
 		Amount:    &amount,
 		Message:   message,
 	})
+}
+
+// notifyMilestone は寄付確定時にマイルストーンチェックを実行する（失敗しても無視）
+func (s *StripeServiceImpl) notifyMilestone(ctx context.Context, projectID string) {
+	if s.milestoneNotifier == nil {
+		return
+	}
+	_ = s.milestoneNotifier.NotifyDonation(ctx, projectID)
 }
 
 func (s *StripeServiceImpl) handleSubscriptionDeleted(ctx context.Context, event pkgstripe.WebhookEvent) error {

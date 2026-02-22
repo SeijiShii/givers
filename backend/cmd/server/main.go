@@ -64,7 +64,8 @@ func main() {
 		os.Getenv("STRIPE_WEBHOOK_SECRET"),
 	)
 	activityService := service.NewActivityService(activityRepo)
-	stripeService := service.NewStripeServiceWithActivity(stripeClient, projectRepo, donationRepo, frontendURL, activityRepo)
+	milestoneService := service.NewMilestoneService(projectRepo, donationRepo, activityRepo)
+	stripeService := service.NewStripeServiceWithActivity(stripeClient, projectRepo, donationRepo, frontendURL, activityRepo, milestoneService)
 	donationService := service.NewDonationService(donationRepo, stripeClient)
 	costPresetService := service.NewCostPresetService(costPresetRepo)
 

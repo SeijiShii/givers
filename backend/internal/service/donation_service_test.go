@@ -58,6 +58,9 @@ func (m *mockDonationRepository) MigrateToken(ctx context.Context, token string,
 	}
 	return 0, nil
 }
+func (m *mockDonationRepository) CurrentMonthSumByProject(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
 func (m *mockDonationRepository) MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error) {
 	return nil, nil
 }

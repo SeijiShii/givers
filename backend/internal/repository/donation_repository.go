@@ -23,6 +23,8 @@ type DonationRepository interface {
 	// MigrateToken migrates donations from donor_type='token' to donor_type='user'.
 	// Returns the number of rows updated.
 	MigrateToken(ctx context.Context, token string, userID string) (int, error)
+	// CurrentMonthSumByProject returns the total donation amount for a project in the current month.
+	CurrentMonthSumByProject(ctx context.Context, projectID string) (int, error)
 	// MonthlySumByProject returns monthly donation totals for a project (last 12 months).
 	MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error)
 }
