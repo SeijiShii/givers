@@ -10,26 +10,12 @@ type Project struct {
 	Deadline         *time.Time `json:"deadline,omitempty"`
 	Status           string     `json:"status"`
 	OwnerWantMonthly *int       `json:"owner_want_monthly,omitempty"` // オーナーの「〇〇円欲しい」表明（月額）
+	MonthlyTarget    int        `json:"monthly_target"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 
-	Costs  *ProjectCosts  `json:"costs,omitempty"`
-	Alerts *ProjectAlerts `json:"alerts,omitempty"`
-}
-
-type ProjectCosts struct {
-	ID               string    `json:"id"`
-	ProjectID        string    `json:"project_id"`
-	ServerCostMonthly int      `json:"server_cost_monthly"`
-	DevCostPerDay    int      `json:"dev_cost_per_day"`
-	DevDaysPerMonth  int      `json:"dev_days_per_month"`
-	OtherCostMonthly int      `json:"other_cost_monthly"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
-
-func (c *ProjectCosts) MonthlyTarget() int {
-	return c.ServerCostMonthly + (c.DevCostPerDay * c.DevDaysPerMonth) + c.OtherCostMonthly
+	CostItems []*ProjectCostItem `json:"cost_items,omitempty"`
+	Alerts    *ProjectAlerts     `json:"alerts,omitempty"`
 }
 
 type ProjectAlerts struct {

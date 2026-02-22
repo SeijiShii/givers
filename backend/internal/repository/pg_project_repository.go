@@ -19,10 +19,12 @@ func NewPgProjectRepository(pool *pgxpool.Pool) *PgProjectRepository {
 	return &PgProjectRepository{pool: pool}
 }
 
+const projectSelectCols = `id, owner_id, name, description, deadline, status, owner_want_monthly, monthly_target, created_at, updated_at`
+
 // List はプロジェクト一覧を取得する
 func (r *PgProjectRepository) List(ctx context.Context, limit, offset int) ([]*model.Project, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, owner_id, name, description, deadline, status, owner_want_monthly, created_at, updated_at
+		`SELECT `+projectSelectCols+`
 		 FROM projects ORDER BY created_at DESC LIMIT $1 OFFSET $2`,
 		limit, offset,
 	)
@@ -34,7 +36,7 @@ func (r *PgProjectRepository) List(ctx context.Context, limit, offset int) ([]*m
 	var projects []*model.Project
 	for rows.Next() {
 		var p model.Project
-		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)
@@ -42,27 +44,38 @@ func (r *PgProjectRepository) List(ctx context.Context, limit, offset int) ([]*m
 	return projects, rows.Err()
 }
 
-// GetByID は ID でプロジェクトを取得する
+// GetByID は ID でプロジェクトを取得する（コスト項目・アラートも含む）
 func (r *PgProjectRepository) GetByID(ctx context.Context, id string) (*model.Project, error) {
 	var p model.Project
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, owner_id, name, description, deadline, status, owner_want_monthly, created_at, updated_at
-		 FROM projects WHERE id = $1`,
-		id,
-	).Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.CreatedAt, &p.UpdatedAt)
+		`SELECT `+projectSelectCols+` FROM projects WHERE id = $1`, id,
+	).Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
 
-	// Load costs
-	var c model.ProjectCosts
-	err = r.pool.QueryRow(ctx,
-		`SELECT id, project_id, server_cost_monthly, dev_cost_per_day, dev_days_per_month, other_cost_monthly, created_at, updated_at
-		 FROM project_costs WHERE project_id = $1`, id,
-	).Scan(&c.ID, &c.ProjectID, &c.ServerCostMonthly, &c.DevCostPerDay, &c.DevDaysPerMonth, &c.OtherCostMonthly, &c.CreatedAt, &c.UpdatedAt)
-	if err == nil {
-		p.Costs = &c
-	} else if !errors.Is(err, pgx.ErrNoRows) {
+	// Load cost items
+	itemRows, err := r.pool.Query(ctx,
+		`SELECT id, project_id, label, unit_type, amount_monthly, rate_per_day, days_per_month, sort_order, created_at, updated_at
+		 FROM project_cost_items WHERE project_id = $1 ORDER BY sort_order, created_at`,
+		id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer itemRows.Close()
+	for itemRows.Next() {
+		var item model.ProjectCostItem
+		if err := itemRows.Scan(
+			&item.ID, &item.ProjectID, &item.Label, &item.UnitType,
+			&item.AmountMonthly, &item.RatePerDay, &item.DaysPerMonth,
+			&item.SortOrder, &item.CreatedAt, &item.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		p.CostItems = append(p.CostItems, &item)
+	}
+	if err := itemRows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +97,7 @@ func (r *PgProjectRepository) GetByID(ctx context.Context, id string) (*model.Pr
 // ListByOwnerID はオーナーIDでプロジェクト一覧を取得する
 func (r *PgProjectRepository) ListByOwnerID(ctx context.Context, ownerID string) ([]*model.Project, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, owner_id, name, description, deadline, status, owner_want_monthly, created_at, updated_at
+		`SELECT `+projectSelectCols+`
 		 FROM projects WHERE owner_id = $1 ORDER BY created_at DESC`,
 		ownerID,
 	)
@@ -96,7 +109,7 @@ func (r *PgProjectRepository) ListByOwnerID(ctx context.Context, ownerID string)
 	var projects []*model.Project
 	for rows.Next() {
 		var p model.Project
-		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)
@@ -106,22 +119,32 @@ func (r *PgProjectRepository) ListByOwnerID(ctx context.Context, ownerID string)
 
 // Create はプロジェクトを作成する
 func (r *PgProjectRepository) Create(ctx context.Context, project *model.Project) error {
+	project.MonthlyTarget = model.TotalMonthlyAmount(project.CostItems)
+
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO projects (owner_id, name, description, deadline, status, owner_want_monthly)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		`INSERT INTO projects (owner_id, name, description, deadline, status, owner_want_monthly, monthly_target)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING id, created_at, updated_at`,
-		project.OwnerID, project.Name, project.Description, project.Deadline, project.Status, project.OwnerWantMonthly,
+		project.OwnerID, project.Name, project.Description, project.Deadline,
+		project.Status, project.OwnerWantMonthly, project.MonthlyTarget,
 	).Scan(&project.ID, &project.CreatedAt, &project.UpdatedAt)
 	if err != nil {
 		return err
 	}
 
-	if project.Costs != nil {
-		project.Costs.ProjectID = project.ID
-		if err := r.upsertCosts(ctx, project.Costs); err != nil {
+	for i, item := range project.CostItems {
+		item.ProjectID = project.ID
+		item.SortOrder = i
+		if err := r.pool.QueryRow(ctx,
+			`INSERT INTO project_cost_items (project_id, label, unit_type, amount_monthly, rate_per_day, days_per_month, sort_order)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			 RETURNING id, created_at, updated_at`,
+			item.ProjectID, item.Label, item.UnitType, item.AmountMonthly, item.RatePerDay, item.DaysPerMonth, i,
+		).Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return err
 		}
 	}
+
 	if project.Alerts != nil {
 		project.Alerts.ProjectID = project.ID
 		if err := r.upsertAlerts(ctx, project.Alerts); err != nil {
@@ -133,20 +156,44 @@ func (r *PgProjectRepository) Create(ctx context.Context, project *model.Project
 
 // Update はプロジェクトを更新する
 func (r *PgProjectRepository) Update(ctx context.Context, project *model.Project) error {
-	_, err := r.pool.Exec(ctx,
-		`UPDATE projects SET name = $1, description = $2, deadline = $3, status = $4, owner_want_monthly = $5, updated_at = NOW()
-		 WHERE id = $6`,
-		project.Name, project.Description, project.Deadline, project.Status, project.OwnerWantMonthly, project.ID,
-	)
+	project.MonthlyTarget = model.TotalMonthlyAmount(project.CostItems)
+
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if project.Costs != nil {
-		project.Costs.ProjectID = project.ID
-		if err := r.upsertCosts(ctx, project.Costs); err != nil {
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE projects SET name=$1, description=$2, deadline=$3, status=$4, owner_want_monthly=$5, monthly_target=$6, updated_at=NOW()
+		 WHERE id=$7`,
+		project.Name, project.Description, project.Deadline, project.Status,
+		project.OwnerWantMonthly, project.MonthlyTarget, project.ID,
+	); err != nil {
+		return err
+	}
+
+	// Replace cost items
+	if _, err := tx.Exec(ctx, `DELETE FROM project_cost_items WHERE project_id=$1`, project.ID); err != nil {
+		return err
+	}
+	for i, item := range project.CostItems {
+		item.ProjectID = project.ID
+		item.SortOrder = i
+		if err := tx.QueryRow(ctx,
+			`INSERT INTO project_cost_items (project_id, label, unit_type, amount_monthly, rate_per_day, days_per_month, sort_order)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			 RETURNING id, created_at, updated_at`,
+			item.ProjectID, item.Label, item.UnitType, item.AmountMonthly, item.RatePerDay, item.DaysPerMonth, i,
+		).Scan(&item.ID, &item.CreatedAt, &item.UpdatedAt); err != nil {
 			return err
 		}
 	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
 	if project.Alerts != nil {
 		project.Alerts.ProjectID = project.ID
 		if err := r.upsertAlerts(ctx, project.Alerts); err != nil {
@@ -170,21 +217,6 @@ func (r *PgProjectRepository) Delete(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return nil
-}
-
-func (r *PgProjectRepository) upsertCosts(ctx context.Context, c *model.ProjectCosts) error {
-	return r.pool.QueryRow(ctx,
-		`INSERT INTO project_costs (project_id, server_cost_monthly, dev_cost_per_day, dev_days_per_month, other_cost_monthly)
-		 VALUES ($1, $2, $3, $4, $5)
-		 ON CONFLICT (project_id) DO UPDATE SET
-		   server_cost_monthly = EXCLUDED.server_cost_monthly,
-		   dev_cost_per_day = EXCLUDED.dev_cost_per_day,
-		   dev_days_per_month = EXCLUDED.dev_days_per_month,
-		   other_cost_monthly = EXCLUDED.other_cost_monthly,
-		   updated_at = NOW()
-		 RETURNING id, created_at, updated_at`,
-		c.ProjectID, c.ServerCostMonthly, c.DevCostPerDay, c.DevDaysPerMonth, c.OtherCostMonthly,
-	).Scan(&c.ID, &c.CreatedAt, &c.UpdatedAt)
 }
 
 func (r *PgProjectRepository) upsertAlerts(ctx context.Context, a *model.ProjectAlerts) error {

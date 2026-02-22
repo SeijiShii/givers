@@ -47,6 +47,7 @@ func main() {
 	projectUpdateRepo := repository.NewPgProjectUpdateRepository(pool)
 	platformHealthRepo := repository.NewPgPlatformHealthRepository(pool)
 	donationRepo := repository.NewPgDonationRepository(pool)
+	costPresetRepo := repository.NewPgCostPresetRepository(pool)
 	authService := service.NewAuthService(userRepo)
 	projectService := service.NewProjectService(projectRepo)
 	contactService := service.NewContactService(contactRepo)
@@ -55,6 +56,7 @@ func main() {
 	platformHealthService := service.NewPlatformHealthService(platformHealthRepo)
 	adminUserService := service.NewAdminUserService(userRepo)
 	donationService := service.NewDonationService(donationRepo)
+	costPresetService := service.NewCostPresetService(costPresetRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
@@ -89,6 +91,7 @@ func main() {
 	hostHandler := handler.NewHostHandler(platformHealthService)
 	adminUserHandler := handler.NewAdminUserHandler(adminUserService, projectService)
 	donationHandler := handler.NewDonationHandler(donationService)
+	costPresetHandler := handler.NewCostPresetHandler(costPresetService)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.Health)
@@ -145,6 +148,13 @@ func main() {
 	mux.Handle("PATCH /api/me/donations/{id}", wrapAuth(http.HandlerFunc(donationHandler.Patch)))
 	mux.Handle("DELETE /api/me/donations/{id}", wrapAuth(http.HandlerFunc(donationHandler.Delete)))
 	mux.Handle("POST /api/me/migrate-from-token", wrapAuth(http.HandlerFunc(donationHandler.MigrateFromToken)))
+
+	// Cost preset routes (auth required)
+	mux.Handle("GET /api/me/cost-presets", wrapAuth(http.HandlerFunc(costPresetHandler.List)))
+	mux.Handle("POST /api/me/cost-presets", wrapAuth(http.HandlerFunc(costPresetHandler.Create)))
+	mux.Handle("PUT /api/me/cost-presets/reorder", wrapAuth(http.HandlerFunc(costPresetHandler.Reorder)))
+	mux.Handle("PUT /api/me/cost-presets/{id}", wrapAuth(http.HandlerFunc(costPresetHandler.Update)))
+	mux.Handle("DELETE /api/me/cost-presets/{id}", wrapAuth(http.HandlerFunc(costPresetHandler.Delete)))
 
 	server := &http.Server{
 		Addr:         ":8080",

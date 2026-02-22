@@ -104,13 +104,13 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Name             string                 `json:"name"`
-		Description      string                 `json:"description"`
-		Deadline         *string                `json:"deadline"`
-		Status           string                 `json:"status"`
-		OwnerWantMonthly *int                   `json:"owner_want_monthly"`
-		Costs            *model.ProjectCosts   `json:"costs"`
-		Alerts           *model.ProjectAlerts  `json:"alerts"`
+		Name             string                       `json:"name"`
+		Description      string                       `json:"description"`
+		Deadline         *string                      `json:"deadline"`
+		Status           string                       `json:"status"`
+		OwnerWantMonthly *int                         `json:"owner_want_monthly"`
+		CostItems        []model.ProjectCostItemInput `json:"cost_items"`
+		Alerts           *model.ProjectAlerts         `json:"alerts"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -130,8 +130,17 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Description:      req.Description,
 		Status:           req.Status,
 		OwnerWantMonthly: req.OwnerWantMonthly,
-		Costs:            req.Costs,
 		Alerts:           req.Alerts,
+	}
+	for i, input := range req.CostItems {
+		project.CostItems = append(project.CostItems, &model.ProjectCostItem{
+			Label:         input.Label,
+			UnitType:      input.UnitType,
+			AmountMonthly: input.AmountMonthly,
+			RatePerDay:    input.RatePerDay,
+			DaysPerMonth:  input.DaysPerMonth,
+			SortOrder:     i,
+		})
 	}
 	if req.Deadline != nil && *req.Deadline != "" {
 		// TODO: parse deadline from string (RFC3339 or YYYY-MM-DD)
@@ -184,54 +193,51 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		Name             string                 `json:"name"`
-		Description      string                 `json:"description"`
-		Deadline         *string                `json:"deadline"`
-		Status           string                 `json:"status"`
-		OwnerWantMonthly *int                   `json:"owner_want_monthly"`
-		Costs            *model.ProjectCosts   `json:"costs"`
-		Alerts           *model.ProjectAlerts  `json:"alerts"`
-	}
 	if b, ok := raw["name"]; ok {
-		_ = json.Unmarshal(b, &req.Name)
+		var v string
+		_ = json.Unmarshal(b, &v)
+		if v != "" {
+			existing.Name = v
+		}
 	}
 	if b, ok := raw["description"]; ok {
-		_ = json.Unmarshal(b, &req.Description)
-	}
-	if b, ok := raw["deadline"]; ok {
-		_ = json.Unmarshal(b, &req.Deadline)
+		var v string
+		_ = json.Unmarshal(b, &v)
+		existing.Description = v
 	}
 	if b, ok := raw["status"]; ok {
-		_ = json.Unmarshal(b, &req.Status)
-	}
-	if b, ok := raw["owner_want_monthly"]; ok {
-		_ = json.Unmarshal(b, &req.OwnerWantMonthly)
-	}
-	if b, ok := raw["costs"]; ok {
-		_ = json.Unmarshal(b, &req.Costs)
-	}
-	if b, ok := raw["alerts"]; ok {
-		_ = json.Unmarshal(b, &req.Alerts)
-	}
-
-	if req.Name != "" {
-		existing.Name = req.Name
-	}
-	if req.Description != "" {
-		existing.Description = req.Description
-	}
-	if req.Status != "" {
-		existing.Status = req.Status
+		var v string
+		_ = json.Unmarshal(b, &v)
+		if v != "" {
+			existing.Status = v
+		}
 	}
 	if hasJSONKey(raw, "owner_want_monthly") {
-		existing.OwnerWantMonthly = req.OwnerWantMonthly
+		var v *int
+		_ = json.Unmarshal(raw["owner_want_monthly"], &v)
+		existing.OwnerWantMonthly = v
 	}
-	if req.Costs != nil {
-		existing.Costs = req.Costs
+	if b, ok := raw["cost_items"]; ok {
+		var inputs []model.ProjectCostItemInput
+		_ = json.Unmarshal(b, &inputs)
+		existing.CostItems = nil
+		for i, input := range inputs {
+			existing.CostItems = append(existing.CostItems, &model.ProjectCostItem{
+				Label:         input.Label,
+				UnitType:      input.UnitType,
+				AmountMonthly: input.AmountMonthly,
+				RatePerDay:    input.RatePerDay,
+				DaysPerMonth:  input.DaysPerMonth,
+				SortOrder:     i,
+			})
+		}
 	}
-	if req.Alerts != nil {
-		existing.Alerts = req.Alerts
+	if b, ok := raw["alerts"]; ok {
+		var v *model.ProjectAlerts
+		_ = json.Unmarshal(b, &v)
+		if v != nil {
+			existing.Alerts = v
+		}
 	}
 
 	if err := h.projectService.Update(r.Context(), existing); err != nil {
