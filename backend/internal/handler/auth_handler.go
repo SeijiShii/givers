@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -11,6 +13,49 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+const oauthStateCookieName = "oauth_state"
+
+// generateOAuthState は CSRF 対策用のランダム state 文字列を生成する
+func generateOAuthState() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
+
+// setStateCookie は state を HttpOnly クッキーに保存する
+func setStateCookie(w http.ResponseWriter, state string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthStateCookieName,
+		Value:    state,
+		Path:     "/",
+		MaxAge:   600, // 10 minutes
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   os.Getenv("ENV") == "production",
+	})
+}
+
+// verifyOAuthState は state クッキーとクエリパラメータを照合する
+func verifyOAuthState(r *http.Request) bool {
+	cookie, err := r.Cookie(oauthStateCookieName)
+	if err != nil || cookie.Value == "" {
+		return false
+	}
+	return cookie.Value == r.URL.Query().Get("state")
+}
+
+// clearStateCookie は state クッキーを削除する
+func clearStateCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthStateCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Expires:  time.Unix(0, 0),
+	})
+}
 
 var githubEndpoint = oauth2.Endpoint{
 	AuthURL:  "https://github.com/login/oauth/authorize",
@@ -79,7 +124,8 @@ type googleUserInfo struct {
 
 // GoogleLoginURL は Google OAuth の認証 URL を返す（GET /api/auth/google/login）
 func (h *AuthHandler) GoogleLoginURL(w http.ResponseWriter, r *http.Request) {
-	state := "state-placeholder" // TODO: ランダム state で CSRF 対策
+	state := generateOAuthState()
+	setStateCookie(w, state)
 	url := h.googleConfig.AuthCodeURL(state)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"url": url})
@@ -87,6 +133,13 @@ func (h *AuthHandler) GoogleLoginURL(w http.ResponseWriter, r *http.Request) {
 
 // GoogleCallback は OAuth コールバックを処理する（GET /api/auth/google/callback）
 func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
+	if !verifyOAuthState(r) {
+		clearStateCookie(w)
+		http.Redirect(w, r, h.frontendURL+"/?error=invalid_state", http.StatusFound)
+		return
+	}
+	clearStateCookie(w)
+
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Redirect(w, r, h.frontendURL+"/?error=no_code", http.StatusFound)
@@ -139,7 +192,8 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 // GitHubLoginURL は GitHub OAuth の認証 URL を返す（GET /api/auth/github/login）
 func (h *AuthHandler) GitHubLoginURL(w http.ResponseWriter, r *http.Request) {
-	state := "state-placeholder"
+	state := generateOAuthState()
+	setStateCookie(w, state)
 	url := h.githubConfig.AuthCodeURL(state)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"url": url})
@@ -155,6 +209,13 @@ type githubUserInfo struct {
 
 // GitHubCallback は OAuth コールバックを処理する（GET /api/auth/github/callback）
 func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
+	if !verifyOAuthState(r) {
+		clearStateCookie(w)
+		http.Redirect(w, r, h.frontendURL+"/?error=invalid_state", http.StatusFound)
+		return
+	}
+	clearStateCookie(w)
+
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Redirect(w, r, h.frontendURL+"/?error=no_code", http.StatusFound)

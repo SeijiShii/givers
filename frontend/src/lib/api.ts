@@ -55,10 +55,16 @@ export interface AdminUser extends User {
   project_count?: number;
 }
 
-/** ユーザー一覧（ホスト用、モック時のみ） */
+/** ユーザー一覧（ホスト用） */
 export async function getAdminUsers(): Promise<AdminUser[]> {
   if (MOCK_MODE) return (await import("./mock-api")).mockApi.getAdminUsers();
-  return [];
+  const res = await fetchApi<{
+    users: (User & { suspended_at?: string | null })[];
+  }>("/api/admin/users");
+  return (res.users ?? []).map((u) => ({
+    ...u,
+    status: u.suspended_at ? ("suspended" as const) : ("active" as const),
+  }));
 }
 
 /** 開示用データ出力（ホストのみ）。第三者情報開示請求等に備えたエクスポート。 */
@@ -327,10 +333,27 @@ export interface ProjectUpdate {
 /** 金額表示タイプ: 希望額 / 必要額 / 両方 */
 export type AmountInputType = "want" | "cost" | "both";
 
-export async function getProjects(limit = 20, offset = 0): Promise<Project[]> {
-  if (MOCK_MODE)
-    return (await import("./mock-api")).mockApi.getProjects(limit, offset);
-  return fetchApi<Project[]>(`/api/projects?limit=${limit}&offset=${offset}`);
+/** プロジェクト一覧レスポンス（カーソルページネーション対応） */
+export interface ProjectListResult {
+  projects: Project[];
+  next_cursor: string;
+}
+
+export async function getProjects(
+  options: { limit?: number; cursor?: string; sort?: string } = {},
+): Promise<ProjectListResult> {
+  const { limit = 20, cursor, sort } = options;
+  if (MOCK_MODE) {
+    const projects = await (
+      await import("./mock-api")
+    ).mockApi.getProjects(limit, 0);
+    return { projects, next_cursor: "" };
+  }
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+  if (cursor) params.set("cursor", cursor);
+  if (sort) params.set("sort", sort);
+  return fetchApi<ProjectListResult>(`/api/projects?${params}`);
 }
 
 export async function getProject(id: string): Promise<Project> {
@@ -394,20 +417,63 @@ export interface RecurringDonation {
   interval?: "monthly" | "yearly";
 }
 
+/** バックエンドの Donation レスポンス型 */
+interface BackendDonation {
+  id: string;
+  project_id: string;
+  donor_type: string;
+  donor_id: string;
+  amount: number;
+  currency: string;
+  message?: string;
+  is_recurring: boolean;
+  paused: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export async function getMyDonations(): Promise<Donation[]> {
   if (MOCK_MODE) return (await import("./mock-api")).mockApi.getMyDonations();
-  return [];
+  const res = await fetchApi<{ donations: BackendDonation[] }>(
+    "/api/me/donations",
+  );
+  return (res.donations ?? [])
+    .filter((d) => !d.is_recurring)
+    .map((d) => ({
+      id: d.id,
+      user_id: d.donor_id,
+      project_id: d.project_id,
+      project_name: "",
+      amount: d.amount,
+      created_at: d.created_at,
+      message: d.message ?? null,
+    }));
 }
 
 export async function getMyRecurringDonations(): Promise<RecurringDonation[]> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getMyRecurringDonations();
-  return [];
+  const res = await fetchApi<{ donations: BackendDonation[] }>(
+    "/api/me/donations",
+  );
+  return (res.donations ?? [])
+    .filter((d) => d.is_recurring)
+    .map((d) => ({
+      id: d.id,
+      user_id: d.donor_id,
+      project_id: d.project_id,
+      project_name: "",
+      amount: d.amount,
+      created_at: d.created_at,
+      status: d.paused ? ("paused" as const) : ("active" as const),
+      interval: "monthly" as const,
+    }));
 }
 
 export async function cancelRecurringDonation(id: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.cancelRecurringDonation(id);
+  await fetchApi(`/api/me/donations/${id}`, { method: "DELETE" });
 }
 
 /** 定期寄付の変更（金額・タイミング） */
@@ -420,42 +486,57 @@ export async function updateRecurringDonation(
       id,
       input,
     );
-  throw new Error("Not implemented");
+  await fetchApi(`/api/me/donations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ amount: input.amount }),
+  });
+  const all = await getMyRecurringDonations();
+  const updated = all.find((d) => d.id === id);
+  if (!updated) throw new Error("donation not found after update");
+  return updated;
 }
 
 /** 定期寄付の一時休止 */
 export async function pauseRecurringDonation(id: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.pauseRecurringDonation(id);
-  throw new Error("Not implemented");
+  await fetchApi(`/api/me/donations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ paused: true }),
+  });
 }
 
 /** 定期寄付の再開 */
 export async function resumeRecurringDonation(id: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.resumeRecurringDonation(id);
-  throw new Error("Not implemented");
+  await fetchApi(`/api/me/donations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ paused: false }),
+  });
 }
 
 /** 定期寄付の削除（完全に解除） */
 export async function deleteRecurringDonation(id: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.deleteRecurringDonation(id);
-  throw new Error("Not implemented");
+  await fetchApi(`/api/me/donations/${id}`, { method: "DELETE" });
 }
 
-/** 新着プロジェクト（モック時のみ、トップページ用） */
+/** 新着プロジェクト（トップページ用） */
 export async function getNewProjects(limit = 5): Promise<Project[]> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getNewProjects(limit);
-  return getProjects(limit, 0);
+  const result = await getProjects({ limit });
+  return result.projects;
 }
 
-/** HOT プロジェクト（モック時のみ、トップページ用） */
+/** HOT プロジェクト（達成率順、トップページ用） */
 export async function getHotProjects(limit = 5): Promise<Project[]> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getHotProjects(limit);
-  return getProjects(limit, 0);
+  const result = await getProjects({ limit, sort: "hot" });
+  return result.projects;
 }
 
 /** 関連プロジェクト（プロジェクト詳細用。当該を除く HOT 等） */
@@ -468,8 +549,8 @@ export async function getRelatedProjects(
       projectId,
       limit,
     );
-  const all = await getProjects(limit + 5, 0);
-  return all.filter((p) => p.id !== projectId).slice(0, limit);
+  const result = await getProjects({ limit: limit + 5, sort: "hot" });
+  return result.projects.filter((p) => p.id !== projectId).slice(0, limit);
 }
 
 /** ウォッチ一覧（ログインユーザーがウォッチしているプロジェクト） */
@@ -540,7 +621,7 @@ export async function getProjectChart(
   return [];
 }
 
-/** プロジェクトオーナーからのアップデート（モック時のみ） */
+/** プロジェクトオーナーからのアップデート */
 export async function getProjectUpdates(
   projectId: string,
   limit = 20,
@@ -550,10 +631,13 @@ export async function getProjectUpdates(
       projectId,
       limit,
     );
-  return [];
+  const res = await fetchApi<{ updates: ProjectUpdate[] }>(
+    `/api/projects/${projectId}/updates?limit=${limit}`,
+  );
+  return res.updates ?? [];
 }
 
-/** アップデート投稿（モック時のみ。オーナー限定） */
+/** アップデート投稿（オーナー限定） */
 export interface CreateProjectUpdateInput {
   title?: string | null;
   body: string;
@@ -568,10 +652,13 @@ export async function createProjectUpdate(
       projectId,
       input,
     );
-  throw new Error("Not implemented");
+  return fetchApi<ProjectUpdate>(`/api/projects/${projectId}/updates`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
-/** アップデート編集（モック時のみ。オーナー限定。visible で非表示/再表示） */
+/** アップデート編集（オーナー限定。visible で非表示/再表示） */
 export async function updateProjectUpdate(
   projectId: string,
   updateId: string,
@@ -583,10 +670,16 @@ export async function updateProjectUpdate(
       updateId,
       input,
     );
-  throw new Error("Not implemented");
+  return fetchApi<ProjectUpdate>(
+    `/api/projects/${projectId}/updates/${updateId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(input),
+    },
+  );
 }
 
-/** アップデート非表示（モック時のみ。オーナー限定。実態は visible: false に更新） */
+/** アップデート非表示（オーナー限定。実態は visible: false に更新） */
 export async function deleteProjectUpdate(
   projectId: string,
   updateId: string,
@@ -596,7 +689,9 @@ export async function deleteProjectUpdate(
       projectId,
       updateId,
     );
-  throw new Error("Not implemented");
+  await fetchApi(`/api/projects/${projectId}/updates/${updateId}`, {
+    method: "DELETE",
+  });
 }
 
 export interface CreateProjectInput {
