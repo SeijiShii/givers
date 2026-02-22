@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,15 +13,21 @@ import (
 	"github.com/givers/backend/pkg/auth"
 )
 
+// disclosureDonationLister is a minimal interface for listing donations by project.
+type disclosureDonationLister interface {
+	ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error)
+}
+
 // AdminUserHandler handles admin user management endpoints.
 type AdminUserHandler struct {
-	adminSvc   service.AdminUserService
-	projectSvc service.ProjectService
+	adminSvc       service.AdminUserService
+	projectSvc     service.ProjectService
+	donationLister disclosureDonationLister // optional: nil disables type=donation
 }
 
 // NewAdminUserHandler creates an AdminUserHandler.
-func NewAdminUserHandler(adminSvc service.AdminUserService, projectSvc service.ProjectService) *AdminUserHandler {
-	return &AdminUserHandler{adminSvc: adminSvc, projectSvc: projectSvc}
+func NewAdminUserHandler(adminSvc service.AdminUserService, projectSvc service.ProjectService, donationLister disclosureDonationLister) *AdminUserHandler {
+	return &AdminUserHandler{adminSvc: adminSvc, projectSvc: projectSvc, donationLister: donationLister}
 }
 
 func requireHost(w http.ResponseWriter, r *http.Request) bool {
@@ -151,6 +158,44 @@ func (h *AdminUserHandler) DisclosureExport(w http.ResponseWriter, r *http.Reque
 			return
 		}
 		_ = json.NewEncoder(w).Encode(project)
+
+	case "donation":
+		if h.donationLister == nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "donation_export_not_configured"})
+			return
+		}
+		// id = project_id — まずプロジェクト名を取得
+		project, err := h.projectSvc.GetByID(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, repository.ErrNotFound) {
+				w.WriteHeader(http.StatusNotFound)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "export_failed"})
+			return
+		}
+		donations, err := h.donationLister.ListByProject(r.Context(), id, 10000, 0)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "export_failed"})
+			return
+		}
+		if donations == nil {
+			donations = []*model.Donation{}
+		}
+		var total int
+		for _, d := range donations {
+			total += d.Amount
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"project_id":   id,
+			"project_name": project.Name,
+			"donations":    donations,
+			"total":        total,
+		})
 
 	default:
 		w.WriteHeader(http.StatusBadRequest)

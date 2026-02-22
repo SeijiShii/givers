@@ -11,6 +11,42 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// Mock SessionRepository
+// ---------------------------------------------------------------------------
+
+type mockSessionRepository struct {
+	createFunc         func(ctx context.Context, s *model.Session) error
+	findByTokenFunc    func(ctx context.Context, token string) (*model.Session, error)
+	deleteByTokenFunc  func(ctx context.Context, token string) error
+	deleteByUserIDFunc func(ctx context.Context, userID string) error
+}
+
+func (m *mockSessionRepository) Create(ctx context.Context, s *model.Session) error {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, s)
+	}
+	return nil
+}
+func (m *mockSessionRepository) FindByToken(ctx context.Context, token string) (*model.Session, error) {
+	if m.findByTokenFunc != nil {
+		return m.findByTokenFunc(ctx, token)
+	}
+	return nil, errors.New("not found")
+}
+func (m *mockSessionRepository) DeleteByToken(ctx context.Context, token string) error {
+	if m.deleteByTokenFunc != nil {
+		return m.deleteByTokenFunc(ctx, token)
+	}
+	return nil
+}
+func (m *mockSessionRepository) DeleteByUserID(ctx context.Context, userID string) error {
+	if m.deleteByUserIDFunc != nil {
+		return m.deleteByUserIDFunc(ctx, userID)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
 // Mock UserRepository (admin methods)
 // ---------------------------------------------------------------------------
 
@@ -157,6 +193,42 @@ func TestAdminUserService_SuspendUser_NotFound(t *testing.T) {
 	err := svc.SuspendUser(context.Background(), "no-such", true)
 	if !errors.Is(err, repository.ErrNotFound) {
 		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestAdminUserService_SuspendUser_DeletesSessions(t *testing.T) {
+	var deletedUserID string
+	sessionRepo := &mockSessionRepository{
+		deleteByUserIDFunc: func(ctx context.Context, userID string) error {
+			deletedUserID = userID
+			return nil
+		},
+	}
+	svc := NewAdminUserServiceWithSessions(&mockAdminUserRepository{}, sessionRepo)
+
+	if err := svc.SuspendUser(context.Background(), "user-1", true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deletedUserID != "user-1" {
+		t.Errorf("expected sessions deleted for user-1, got %q", deletedUserID)
+	}
+}
+
+func TestAdminUserService_UnsuspendUser_DoesNotDeleteSessions(t *testing.T) {
+	called := false
+	sessionRepo := &mockSessionRepository{
+		deleteByUserIDFunc: func(ctx context.Context, userID string) error {
+			called = true
+			return nil
+		},
+	}
+	svc := NewAdminUserServiceWithSessions(&mockAdminUserRepository{}, sessionRepo)
+
+	if err := svc.SuspendUser(context.Background(), "user-1", false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if called {
+		t.Error("expected sessions NOT to be deleted on unsuspend")
 	}
 }
 

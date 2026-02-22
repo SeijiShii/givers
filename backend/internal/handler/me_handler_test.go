@@ -34,8 +34,20 @@ func (m *mockUserRepository) List(context.Context, int, int) ([]*model.User, err
 }
 func (m *mockUserRepository) Suspend(context.Context, string, bool) error { return nil }
 
+// mockMeSessionValidator implements auth.SessionValidator for MeHandler tests
+type mockMeSessionValidator struct {
+	validateFunc func(ctx context.Context, token string) (string, error)
+}
+
+func (m *mockMeSessionValidator) ValidateSession(ctx context.Context, token string) (string, error) {
+	if m.validateFunc != nil {
+		return m.validateFunc(ctx, token)
+	}
+	return "", errors.New("invalid")
+}
+
 func TestMeHandler_NoCookie_Returns401(t *testing.T) {
-	h := NewMeHandler(&mockUserRepository{}, auth.SessionSecretBytes("test-secret-32-bytes-long-enough"))
+	h := NewMeHandler(&mockUserRepository{}, &mockMeSessionValidator{})
 
 	req := httptest.NewRequest("GET", "/api/me", nil)
 	rec := httptest.NewRecorder()
@@ -48,8 +60,12 @@ func TestMeHandler_NoCookie_Returns401(t *testing.T) {
 }
 
 func TestMeHandler_InvalidToken_Returns401(t *testing.T) {
-	secret := auth.SessionSecretBytes("test-secret-32-bytes-long-enough")
-	h := NewMeHandler(&mockUserRepository{}, secret)
+	sv := &mockMeSessionValidator{
+		validateFunc: func(_ context.Context, _ string) (string, error) {
+			return "", errors.New("invalid_session")
+		},
+	}
+	h := NewMeHandler(&mockUserRepository{}, sv)
 
 	req := httptest.NewRequest("GET", "/api/me", nil)
 	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "bad-token"})
@@ -63,17 +79,19 @@ func TestMeHandler_InvalidToken_Returns401(t *testing.T) {
 }
 
 func TestMeHandler_UserNotFound_Returns404(t *testing.T) {
-	secret := auth.SessionSecretBytes("test-secret-32-bytes-long-enough")
-	token := auth.CreateSessionToken("missing-user", secret)
-
+	sv := &mockMeSessionValidator{
+		validateFunc: func(_ context.Context, token string) (string, error) {
+			return "missing-user", nil
+		},
+	}
 	h := NewMeHandler(&mockUserRepository{
 		findByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
 			return nil, errors.New("not found")
 		},
-	}, secret)
+	}, sv)
 
 	req := httptest.NewRequest("GET", "/api/me", nil)
-	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: token})
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-token"})
 	rec := httptest.NewRecorder()
 
 	h.Me(rec, req)
@@ -84,8 +102,14 @@ func TestMeHandler_UserNotFound_Returns404(t *testing.T) {
 }
 
 func TestMeHandler_ValidSession_ReturnsUser(t *testing.T) {
-	secret := auth.SessionSecretBytes("test-secret-32-bytes-long-enough")
-	token := auth.CreateSessionToken("u1", secret)
+	sv := &mockMeSessionValidator{
+		validateFunc: func(_ context.Context, token string) (string, error) {
+			if token == "valid-token" {
+				return "u1", nil
+			}
+			return "", errors.New("invalid")
+		},
+	}
 
 	want := &model.User{ID: "u1", Email: "test@example.com", Name: "Test User"}
 	h := NewMeHandler(&mockUserRepository{
@@ -95,10 +119,10 @@ func TestMeHandler_ValidSession_ReturnsUser(t *testing.T) {
 			}
 			return nil, errors.New("not found")
 		},
-	}, secret)
+	}, sv)
 
 	req := httptest.NewRequest("GET", "/api/me", nil)
-	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: token})
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-token"})
 	rec := httptest.NewRecorder()
 
 	h.Me(rec, req)

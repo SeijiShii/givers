@@ -20,9 +20,9 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockAdminUserService struct {
-	listUsersFunc  func(ctx context.Context, limit, offset int) ([]*model.User, error)
-	suspendFunc    func(ctx context.Context, id string, suspend bool) error
-	getUserFunc    func(ctx context.Context, id string) (*model.User, error)
+	listUsersFunc func(ctx context.Context, limit, offset int) ([]*model.User, error)
+	suspendFunc   func(ctx context.Context, id string, suspend bool) error
+	getUserFunc   func(ctx context.Context, id string) (*model.User, error)
 }
 
 func (m *mockAdminUserService) ListUsers(ctx context.Context, limit, offset int) ([]*model.User, error) {
@@ -69,6 +69,18 @@ func (m *mockProjectServiceForAdmin) Delete(ctx context.Context, id string) erro
 	return nil
 }
 
+// Mock DonationLister for disclosure-export type=donation
+type mockDonationLister struct {
+	listByProjectFunc func(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error)
+}
+
+func (m *mockDonationLister) ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error) {
+	if m.listByProjectFunc != nil {
+		return m.listByProjectFunc(ctx, projectID, limit, offset)
+	}
+	return nil, nil
+}
+
 // helper: create a host-authenticated request
 func adminHostRequest(method, url, body string) *http.Request {
 	var r *http.Request
@@ -88,7 +100,7 @@ func adminHostRequest(method, url, body string) *http.Request {
 // ---------------------------------------------------------------------------
 
 func TestAdminUserHandler_List_RequiresAuth(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
 	rec := httptest.NewRecorder()
 	h.List(rec, req)
@@ -98,7 +110,7 @@ func TestAdminUserHandler_List_RequiresAuth(t *testing.T) {
 }
 
 func TestAdminUserHandler_List_RequiresHost(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/users", nil)
 	ctx := auth.WithUserID(req.Context(), "regular-user")
 	ctx = auth.WithIsHost(ctx, false)
@@ -121,7 +133,7 @@ func TestAdminUserHandler_List_Success(t *testing.T) {
 			return users, nil
 		},
 	}
-	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 
 	req := adminHostRequest(http.MethodGet, "/api/admin/users", "")
 	rec := httptest.NewRecorder()
@@ -150,7 +162,7 @@ func TestAdminUserHandler_List_DefaultPagination(t *testing.T) {
 			return nil, nil
 		},
 	}
-	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 
 	req := adminHostRequest(http.MethodGet, "/api/admin/users", "")
 	rec := httptest.NewRecorder()
@@ -170,7 +182,7 @@ func TestAdminUserHandler_List_ServiceError(t *testing.T) {
 			return nil, errors.New("db error")
 		},
 	}
-	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 
 	req := adminHostRequest(http.MethodGet, "/api/admin/users", "")
 	rec := httptest.NewRecorder()
@@ -195,7 +207,7 @@ func TestAdminUserHandler_Suspend_Success(t *testing.T) {
 			return nil
 		},
 	}
-	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 
 	req := adminHostRequest(http.MethodPatch, "/api/admin/users/user-1/suspend", `{"suspended":true}`)
 	req.SetPathValue("id", "user-1")
@@ -221,7 +233,7 @@ func TestAdminUserHandler_Suspend_Unsuspend(t *testing.T) {
 			return nil
 		},
 	}
-	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 
 	req := adminHostRequest(http.MethodPatch, "/api/admin/users/user-1/suspend", `{"suspended":false}`)
 	req.SetPathValue("id", "user-1")
@@ -242,7 +254,7 @@ func TestAdminUserHandler_Suspend_NotFound(t *testing.T) {
 			return repository.ErrNotFound
 		},
 	}
-	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 
 	req := adminHostRequest(http.MethodPatch, "/api/admin/users/no-such/suspend", `{"suspended":true}`)
 	req.SetPathValue("id", "no-such")
@@ -255,7 +267,7 @@ func TestAdminUserHandler_Suspend_NotFound(t *testing.T) {
 }
 
 func TestAdminUserHandler_Suspend_RequiresAuth(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
 	req := httptest.NewRequest(http.MethodPatch, "/api/admin/users/u1/suspend",
 		strings.NewReader(`{"suspended":true}`))
 	req.SetPathValue("id", "u1")
@@ -267,7 +279,7 @@ func TestAdminUserHandler_Suspend_RequiresAuth(t *testing.T) {
 }
 
 func TestAdminUserHandler_Suspend_RequiresHost(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
 	req := httptest.NewRequest(http.MethodPatch, "/api/admin/users/u1/suspend",
 		strings.NewReader(`{"suspended":true}`))
 	req.SetPathValue("id", "u1")
@@ -282,7 +294,7 @@ func TestAdminUserHandler_Suspend_RequiresHost(t *testing.T) {
 }
 
 func TestAdminUserHandler_Suspend_InvalidJSON(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
 	req := adminHostRequest(http.MethodPatch, "/api/admin/users/u1/suspend", `{bad`)
 	req.SetPathValue("id", "u1")
 	rec := httptest.NewRecorder()
@@ -307,7 +319,7 @@ func TestAdminUserHandler_DisclosureExport_UserType(t *testing.T) {
 			return nil, repository.ErrNotFound
 		},
 	}
-	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 
 	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=user&id=u1", "")
 	rec := httptest.NewRecorder()
@@ -336,7 +348,7 @@ func TestAdminUserHandler_DisclosureExport_ProjectType(t *testing.T) {
 			return nil, repository.ErrNotFound
 		},
 	}
-	h := NewAdminUserHandler(&mockAdminUserService{}, mockProject)
+	h := NewAdminUserHandler(&mockAdminUserService{}, mockProject, nil)
 
 	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=project&id=p1", "")
 	rec := httptest.NewRecorder()
@@ -354,8 +366,139 @@ func TestAdminUserHandler_DisclosureExport_ProjectType(t *testing.T) {
 	}
 }
 
+func TestAdminUserHandler_DisclosureExport_DonationType_Success(t *testing.T) {
+	now := time.Now()
+	mockProject := &mockProjectServiceForAdmin{
+		getByIDFunc: func(_ context.Context, id string) (*model.Project, error) {
+			if id == "p1" {
+				return &model.Project{ID: "p1", Name: "Test Project", CreatedAt: now}, nil
+			}
+			return nil, repository.ErrNotFound
+		},
+	}
+	mockDonation := &mockDonationLister{
+		listByProjectFunc: func(_ context.Context, projectID string, _, _ int) ([]*model.Donation, error) {
+			return []*model.Donation{
+				{ID: "d1", ProjectID: "p1", Amount: 1000, Currency: "jpy"},
+				{ID: "d2", ProjectID: "p1", Amount: 2000, Currency: "jpy"},
+			}, nil
+		},
+	}
+	h := NewAdminUserHandler(&mockAdminUserService{}, mockProject, mockDonation)
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=donation&id=p1", "")
+	rec := httptest.NewRecorder()
+	h.DisclosureExport(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		ProjectID   string            `json:"project_id"`
+		ProjectName string            `json:"project_name"`
+		Donations   []*model.Donation `json:"donations"`
+		Total       int               `json:"total"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.ProjectID != "p1" {
+		t.Errorf("expected project_id=p1, got %q", resp.ProjectID)
+	}
+	if resp.ProjectName != "Test Project" {
+		t.Errorf("expected project_name=Test Project, got %q", resp.ProjectName)
+	}
+	if len(resp.Donations) != 2 {
+		t.Errorf("expected 2 donations, got %d", len(resp.Donations))
+	}
+	if resp.Total != 3000 {
+		t.Errorf("expected total=3000, got %d", resp.Total)
+	}
+}
+
+func TestAdminUserHandler_DisclosureExport_DonationType_ProjectNotFound(t *testing.T) {
+	mockProject := &mockProjectServiceForAdmin{
+		getByIDFunc: func(_ context.Context, _ string) (*model.Project, error) {
+			return nil, repository.ErrNotFound
+		},
+	}
+	h := NewAdminUserHandler(&mockAdminUserService{}, mockProject, &mockDonationLister{})
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=donation&id=no-such", "")
+	rec := httptest.NewRecorder()
+	h.DisclosureExport(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestAdminUserHandler_DisclosureExport_DonationType_NoDonations(t *testing.T) {
+	now := time.Now()
+	mockProject := &mockProjectServiceForAdmin{
+		getByIDFunc: func(_ context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, Name: "Empty", CreatedAt: now}, nil
+		},
+	}
+	h := NewAdminUserHandler(&mockAdminUserService{}, mockProject, &mockDonationLister{})
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=donation&id=p1", "")
+	rec := httptest.NewRecorder()
+	h.DisclosureExport(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp struct {
+		Total     int               `json:"total"`
+		Donations []*model.Donation `json:"donations"`
+	}
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.Total != 0 {
+		t.Errorf("expected total=0, got %d", resp.Total)
+	}
+	if len(resp.Donations) != 0 {
+		t.Errorf("expected empty donations, got %d", len(resp.Donations))
+	}
+}
+
+func TestAdminUserHandler_DisclosureExport_DonationType_ListError(t *testing.T) {
+	now := time.Now()
+	mockProject := &mockProjectServiceForAdmin{
+		getByIDFunc: func(_ context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, Name: "P", CreatedAt: now}, nil
+		},
+	}
+	mockDonation := &mockDonationLister{
+		listByProjectFunc: func(_ context.Context, _ string, _, _ int) ([]*model.Donation, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	h := NewAdminUserHandler(&mockAdminUserService{}, mockProject, mockDonation)
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=donation&id=p1", "")
+	rec := httptest.NewRecorder()
+	h.DisclosureExport(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestAdminUserHandler_DisclosureExport_DonationType_NilLister(t *testing.T) {
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=donation&id=p1", "")
+	rec := httptest.NewRecorder()
+	h.DisclosureExport(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rec.Code)
+	}
+}
+
 func TestAdminUserHandler_DisclosureExport_MissingType(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
 	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?id=u1", "")
 	rec := httptest.NewRecorder()
 	h.DisclosureExport(rec, req)
@@ -365,7 +508,7 @@ func TestAdminUserHandler_DisclosureExport_MissingType(t *testing.T) {
 }
 
 func TestAdminUserHandler_DisclosureExport_MissingID(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
 	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=user", "")
 	rec := httptest.NewRecorder()
 	h.DisclosureExport(rec, req)
@@ -375,8 +518,8 @@ func TestAdminUserHandler_DisclosureExport_MissingID(t *testing.T) {
 }
 
 func TestAdminUserHandler_DisclosureExport_InvalidType(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
-	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=donation&id=x", "")
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
+	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=unknown&id=x", "")
 	rec := httptest.NewRecorder()
 	h.DisclosureExport(rec, req)
 	if rec.Code != http.StatusBadRequest {
@@ -390,7 +533,7 @@ func TestAdminUserHandler_DisclosureExport_NotFound(t *testing.T) {
 			return nil, repository.ErrNotFound
 		},
 	}
-	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 	req := adminHostRequest(http.MethodGet, "/api/admin/disclosure-export?type=user&id=no-such", "")
 	rec := httptest.NewRecorder()
 	h.DisclosureExport(rec, req)
@@ -400,7 +543,7 @@ func TestAdminUserHandler_DisclosureExport_NotFound(t *testing.T) {
 }
 
 func TestAdminUserHandler_DisclosureExport_RequiresHost(t *testing.T) {
-	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{})
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/disclosure-export?type=user&id=u1", nil)
 	rec := httptest.NewRecorder()
 	h.DisclosureExport(rec, req)

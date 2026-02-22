@@ -151,6 +151,30 @@ func (r *pgDonationRepository) MigrateToken(ctx context.Context, token string, u
 	return int(tag.RowsAffected()), nil
 }
 
+func (r *pgDonationRepository) ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+donationSelectCols+`
+		 FROM donations
+		 WHERE project_id = $1
+		 ORDER BY created_at DESC
+		 LIMIT $2 OFFSET $3`,
+		projectID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []*model.Donation
+	for rows.Next() {
+		d, err := scanDonation(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, d)
+	}
+	return list, rows.Err()
+}
+
 // CurrentMonthSumByProject returns the total donation amount for a project in the current month.
 func (r *pgDonationRepository) CurrentMonthSumByProject(ctx context.Context, projectID string) (int, error) {
 	var sum int

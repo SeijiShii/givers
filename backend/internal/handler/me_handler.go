@@ -10,13 +10,13 @@ import (
 
 // MeHandler は現在のユーザー情報を返すハンドラ
 type MeHandler struct {
-	userRepo      repository.UserRepository
-	sessionSecret []byte
+	userRepo repository.UserRepository
+	sv       auth.SessionValidator
 }
 
 // NewMeHandler は MeHandler を生成する（DI: UserRepository を注入）
-func NewMeHandler(userRepo repository.UserRepository, sessionSecret []byte) *MeHandler {
-	return &MeHandler{userRepo: userRepo, sessionSecret: sessionSecret}
+func NewMeHandler(userRepo repository.UserRepository, sv auth.SessionValidator) *MeHandler {
+	return &MeHandler{userRepo: userRepo, sv: sv}
 }
 
 // Me は GET /api/me を処理する
@@ -28,7 +28,7 @@ func (h *MeHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID, err := auth.VerifySessionToken(cookie.Value, h.sessionSecret)
+	userID, err := h.sv.ValidateSession(r.Context(), cookie.Value)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_session"})

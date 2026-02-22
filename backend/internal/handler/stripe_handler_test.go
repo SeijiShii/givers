@@ -49,6 +49,18 @@ func (m *mockStripeService) ProcessWebhook(ctx context.Context, payload []byte, 
 	return nil
 }
 
+// mockStripeSessionValidator implements auth.SessionValidator for StripeHandler tests
+type mockStripeSessionValidator struct {
+	validateFunc func(ctx context.Context, token string) (string, error)
+}
+
+func (m *mockStripeSessionValidator) ValidateSession(ctx context.Context, token string) (string, error) {
+	if m.validateFunc != nil {
+		return m.validateFunc(ctx, token)
+	}
+	return "", errors.New("invalid")
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/stripe/connect/callback
 // ---------------------------------------------------------------------------
@@ -154,7 +166,7 @@ func TestStripeHandler_Checkout_DonorToken_PassedThrough(t *testing.T) {
 			return "https://checkout.stripe.com/test", nil
 		},
 	}
-	h := NewStripeHandler(mock, "https://example.com", nil) // no session secret
+	h := NewStripeHandler(mock, "https://example.com", nil) // no session validator
 
 	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":500,"currency":"jpy","donor_token":"tok_abc"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
@@ -215,8 +227,14 @@ func TestStripeHandler_Checkout_AnonymousDonor_SetsDonorTokenCookie(t *testing.T
 }
 
 func TestStripeHandler_Checkout_LoggedInUser_NoDonorTokenCookie(t *testing.T) {
-	secret := auth.SessionSecretBytes("test-secret-32-bytes-long-enough")
-	token := auth.CreateSessionToken("user-1", secret)
+	sv := &mockStripeSessionValidator{
+		validateFunc: func(_ context.Context, token string) (string, error) {
+			if token == "valid-session" {
+				return "user-1", nil
+			}
+			return "", errors.New("invalid")
+		},
+	}
 
 	mock := &mockStripeService{
 		createCheckoutFunc: func(_ context.Context, req service.CheckoutRequest) (string, error) {
@@ -226,11 +244,11 @@ func TestStripeHandler_Checkout_LoggedInUser_NoDonorTokenCookie(t *testing.T) {
 			return "https://checkout.stripe.com/test", nil
 		},
 	}
-	h := NewStripeHandler(mock, "https://example.com", secret)
+	h := NewStripeHandler(mock, "https://example.com", sv)
 
 	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":1000,"currency":"jpy"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
-	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: token})
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-session"})
 	rec := httptest.NewRecorder()
 	h.Checkout(rec, req)
 

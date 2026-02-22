@@ -64,6 +64,9 @@ func (m *mockDonationRepository) CurrentMonthSumByProject(_ context.Context, _ s
 func (m *mockDonationRepository) MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error) {
 	return nil, nil
 }
+func (m *mockDonationRepository) ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error) {
+	return nil, nil
+}
 
 // ---------------------------------------------------------------------------
 // DonationService.ListByUser tests

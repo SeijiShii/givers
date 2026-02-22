@@ -14,14 +14,14 @@ import (
 
 // StripeHandler は Stripe 関連の HTTP ハンドラ
 type StripeHandler struct {
-	svc           service.StripeService
-	frontendURL   string
-	sessionSecret []byte // optional: non-nil enables donor identification via session cookie
+	svc         service.StripeService
+	frontendURL string
+	sv          auth.SessionValidator // optional: non-nil enables donor identification via session cookie
 }
 
 // NewStripeHandler は StripeHandler を生成する
-func NewStripeHandler(svc service.StripeService, frontendURL string, sessionSecret []byte) *StripeHandler {
-	return &StripeHandler{svc: svc, frontendURL: frontendURL, sessionSecret: sessionSecret}
+func NewStripeHandler(svc service.StripeService, frontendURL string, sv auth.SessionValidator) *StripeHandler {
+	return &StripeHandler{svc: svc, frontendURL: frontendURL, sv: sv}
 }
 
 // ConnectCallback handles GET /api/stripe/connect/callback
@@ -156,11 +156,11 @@ func generateDonorToken() string {
 }
 
 // resolveDonor はセッションクッキーからユーザーIDを取得し、なければ donor_token を使う。
-// セッション検証機能が無効（sessionSecret が nil）の場合は常に token タイプを返す。
+// セッション検証機能が無効（sv が nil）の場合は常に token タイプを返す。
 func (h *StripeHandler) resolveDonor(r *http.Request, donorToken string) (donorType, donorID string) {
-	if len(h.sessionSecret) > 0 {
+	if h.sv != nil {
 		if cookie, err := r.Cookie(auth.SessionCookieName()); err == nil {
-			if userID, err := auth.VerifySessionToken(cookie.Value, h.sessionSecret); err == nil {
+			if userID, err := h.sv.ValidateSession(r.Context(), cookie.Value); err == nil {
 				return "user", userID
 			}
 		}

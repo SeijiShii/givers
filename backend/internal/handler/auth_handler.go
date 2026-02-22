@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/givers/backend/internal/model"
 	"github.com/givers/backend/internal/service"
 	"github.com/givers/backend/pkg/auth"
 	"golang.org/x/oauth2"
@@ -62,13 +64,19 @@ var githubEndpoint = oauth2.Endpoint{
 	TokenURL: "https://github.com/login/oauth/access_token",
 }
 
+// SessionCreatorDeleter はセッションの作成・削除を行うインターフェース
+type SessionCreatorDeleter interface {
+	CreateSession(ctx context.Context, userID string) (*model.Session, error)
+	DeleteSession(ctx context.Context, token string) error
+}
+
 // AuthHandler は認証関連の HTTP ハンドラ
 type AuthHandler struct {
-	authService     service.AuthService
-	googleConfig    *oauth2.Config
-	githubConfig    *oauth2.Config
-	sessionSecret   []byte
-	frontendURL     string
+	authService  service.AuthService
+	googleConfig *oauth2.Config
+	githubConfig *oauth2.Config
+	sessionSvc   SessionCreatorDeleter
+	frontendURL  string
 }
 
 // AuthConfig は AuthHandler の設定
@@ -79,12 +87,11 @@ type AuthConfig struct {
 	GitHubClientSecret string
 	GoogleRedirectPath string
 	GitHubRedirectPath string
-	SessionSecret      string
 	FrontendURL        string
 }
 
 // NewAuthHandler は AuthHandler を生成する（DI: AuthService を注入）
-func NewAuthHandler(authService service.AuthService, cfg AuthConfig) *AuthHandler {
+func NewAuthHandler(authService service.AuthService, cfg AuthConfig, sessionSvc SessionCreatorDeleter) *AuthHandler {
 	redirectBase := os.Getenv("BACKEND_URL")
 	if redirectBase == "" {
 		redirectBase = "http://localhost:8080"
@@ -107,11 +114,11 @@ func NewAuthHandler(authService service.AuthService, cfg AuthConfig) *AuthHandle
 	}
 
 	return &AuthHandler{
-		authService:   authService,
-		googleConfig:  googleConfig,
-		githubConfig:  githubConfig,
-		sessionSecret: auth.SessionSecretBytes(cfg.SessionSecret),
-		frontendURL:   cfg.FrontendURL,
+		authService:  authService,
+		googleConfig: googleConfig,
+		githubConfig: githubConfig,
+		sessionSvc:   sessionSvc,
+		frontendURL:  cfg.FrontendURL,
 	}
 }
 
@@ -176,12 +183,16 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken := auth.CreateSessionToken(user.ID, h.sessionSecret)
+	session, err := h.sessionSvc.CreateSession(r.Context(), user.ID)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/?error=session_failed", http.StatusFound)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.SessionCookieName(),
-		Value:    sessionToken,
+		Value:    session.Token,
 		Path:     "/",
-		MaxAge:   60 * 60 * 24 * 7, // 7 days
+		MaxAge:   auth.SessionMaxAge,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   os.Getenv("ENV") == "production",
@@ -276,12 +287,16 @@ func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken := auth.CreateSessionToken(user.ID, h.sessionSecret)
+	session, err := h.sessionSvc.CreateSession(r.Context(), user.ID)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/?error=session_failed", http.StatusFound)
+		return
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.SessionCookieName(),
-		Value:    sessionToken,
+		Value:    session.Token,
 		Path:     "/",
-		MaxAge:   60 * 60 * 24 * 7,
+		MaxAge:   auth.SessionMaxAge,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   os.Getenv("ENV") == "production",
@@ -292,6 +307,10 @@ func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 
 // Logout はログアウトする（POST /api/auth/logout）
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	// DB からセッション削除
+	if cookie, err := r.Cookie(auth.SessionCookieName()); err == nil && cookie.Value != "" {
+		_ = h.sessionSvc.DeleteSession(r.Context(), cookie.Value)
+	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.SessionCookieName(),
 		Value:    "",

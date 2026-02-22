@@ -21,8 +21,13 @@ func WithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userIDKey, userID)
 }
 
-// RequireAuth は認証必須ミドルウェア。セッションを検証し、userID を context にセットする
-func RequireAuth(sessionSecret []byte) func(http.Handler) http.Handler {
+// SessionValidator はセッショントークンを検証して userID を返すインターフェース
+type SessionValidator interface {
+	ValidateSession(ctx context.Context, token string) (string, error)
+}
+
+// RequireAuth は認証必須ミドルウェア。DB セッションを検証し、userID を context にセットする
+func RequireAuth(sv SessionValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cookie, err := r.Cookie(SessionCookieName())
@@ -32,7 +37,7 @@ func RequireAuth(sessionSecret []byte) func(http.Handler) http.Handler {
 				return
 			}
 
-			userID, err := VerifySessionToken(cookie.Value, sessionSecret)
+			userID, err := sv.ValidateSession(r.Context(), cookie.Value)
 			if err != nil {
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_session"})

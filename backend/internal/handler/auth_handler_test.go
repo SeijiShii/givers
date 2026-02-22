@@ -1,11 +1,36 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/givers/backend/internal/model"
 )
+
+// --- mock SessionCreatorDeleter ---
+
+type mockSessionSvc struct {
+	createFunc func(ctx context.Context, userID string) (*model.Session, error)
+	deleteFunc func(ctx context.Context, token string) error
+}
+
+func (m *mockSessionSvc) CreateSession(ctx context.Context, userID string) (*model.Session, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, userID)
+	}
+	return &model.Session{Token: "mock-token", UserID: userID}, nil
+}
+
+func (m *mockSessionSvc) DeleteSession(ctx context.Context, token string) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, token)
+	}
+	return nil
+}
 
 // --- helpers ---
 
@@ -17,9 +42,8 @@ func newTestAuthHandler() *AuthHandler {
 		GitHubClientSecret: "github-secret",
 		GoogleRedirectPath: "/api/auth/google/callback",
 		GitHubRedirectPath: "/api/auth/github/callback",
-		SessionSecret:      "test-session-secret-must-be-32bytes",
 		FrontendURL:        "http://localhost:3000",
-	})
+	}, &mockSessionSvc{})
 }
 
 // --- Tests ---
@@ -139,6 +163,60 @@ func TestAuthHandler_GoogleCallback_RejectsMissingStateCookie(t *testing.T) {
 	loc := rec.Header().Get("Location")
 	if !containsStr(loc, "error=invalid_state") {
 		t.Errorf("expected invalid_state error redirect, got %s", loc)
+	}
+}
+
+func TestAuthHandler_Logout_DeletesSessionAndClearsCookie(t *testing.T) {
+	var deletedToken string
+	svc := &mockSessionSvc{
+		deleteFunc: func(_ context.Context, token string) error {
+			deletedToken = token
+			return nil
+		},
+	}
+	h := NewAuthHandler(nil, AuthConfig{
+		FrontendURL: "http://localhost:3000",
+	}, svc)
+
+	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "givers_session", Value: "session-token-123"})
+	rec := httptest.NewRecorder()
+
+	h.Logout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+	if deletedToken != "session-token-123" {
+		t.Errorf("expected session deletion for token session-token-123, got %q", deletedToken)
+	}
+	// Check cookie is cleared
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "givers_session" && c.MaxAge != -1 {
+			t.Errorf("expected session cookie to be cleared (MaxAge=-1), got MaxAge=%d", c.MaxAge)
+		}
+	}
+}
+
+func TestAuthHandler_Logout_DeleteError_StillClearsCookie(t *testing.T) {
+	svc := &mockSessionSvc{
+		deleteFunc: func(_ context.Context, _ string) error {
+			return errors.New("db error")
+		},
+	}
+	h := NewAuthHandler(nil, AuthConfig{
+		FrontendURL: "http://localhost:3000",
+	}, svc)
+
+	req := httptest.NewRequest("POST", "/api/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "givers_session", Value: "tok"})
+	rec := httptest.NewRecorder()
+
+	h.Logout(rec, req)
+
+	// Should still succeed — cookie cleared even if DB delete fails
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
 	}
 }
 

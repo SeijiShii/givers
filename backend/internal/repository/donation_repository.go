@@ -27,4 +27,6 @@ type DonationRepository interface {
 	CurrentMonthSumByProject(ctx context.Context, projectID string) (int, error)
 	// MonthlySumByProject returns monthly donation totals for a project (last 12 months).
 	MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error)
+	// ListByProject returns donations for a specific project.
+	ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error)
 }

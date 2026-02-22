@@ -1,14 +1,26 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
+type mockSessionValidator struct {
+	validateFunc func(ctx context.Context, token string) (string, error)
+}
+
+func (m *mockSessionValidator) ValidateSession(ctx context.Context, token string) (string, error) {
+	if m.validateFunc != nil {
+		return m.validateFunc(ctx, token)
+	}
+	return "", errors.New("invalid")
+}
+
 func TestRequireAuth_NoCookie_Returns401(t *testing.T) {
-	secret := SessionSecretBytes("dev-secret-change-in-production-32bytes")
-	mw := RequireAuth(secret)
+	mw := RequireAuth(&mockSessionValidator{})
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler should not be called")
@@ -24,15 +36,18 @@ func TestRequireAuth_NoCookie_Returns401(t *testing.T) {
 }
 
 func TestRequireAuth_InvalidToken_Returns401(t *testing.T) {
-	secret := SessionSecretBytes("dev-secret-change-in-production-32bytes")
-	mw := RequireAuth(secret)
+	mw := RequireAuth(&mockSessionValidator{
+		validateFunc: func(_ context.Context, _ string) (string, error) {
+			return "", errors.New("invalid_session")
+		},
+	})
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Error("next handler should not be called")
 	})
 
 	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: SessionCookieName(), Value: "invalid.token"})
+	req.AddCookie(&http.Cookie{Name: SessionCookieName(), Value: "invalid-token"})
 	rec := httptest.NewRecorder()
 	mw(next).ServeHTTP(rec, req)
 
@@ -42,9 +57,14 @@ func TestRequireAuth_InvalidToken_Returns401(t *testing.T) {
 }
 
 func TestRequireAuth_ValidToken_CallsNextWithUserID(t *testing.T) {
-	secret := SessionSecretBytes("dev-secret-change-in-production-32bytes")
-	token := CreateSessionToken("user-123", secret)
-	mw := RequireAuth(secret)
+	mw := RequireAuth(&mockSessionValidator{
+		validateFunc: func(_ context.Context, token string) (string, error) {
+			if token == "valid-token" {
+				return "user-123", nil
+			}
+			return "", errors.New("invalid")
+		},
+	})
 
 	var gotUserID string
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +73,7 @@ func TestRequireAuth_ValidToken_CallsNextWithUserID(t *testing.T) {
 	})
 
 	req := httptest.NewRequest("GET", "/", nil)
-	req.AddCookie(&http.Cookie{Name: SessionCookieName(), Value: token})
+	req.AddCookie(&http.Cookie{Name: SessionCookieName(), Value: "valid-token"})
 	rec := httptest.NewRecorder()
 	mw(next).ServeHTTP(rec, req)
 

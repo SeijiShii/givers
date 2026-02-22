@@ -30,11 +30,6 @@ func main() {
 		frontendURL = "http://localhost:4321"
 	}
 
-	sessionSecret := os.Getenv("SESSION_SECRET")
-	if sessionSecret == "" {
-		sessionSecret = "dev-secret-change-in-production-32bytes"
-	}
-
 	pool, err := repository.NewPool(context.Background(), dbURL)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
@@ -50,13 +45,16 @@ func main() {
 	donationRepo := repository.NewPgDonationRepository(pool)
 	activityRepo := repository.NewPgActivityRepository(pool)
 	costPresetRepo := repository.NewPgCostPresetRepository(pool)
+	sessionRepo := repository.NewPgSessionRepository(pool)
+
 	authService := service.NewAuthService(userRepo)
 	projectService := service.NewProjectService(projectRepo)
 	contactService := service.NewContactService(contactRepo)
 	watchService := service.NewWatchService(watchRepo)
 	projectUpdateService := service.NewProjectUpdateService(projectUpdateRepo)
 	platformHealthService := service.NewPlatformHealthService(platformHealthRepo)
-	adminUserService := service.NewAdminUserService(userRepo)
+	sessionSvc := service.NewSessionService(sessionRepo)
+	adminUserService := service.NewAdminUserServiceWithSessions(userRepo, sessionRepo)
 	// Stripe 設定（未設定の場合は Stripe 機能を無効化）
 	stripeClient := pkgstripe.NewClient(
 		os.Getenv("STRIPE_SECRET_KEY"),
@@ -70,7 +68,6 @@ func main() {
 	costPresetService := service.NewCostPresetService(costPresetRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
-	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
 	hostEmails := auth.ParseHostEmails(os.Getenv("HOST_EMAILS"))
 
 	legalDocsDir := os.Getenv("LEGAL_DOCS_DIR")
@@ -86,28 +83,27 @@ func main() {
 		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 		GoogleRedirectPath: "/api/auth/google/callback",
 		GitHubRedirectPath: "/api/auth/github/callback",
-		SessionSecret:      sessionSecret,
 		FrontendURL:        frontendURL,
-	})
+	}, sessionSvc)
 	providersHandler := handler.NewProvidersHandler(handler.ProvidersConfig{
 		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),
 		AppleClientID:  os.Getenv("APPLE_CLIENT_ID"),
 		EnableEmail:    os.Getenv("ENABLE_EMAIL_LOGIN") == "true",
 	})
-	meHandler := handler.NewMeHandler(userRepo, sessionSecretBytes)
+	meHandler := handler.NewMeHandler(userRepo, sessionSvc)
 	// Stripe が設定されている場合のみ Connect URL を生成する関数を渡す
 	var connectURLFunc func(string) string
 	if os.Getenv("STRIPE_CONNECT_CLIENT_ID") != "" {
 		connectURLFunc = stripeService.GenerateConnectURL
 	}
-	stripeHandler := handler.NewStripeHandler(stripeService, frontendURL, sessionSecretBytes)
+	stripeHandler := handler.NewStripeHandler(stripeService, frontendURL, sessionSvc)
 	projectHandler := handler.NewProjectHandlerWithActivity(projectService, connectURLFunc, activityService)
 	contactHandler := handler.NewContactHandler(contactService)
 	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})
 	watchHandler := handler.NewWatchHandler(watchService)
 	updateHandler := handler.NewProjectUpdateHandler(projectUpdateService, projectService)
 	hostHandler := handler.NewHostHandler(platformHealthService)
-	adminUserHandler := handler.NewAdminUserHandler(adminUserService, projectService)
+	adminUserHandler := handler.NewAdminUserHandler(adminUserService, projectService, donationRepo)
 	donationHandler := handler.NewDonationHandler(donationService)
 	activityHandler := handler.NewActivityHandler(activityService)
 	chartHandler := handler.NewChartHandler(projectService, donationRepo)
@@ -139,7 +135,7 @@ func main() {
 	})
 	wrapAuth := func(next http.Handler) http.Handler {
 		if authRequired {
-			return auth.RequireAuth(sessionSecretBytes)(hostMW(next))
+			return auth.RequireAuth(sessionSvc)(hostMW(next))
 		}
 		return auth.DevAuth(hostMW(next))
 	}
