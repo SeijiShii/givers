@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/givers/backend/internal/model"
 	"github.com/givers/backend/internal/repository"
@@ -17,21 +18,30 @@ type MigrateTokenResult struct {
 	AlreadyMigrated bool
 }
 
+// SubscriptionManager manages Stripe subscription lifecycle.
+type SubscriptionManager interface {
+	PauseSubscription(ctx context.Context, subscriptionID string) error
+	ResumeSubscription(ctx context.Context, subscriptionID string) error
+	CancelSubscription(ctx context.Context, subscriptionID string) error
+}
+
 // DonationService provides business logic for donation management.
 type DonationService interface {
 	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
 	Patch(ctx context.Context, id, userID string, patch model.DonationPatch) error
 	Delete(ctx context.Context, id, userID string) error
 	MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error)
+	ListActivity(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error)
 }
 
 type donationService struct {
 	repo repository.DonationRepository
+	sm   SubscriptionManager
 }
 
-// NewDonationService creates a DonationService.
-func NewDonationService(repo repository.DonationRepository) DonationService {
-	return &donationService{repo: repo}
+// NewDonationService creates a DonationService. sm can be nil to skip Stripe calls.
+func NewDonationService(repo repository.DonationRepository, sm SubscriptionManager) DonationService {
+	return &donationService{repo: repo, sm: sm}
 }
 
 func (s *donationService) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error) {
@@ -46,6 +56,20 @@ func (s *donationService) Patch(ctx context.Context, id, userID string, patch mo
 	if d.DonorType != "user" || d.DonorID != userID {
 		return ErrForbidden
 	}
+
+	// Stripe subscription pause/resume for recurring donations
+	if patch.Paused != nil && d.IsRecurring && d.StripeSubscriptionID != "" && s.sm != nil {
+		if *patch.Paused {
+			if err := s.sm.PauseSubscription(ctx, d.StripeSubscriptionID); err != nil {
+				return fmt.Errorf("stripe pause: %w", err)
+			}
+		} else {
+			if err := s.sm.ResumeSubscription(ctx, d.StripeSubscriptionID); err != nil {
+				return fmt.Errorf("stripe resume: %w", err)
+			}
+		}
+	}
+
 	return s.repo.Patch(ctx, id, patch)
 }
 
@@ -57,7 +81,19 @@ func (s *donationService) Delete(ctx context.Context, id, userID string) error {
 	if d.DonorType != "user" || d.DonorID != userID {
 		return ErrForbidden
 	}
+
+	// Cancel Stripe subscription before deleting
+	if d.IsRecurring && d.StripeSubscriptionID != "" && s.sm != nil {
+		if err := s.sm.CancelSubscription(ctx, d.StripeSubscriptionID); err != nil {
+			return fmt.Errorf("stripe cancel: %w", err)
+		}
+	}
+
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *donationService) ListActivity(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
+	return s.repo.ListActivityByProject(ctx, projectID, limit)
 }
 
 func (s *donationService) MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error) {

@@ -66,6 +66,12 @@ type Client interface {
 	VerifyWebhookSignature(payload []byte, sigHeader string) error
 	// ParseWebhookEvent は Webhook ペイロードをパースする
 	ParseWebhookEvent(payload []byte) (WebhookEvent, error)
+	// PauseSubscription は定期課金を一時停止する
+	PauseSubscription(ctx context.Context, subscriptionID string) error
+	// ResumeSubscription は一時停止中の定期課金を再開する
+	ResumeSubscription(ctx context.Context, subscriptionID string) error
+	// CancelSubscription は定期課金をキャンセルする
+	CancelSubscription(ctx context.Context, subscriptionID string) error
 }
 
 // RealClient は Stripe API への raw HTTP クライアント実装
@@ -259,4 +265,83 @@ func (c *RealClient) ParseWebhookEvent(payload []byte) (WebhookEvent, error) {
 		return WebhookEvent{}, err
 	}
 	return event, nil
+}
+
+// PauseSubscription は pause_collection を設定してサブスクリプションを一時停止する
+func (c *RealClient) PauseSubscription(ctx context.Context, subscriptionID string) error {
+	if c.SecretKey == "" {
+		return ErrNotConfigured
+	}
+	data := url.Values{}
+	data.Set("pause_collection[behavior]", "void")
+
+	return c.updateSubscription(ctx, subscriptionID, data)
+}
+
+// ResumeSubscription は pause_collection を解除してサブスクリプションを再開する
+func (c *RealClient) ResumeSubscription(ctx context.Context, subscriptionID string) error {
+	if c.SecretKey == "" {
+		return ErrNotConfigured
+	}
+	data := url.Values{}
+	data.Set("pause_collection", "")
+
+	return c.updateSubscription(ctx, subscriptionID, data)
+}
+
+// CancelSubscription はサブスクリプションをキャンセルする
+func (c *RealClient) CancelSubscription(ctx context.Context, subscriptionID string) error {
+	if c.SecretKey == "" {
+		return ErrNotConfigured
+	}
+	endpoint := fmt.Sprintf("https://api.stripe.com/v1/subscriptions/%s", subscriptionID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(c.SecretKey, "")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		var errResp struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
+		return fmt.Errorf("stripe cancel subscription: %s", errResp.Error.Message)
+	}
+	return nil
+}
+
+func (c *RealClient) updateSubscription(ctx context.Context, subscriptionID string, data url.Values) error {
+	endpoint := fmt.Sprintf("https://api.stripe.com/v1/subscriptions/%s", subscriptionID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(c.SecretKey, "")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		var errResp struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
+		return fmt.Errorf("stripe update subscription: %s", errResp.Error.Message)
+	}
+	return nil
 }

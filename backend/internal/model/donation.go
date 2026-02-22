@@ -24,3 +24,11 @@ type DonationPatch struct {
 	Amount *int
 	Paused *bool
 }
+
+// ActivityItem represents a single entry in a project's activity feed.
+type ActivityItem struct {
+	DonorName string    `json:"donor_name"`
+	Amount    int       `json:"amount"`
+	CreatedAt time.Time `json:"created_at"`
+	Message   string    `json:"message,omitempty"`
+}

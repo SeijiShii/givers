@@ -56,9 +56,6 @@ func main() {
 	projectUpdateService := service.NewProjectUpdateService(projectUpdateRepo)
 	platformHealthService := service.NewPlatformHealthService(platformHealthRepo)
 	adminUserService := service.NewAdminUserService(userRepo)
-	donationService := service.NewDonationService(donationRepo)
-	costPresetService := service.NewCostPresetService(costPresetRepo)
-
 	// Stripe 設定（未設定の場合は Stripe 機能を無効化）
 	stripeClient := pkgstripe.NewClient(
 		os.Getenv("STRIPE_SECRET_KEY"),
@@ -66,9 +63,12 @@ func main() {
 		os.Getenv("STRIPE_WEBHOOK_SECRET"),
 	)
 	stripeService := service.NewStripeService(stripeClient, projectRepo, donationRepo, frontendURL)
+	donationService := service.NewDonationService(donationRepo, stripeClient)
+	costPresetService := service.NewCostPresetService(costPresetRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
+	hostEmails := auth.ParseHostEmails(os.Getenv("HOST_EMAILS"))
 
 	legalDocsDir := os.Getenv("LEGAL_DOCS_DIR")
 	if legalDocsDir == "" {
@@ -125,11 +125,18 @@ func main() {
 	mux.Handle("GET /api/projects/{id}", http.HandlerFunc(projectHandler.Get))
 
 	// 認証必要エンドポイント
+	hostMW := auth.HostMiddleware(hostEmails, func(ctx context.Context, userID string) (string, error) {
+		u, err := userRepo.FindByID(ctx, userID)
+		if err != nil {
+			return "", err
+		}
+		return u.Email, nil
+	})
 	wrapAuth := func(next http.Handler) http.Handler {
 		if authRequired {
-			return auth.RequireAuth(sessionSecretBytes)(next)
+			return auth.RequireAuth(sessionSecretBytes)(hostMW(next))
 		}
-		return auth.DevAuth(next)
+		return auth.DevAuth(hostMW(next))
 	}
 	mux.Handle("GET /api/me/projects", wrapAuth(http.HandlerFunc(projectHandler.MyProjects)))
 	mux.Handle("POST /api/projects", wrapAuth(http.HandlerFunc(projectHandler.Create)))
@@ -157,6 +164,9 @@ func main() {
 
 	// Platform health (no auth required)
 	mux.HandleFunc("GET /api/host", hostHandler.Get)
+
+	// Activity feed (no auth required)
+	mux.HandleFunc("GET /api/projects/{id}/activity", donationHandler.Activity)
 
 	// Donation routes (auth required)
 	mux.Handle("GET /api/me/donations", wrapAuth(http.HandlerFunc(donationHandler.List)))

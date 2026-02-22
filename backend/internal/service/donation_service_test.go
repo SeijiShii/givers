@@ -58,6 +58,9 @@ func (m *mockDonationRepository) MigrateToken(ctx context.Context, token string,
 	}
 	return 0, nil
 }
+func (m *mockDonationRepository) ListActivityByProject(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
+	return nil, nil
+}
 
 // ---------------------------------------------------------------------------
 // DonationService.ListByUser tests
@@ -73,7 +76,7 @@ func TestDonationService_ListByUser_ReturnsUserDonations(t *testing.T) {
 			return donations, nil
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	got, err := svc.ListByUser(context.Background(), "u1", 20, 0)
 	if err != nil {
@@ -90,7 +93,7 @@ func TestDonationService_ListByUser_PropagatesError(t *testing.T) {
 			return nil, errors.New("db error")
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 	_, err := svc.ListByUser(context.Background(), "u1", 20, 0)
 	if err == nil {
 		t.Fatal("expected error, got nil")
@@ -117,7 +120,7 @@ func TestDonationService_Patch_Success(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	patch := model.DonationPatch{Amount: &amount, Paused: &paused}
 	if err := svc.Patch(context.Background(), "d1", "u1", patch); err != nil {
@@ -137,7 +140,7 @@ func TestDonationService_Patch_ForbiddenOtherUser(t *testing.T) {
 			return &model.Donation{ID: id, DonorType: "user", DonorID: "other-user"}, nil
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	amount := 2000
 	if err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Amount: &amount}); err == nil {
@@ -151,7 +154,7 @@ func TestDonationService_Patch_NotFound(t *testing.T) {
 			return nil, repository.ErrNotFound
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	amount := 2000
 	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Amount: &amount})
@@ -173,7 +176,7 @@ func TestDonationService_Delete_Success(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	if err := svc.Delete(context.Background(), "d1", "u1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -186,7 +189,7 @@ func TestDonationService_Delete_ForbiddenOtherUser(t *testing.T) {
 			return &model.Donation{ID: id, DonorType: "user", DonorID: "other-user"}, nil
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	if err := svc.Delete(context.Background(), "d1", "u1"); err == nil {
 		t.Fatal("expected forbidden error for other user's donation")
@@ -199,7 +202,7 @@ func TestDonationService_Delete_NotFound(t *testing.T) {
 			return nil, repository.ErrNotFound
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	err := svc.Delete(context.Background(), "d1", "u1")
 	if !errors.Is(err, repository.ErrNotFound) {
@@ -217,7 +220,7 @@ func TestDonationService_MigrateToken_Success(t *testing.T) {
 			return 3, nil
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	result, err := svc.MigrateToken(context.Background(), "token-abc", "u1")
 	if err != nil {
@@ -237,7 +240,7 @@ func TestDonationService_MigrateToken_AlreadyMigrated(t *testing.T) {
 			return 0, nil
 		},
 	}
-	svc := NewDonationService(mock)
+	svc := NewDonationService(mock, nil)
 
 	result, err := svc.MigrateToken(context.Background(), "token-abc", "u1")
 	if err != nil {
@@ -252,10 +255,230 @@ func TestDonationService_MigrateToken_AlreadyMigrated(t *testing.T) {
 }
 
 func TestDonationService_MigrateToken_InvalidToken(t *testing.T) {
-	svc := NewDonationService(&mockDonationRepository{})
+	svc := NewDonationService(&mockDonationRepository{}, nil)
 
 	_, err := svc.MigrateToken(context.Background(), "", "u1")
 	if err == nil {
 		t.Fatal("expected error for empty token")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Mock SubscriptionManager
+// ---------------------------------------------------------------------------
+
+type mockSubscriptionManager struct {
+	pauseFunc  func(ctx context.Context, subID string) error
+	resumeFunc func(ctx context.Context, subID string) error
+	cancelFunc func(ctx context.Context, subID string) error
+}
+
+func (m *mockSubscriptionManager) PauseSubscription(ctx context.Context, subID string) error {
+	if m.pauseFunc != nil {
+		return m.pauseFunc(ctx, subID)
+	}
+	return nil
+}
+func (m *mockSubscriptionManager) ResumeSubscription(ctx context.Context, subID string) error {
+	if m.resumeFunc != nil {
+		return m.resumeFunc(ctx, subID)
+	}
+	return nil
+}
+func (m *mockSubscriptionManager) CancelSubscription(ctx context.Context, subID string) error {
+	if m.cancelFunc != nil {
+		return m.cancelFunc(ctx, subID)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// Stripe subscription integration tests
+// ---------------------------------------------------------------------------
+
+func TestDonationService_Patch_PausesStripeSubscription(t *testing.T) {
+	var capturedSubID string
+	paused := true
+
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				IsRecurring: true, StripeSubscriptionID: "sub_123",
+			}, nil
+		},
+		patchFunc: func(ctx context.Context, id string, patch model.DonationPatch) error {
+			return nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		pauseFunc: func(ctx context.Context, subID string) error {
+			capturedSubID = subID
+			return nil
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Paused: &paused})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedSubID != "sub_123" {
+		t.Errorf("expected PauseSubscription called with sub_123, got %q", capturedSubID)
+	}
+}
+
+func TestDonationService_Patch_ResumesStripeSubscription(t *testing.T) {
+	var capturedSubID string
+	paused := false
+
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				IsRecurring: true, Paused: true, StripeSubscriptionID: "sub_456",
+			}, nil
+		},
+		patchFunc: func(ctx context.Context, id string, patch model.DonationPatch) error {
+			return nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		resumeFunc: func(ctx context.Context, subID string) error {
+			capturedSubID = subID
+			return nil
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Paused: &paused})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedSubID != "sub_456" {
+		t.Errorf("expected ResumeSubscription called with sub_456, got %q", capturedSubID)
+	}
+}
+
+func TestDonationService_Patch_StripeErrorRollsBack(t *testing.T) {
+	paused := true
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				IsRecurring: true, StripeSubscriptionID: "sub_789",
+			}, nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		pauseFunc: func(ctx context.Context, subID string) error {
+			return errors.New("stripe api error")
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Paused: &paused})
+	if err == nil {
+		t.Fatal("expected error when Stripe API fails")
+	}
+}
+
+func TestDonationService_Patch_NoStripeCallForNonRecurring(t *testing.T) {
+	paused := true
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				IsRecurring: false,
+			}, nil
+		},
+		patchFunc: func(ctx context.Context, id string, patch model.DonationPatch) error {
+			return nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		pauseFunc: func(ctx context.Context, subID string) error {
+			t.Error("PauseSubscription should not be called for non-recurring donation")
+			return nil
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Paused: &paused})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDonationService_Delete_CancelsStripeSubscription(t *testing.T) {
+	var capturedSubID string
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				IsRecurring: true, StripeSubscriptionID: "sub_del",
+			}, nil
+		},
+		deleteFunc: func(ctx context.Context, id string) error {
+			return nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		cancelFunc: func(ctx context.Context, subID string) error {
+			capturedSubID = subID
+			return nil
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Delete(context.Background(), "d1", "u1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedSubID != "sub_del" {
+		t.Errorf("expected CancelSubscription called with sub_del, got %q", capturedSubID)
+	}
+}
+
+func TestDonationService_Delete_StripeErrorPreventsDelete(t *testing.T) {
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				IsRecurring: true, StripeSubscriptionID: "sub_err",
+			}, nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		cancelFunc: func(ctx context.Context, subID string) error {
+			return errors.New("stripe cancel failed")
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Delete(context.Background(), "d1", "u1")
+	if err == nil {
+		t.Fatal("expected error when Stripe cancel fails")
+	}
+}
+
+func TestDonationService_Patch_NilSubscriptionManager_SkipsStripe(t *testing.T) {
+	paused := true
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				IsRecurring: true, StripeSubscriptionID: "sub_nil",
+			}, nil
+		},
+		patchFunc: func(ctx context.Context, id string, patch model.DonationPatch) error {
+			return nil
+		},
+	}
+	svc := NewDonationService(repo, nil)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Paused: &paused})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

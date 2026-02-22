@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -76,6 +78,11 @@ func (h *StripeHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	// Donor identification: prefer session cookie → fall back to donor_token in body
 	donorType, donorID := h.resolveDonor(r, req.DonorToken)
 
+	// For anonymous donors, auto-generate a token if none provided
+	if donorType == "token" && donorID == "" {
+		donorID = generateDonorToken()
+	}
+
 	checkoutURL, err := h.svc.CreateCheckout(r.Context(), service.CheckoutRequest{
 		ProjectID:   req.ProjectID,
 		Amount:      req.Amount,
@@ -91,6 +98,18 @@ func (h *StripeHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
+	}
+
+	// Set HttpOnly cookie for anonymous donors so they can view their donation history
+	if donorType == "token" && donorID != "" {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "donor_token",
+			Value:    donorID,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			MaxAge:   365 * 24 * 60 * 60, // 1 year
+		})
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]string{"checkout_url": checkoutURL})
@@ -127,6 +146,13 @@ func (h *StripeHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]bool{"received": true})
+}
+
+// generateDonorToken は匿名寄付者用のランダムトークンを生成する。
+func generateDonorToken() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
 }
 
 // resolveDonor はセッションクッキーからユーザーIDを取得し、なければ donor_token を使う。

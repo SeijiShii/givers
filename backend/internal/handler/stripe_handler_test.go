@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/givers/backend/internal/service"
+	"github.com/givers/backend/pkg/auth"
 )
 
 // ---------------------------------------------------------------------------
@@ -168,6 +169,116 @@ func TestStripeHandler_Checkout_DonorToken_PassedThrough(t *testing.T) {
 	}
 	if capturedReq.DonorID != "tok_abc" {
 		t.Errorf("expected DonorID=tok_abc, got %q", capturedReq.DonorID)
+	}
+}
+
+func TestStripeHandler_Checkout_AnonymousDonor_SetsDonorTokenCookie(t *testing.T) {
+	mock := &mockStripeService{
+		createCheckoutFunc: func(_ context.Context, req service.CheckoutRequest) (string, error) {
+			if req.DonorType != "token" {
+				t.Errorf("expected DonorType=token, got %q", req.DonorType)
+			}
+			if req.DonorID == "" {
+				t.Error("expected auto-generated DonorID, got empty")
+			}
+			return "https://checkout.stripe.com/test", nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", nil)
+
+	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":1000,"currency":"jpy"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
+	rec := httptest.NewRecorder()
+	h.Checkout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Check donor_token cookie
+	var donorCookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "donor_token" {
+			donorCookie = c
+			break
+		}
+	}
+	if donorCookie == nil {
+		t.Fatal("expected donor_token cookie to be set")
+	}
+	if !donorCookie.HttpOnly {
+		t.Error("expected donor_token cookie to be HttpOnly")
+	}
+	if donorCookie.Value == "" {
+		t.Error("expected donor_token cookie value to be non-empty")
+	}
+}
+
+func TestStripeHandler_Checkout_LoggedInUser_NoDonorTokenCookie(t *testing.T) {
+	secret := auth.SessionSecretBytes("test-secret-32-bytes-long-enough")
+	token := auth.CreateSessionToken("user-1", secret)
+
+	mock := &mockStripeService{
+		createCheckoutFunc: func(_ context.Context, req service.CheckoutRequest) (string, error) {
+			if req.DonorType != "user" {
+				t.Errorf("expected DonorType=user, got %q", req.DonorType)
+			}
+			return "https://checkout.stripe.com/test", nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", secret)
+
+	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":1000,"currency":"jpy"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: token})
+	rec := httptest.NewRecorder()
+	h.Checkout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "donor_token" {
+			t.Error("expected no donor_token cookie for logged-in user")
+		}
+	}
+}
+
+func TestStripeHandler_Checkout_ExistingDonorToken_PreservedAndSetsCookie(t *testing.T) {
+	var capturedReq service.CheckoutRequest
+	mock := &mockStripeService{
+		createCheckoutFunc: func(_ context.Context, req service.CheckoutRequest) (string, error) {
+			capturedReq = req
+			return "https://checkout.stripe.com/test", nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", nil)
+
+	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":500,"currency":"jpy","donor_token":"existing-token-123"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
+	rec := httptest.NewRecorder()
+	h.Checkout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if capturedReq.DonorID != "existing-token-123" {
+		t.Errorf("expected DonorID=existing-token-123, got %q", capturedReq.DonorID)
+	}
+
+	var donorCookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "donor_token" {
+			donorCookie = c
+			break
+		}
+	}
+	if donorCookie == nil {
+		t.Fatal("expected donor_token cookie to be set")
+	}
+	if donorCookie.Value != "existing-token-123" {
+		t.Errorf("expected donor_token cookie value=existing-token-123, got %q", donorCookie.Value)
 	}
 }
 

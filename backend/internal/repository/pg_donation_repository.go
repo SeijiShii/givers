@@ -150,3 +150,30 @@ func (r *pgDonationRepository) MigrateToken(ctx context.Context, token string, u
 	}
 	return int(tag.RowsAffected()), nil
 }
+
+func (r *pgDonationRepository) ListActivityByProject(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT
+			CASE WHEN d.donor_type = 'user' THEN COALESCE(u.name, '匿名') ELSE '匿名' END,
+			d.amount, d.created_at, COALESCE(d.message, '')
+		 FROM donations d
+		 LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
+		 WHERE d.project_id = $1
+		 ORDER BY d.created_at DESC
+		 LIMIT $2`,
+		projectID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*model.ActivityItem
+	for rows.Next() {
+		a := &model.ActivityItem{}
+		if err := rows.Scan(&a.DonorName, &a.Amount, &a.CreatedAt, &a.Message); err != nil {
+			return nil, err
+		}
+		items = append(items, a)
+	}
+	return items, rows.Err()
+}

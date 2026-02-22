@@ -52,6 +52,9 @@ func (m *mockStripeClient) ParseWebhookEvent(payload []byte) (pkgstripe.WebhookE
 	}
 	return pkgstripe.WebhookEvent{}, nil
 }
+func (m *mockStripeClient) PauseSubscription(_ context.Context, _ string) error  { return nil }
+func (m *mockStripeClient) ResumeSubscription(_ context.Context, _ string) error { return nil }
+func (m *mockStripeClient) CancelSubscription(_ context.Context, _ string) error { return nil }
 
 // ---------------------------------------------------------------------------
 // Mock ProjectRepository (slim: only methods needed by StripeService)
