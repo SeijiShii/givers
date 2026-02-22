@@ -36,13 +36,19 @@ func hasJSONKey(raw map[string]json.RawMessage, key string) bool {
 
 // ProjectHandler はプロジェクト CRUD の HTTP ハンドラ
 type ProjectHandler struct {
-	connectURLFunc func(string) string // nil = Stripe not configured
-	projectService service.ProjectService
+	connectURLFunc  func(string) string // nil = Stripe not configured
+	projectService  service.ProjectService
+	activityService service.ActivityService // optional, nil = skip
 }
 
 // NewProjectHandler は ProjectHandler を生成する
 func NewProjectHandler(projectService service.ProjectService, connectURLFunc func(string) string) *ProjectHandler {
 	return &ProjectHandler{projectService: projectService, connectURLFunc: connectURLFunc}
+}
+
+// NewProjectHandlerWithActivity は ActivityService 付きの ProjectHandler を生成する
+func NewProjectHandlerWithActivity(projectService service.ProjectService, connectURLFunc func(string) string, actSvc service.ActivityService) *ProjectHandler {
+	return &ProjectHandler{projectService: projectService, connectURLFunc: connectURLFunc, activityService: actSvc}
 }
 
 // List は GET /api/projects を処理する
@@ -172,6 +178,15 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Record activity (fire-and-forget)
+	if h.activityService != nil {
+		_ = h.activityService.Record(r.Context(), &model.ActivityItem{
+			Type:      "project_created",
+			ProjectID: project.ID,
+			ActorName: &userID,
+		})
+	}
+
 	if h.connectURLFunc != nil {
 		project.StripeConnectURL = h.connectURLFunc(project.ID)
 	}
@@ -281,6 +296,15 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "update_failed"})
 		return
+	}
+
+	// Record activity (fire-and-forget)
+	if h.activityService != nil {
+		_ = h.activityService.Record(r.Context(), &model.ActivityItem{
+			Type:      "project_updated",
+			ProjectID: existing.ID,
+			ActorName: &userID,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -35,6 +35,11 @@ type StripeDonationRepo interface {
 	DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error
 }
 
+// StripeActivityRecorder は寄付確定時にアクティビティを記録するためのミニマムインターフェース
+type StripeActivityRecorder interface {
+	Insert(ctx context.Context, a *model.ActivityItem) error
+}
+
 // StripeService は Stripe 連携のビジネスロジック
 type StripeService interface {
 	// GenerateConnectURL は Stripe Connect OAuth URL を生成する（API コールなし）
@@ -49,10 +54,11 @@ type StripeService interface {
 
 // StripeServiceImpl は StripeService の実装
 type StripeServiceImpl struct {
-	client       pkgstripe.Client
-	projectRepo  StripeProjectRepo
-	donationRepo StripeDonationRepo
-	frontendURL  string
+	client           pkgstripe.Client
+	projectRepo      StripeProjectRepo
+	donationRepo     StripeDonationRepo
+	activityRecorder StripeActivityRecorder // optional, nil = skip
+	frontendURL      string
 }
 
 // NewStripeService は StripeServiceImpl を生成する
@@ -62,6 +68,17 @@ func NewStripeService(client pkgstripe.Client, projectRepo StripeProjectRepo, do
 		projectRepo:  projectRepo,
 		donationRepo: donationRepo,
 		frontendURL:  frontendURL,
+	}
+}
+
+// NewStripeServiceWithActivity は ActivityRecorder 付きの StripeServiceImpl を生成する
+func NewStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, frontendURL string, activityRecorder StripeActivityRecorder) StripeService {
+	return &StripeServiceImpl{
+		client:           client,
+		projectRepo:      projectRepo,
+		donationRepo:     donationRepo,
+		activityRecorder: activityRecorder,
+		frontendURL:      frontendURL,
 	}
 }
 
@@ -169,6 +186,7 @@ func (s *StripeServiceImpl) handlePaymentIntentSucceeded(ctx context.Context, ev
 	if err := s.donationRepo.Create(ctx, d); err != nil && !errors.Is(err, repository.ErrDuplicate) {
 		return err
 	}
+	s.recordDonationActivity(ctx, projectID, donorID, obj.Amount, obj.Metadata["message"])
 	return nil
 }
 
@@ -208,7 +226,26 @@ func (s *StripeServiceImpl) handleSubscriptionCreated(ctx context.Context, event
 	if err := s.donationRepo.Create(ctx, d); err != nil && !errors.Is(err, repository.ErrDuplicate) {
 		return err
 	}
+	s.recordDonationActivity(ctx, projectID, donorID, amount, obj.Metadata["message"])
 	return nil
+}
+
+// recordDonationActivity は寄付確定時に activity を記録する（失敗しても無視）
+func (s *StripeServiceImpl) recordDonationActivity(ctx context.Context, projectID, donorID string, amount int, message string) {
+	if s.activityRecorder == nil {
+		return
+	}
+	var actorName *string
+	if donorID != "" {
+		actorName = &donorID
+	}
+	_ = s.activityRecorder.Insert(ctx, &model.ActivityItem{
+		Type:      "donation",
+		ProjectID: projectID,
+		ActorName: actorName,
+		Amount:    &amount,
+		Message:   message,
+	})
 }
 
 func (s *StripeServiceImpl) handleSubscriptionDeleted(ctx context.Context, event pkgstripe.WebhookEvent) error {

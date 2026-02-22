@@ -256,6 +256,126 @@ func TestProjectHandler_MyProjects_WithAuth(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Create: activity recording tests (uses mockActivityService from activity_handler_test.go)
+// ---------------------------------------------------------------------------
+
+func TestProjectHandler_Create_RecordsProjectCreatedActivity(t *testing.T) {
+	var recordedActivity *model.ActivityItem
+	actSvc := &mockActivityService{
+		recordFunc: func(_ context.Context, a *model.ActivityItem) error {
+			recordedActivity = a
+			return nil
+		},
+	}
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			project.ID = "new-id"
+			return nil
+		},
+	}
+	h := NewProjectHandlerWithActivity(mock, nil, actSvc)
+
+	body := bytes.NewBufferString(`{"name":"New Project","description":"Desc"}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if recordedActivity == nil {
+		t.Fatal("expected project_created activity to be recorded")
+	}
+	if recordedActivity.Type != "project_created" {
+		t.Errorf("expected type=project_created, got %q", recordedActivity.Type)
+	}
+	if recordedActivity.ProjectID != "new-id" {
+		t.Errorf("expected ProjectID=new-id, got %q", recordedActivity.ProjectID)
+	}
+	if recordedActivity.ActorName == nil || *recordedActivity.ActorName != "u1" {
+		t.Errorf("expected ActorName=u1, got %v", recordedActivity.ActorName)
+	}
+}
+
+func TestProjectHandler_Create_ActivityErrorDoesNotFail(t *testing.T) {
+	actSvc := &mockActivityService{
+		recordFunc: func(_ context.Context, _ *model.ActivityItem) error {
+			return errors.New("activity db error")
+		},
+	}
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			project.ID = "new-id"
+			return nil
+		},
+	}
+	h := NewProjectHandlerWithActivity(mock, nil, actSvc)
+
+	body := bytes.NewBufferString(`{"name":"P"}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected 201 even when activity recording fails, got %d", rec.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Update: activity recording tests
+// ---------------------------------------------------------------------------
+
+func TestProjectHandler_Update_RecordsProjectUpdatedActivity(t *testing.T) {
+	var recordedActivity *model.ActivityItem
+	actSvc := &mockActivityService{
+		recordFunc: func(_ context.Context, a *model.ActivityItem) error {
+			recordedActivity = a
+			return nil
+		},
+	}
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "u1", Name: "P1"}, nil
+		},
+		updateFunc: func(ctx context.Context, p *model.Project) error {
+			return nil
+		},
+	}
+	h := NewProjectHandlerWithActivity(mock, nil, actSvc)
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/projects/{id}", http.HandlerFunc(h.Update))
+
+	body := bytes.NewBufferString(`{"name":"Updated"}`)
+	req := httptest.NewRequest("PUT", "/api/projects/p1", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if recordedActivity == nil {
+		t.Fatal("expected project_updated activity to be recorded")
+	}
+	if recordedActivity.Type != "project_updated" {
+		t.Errorf("expected type=project_updated, got %q", recordedActivity.Type)
+	}
+	if recordedActivity.ProjectID != "p1" {
+		t.Errorf("expected ProjectID=p1, got %q", recordedActivity.ProjectID)
+	}
+	if recordedActivity.ActorName == nil || *recordedActivity.ActorName != "u1" {
+		t.Errorf("expected ActorName=u1, got %v", recordedActivity.ActorName)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Create: existing tests
+// ---------------------------------------------------------------------------
+
 func TestProjectHandler_Create_Unauthorized(t *testing.T) {
 	mock := &mockProjectService{}
 	h := NewProjectHandler(mock, nil)

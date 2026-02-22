@@ -38,10 +38,10 @@
 ## 実装 TODO（仕様未確定 / 外部依存）
 
 ### 5. Activity INSERT フック
-- 寄付確定時（Webhook）に `donation` イベントを activities に INSERT
-- プロジェクト作成時に `project_created` イベントを INSERT
-- プロジェクト更新時に `project_updated` イベントを INSERT
-- マイルストーン到達時に `milestone` イベントを INSERT
+- [x] 寄付確定時（Webhook）に `donation` イベントを activities に INSERT
+- [x] プロジェクト作成時に `project_created` イベントを INSERT
+- [x] プロジェクト更新時に `project_updated` イベントを INSERT
+- [ ] マイルストーン到達時に `milestone` イベントを INSERT（仕様未定）
 
 ### 6. 開示用データ出力 API
 - `GET /api/admin/disclosure-export` — ルート登録済み

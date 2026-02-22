@@ -482,7 +482,162 @@ func TestStripeService_ProcessWebhook_SubscriptionDeleted_DeletesDonation(t *tes
 }
 
 // ---------------------------------------------------------------------------
-// Helpers / mock project repo for stripe tests
+// Tests: Activity recording on donation creation
+// ---------------------------------------------------------------------------
+
+func TestStripeService_ProcessWebhook_PaymentIntentSucceeded_RecordsActivity(t *testing.T) {
+	ctx := context.Background()
+	var recordedActivity *model.ActivityItem
+
+	obj := pkgstripe.WebhookEventObject{
+		ID:       "pi_act",
+		Amount:   3000,
+		Currency: "jpy",
+		Metadata: map[string]string{
+			"project_id": "proj-1",
+			"donor_type": "user",
+			"donor_id":   "user-1",
+			"message":    "応援してます",
+		},
+	}
+	event := pkgstripe.WebhookEvent{Type: "payment_intent.succeeded", ID: "evt_act"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	activityRecorder := &mockStripeActivityRecorder{
+		insertFunc: func(_ context.Context, a *model.ActivityItem) error {
+			recordedActivity = a
+			return nil
+		},
+	}
+	svc := newTestStripeServiceWithActivity(stripeClient, &mockStripeProjectRepo{}, &mockStripeDonationRepo{}, activityRecorder)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if recordedActivity == nil {
+		t.Fatal("expected activity to be recorded")
+	}
+	if recordedActivity.Type != "donation" {
+		t.Errorf("expected type=donation, got %q", recordedActivity.Type)
+	}
+	if recordedActivity.ProjectID != "proj-1" {
+		t.Errorf("expected ProjectID=proj-1, got %q", recordedActivity.ProjectID)
+	}
+	if recordedActivity.Amount == nil || *recordedActivity.Amount != 3000 {
+		t.Errorf("expected Amount=3000, got %v", recordedActivity.Amount)
+	}
+	if recordedActivity.ActorName == nil || *recordedActivity.ActorName != "user-1" {
+		t.Errorf("expected ActorName=user-1, got %v", recordedActivity.ActorName)
+	}
+	if recordedActivity.Message != "応援してます" {
+		t.Errorf("expected Message=応援してます, got %q", recordedActivity.Message)
+	}
+}
+
+func TestStripeService_ProcessWebhook_SubscriptionCreated_RecordsActivity(t *testing.T) {
+	ctx := context.Background()
+	var recordedActivity *model.ActivityItem
+
+	obj := pkgstripe.WebhookEventObject{
+		ID: "sub_act",
+		Metadata: map[string]string{
+			"project_id": "proj-2",
+			"donor_type": "token",
+			"donor_id":   "tok-abc",
+		},
+		Plan: &struct {
+			Amount   int    `json:"amount"`
+			Currency string `json:"currency"`
+		}{Amount: 2000, Currency: "jpy"},
+	}
+	event := pkgstripe.WebhookEvent{Type: "customer.subscription.created", ID: "evt_sub_act"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	activityRecorder := &mockStripeActivityRecorder{
+		insertFunc: func(_ context.Context, a *model.ActivityItem) error {
+			recordedActivity = a
+			return nil
+		},
+	}
+	svc := newTestStripeServiceWithActivity(stripeClient, &mockStripeProjectRepo{}, &mockStripeDonationRepo{}, activityRecorder)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if recordedActivity == nil {
+		t.Fatal("expected activity to be recorded for subscription")
+	}
+	if recordedActivity.Type != "donation" {
+		t.Errorf("expected type=donation, got %q", recordedActivity.Type)
+	}
+	if recordedActivity.Amount == nil || *recordedActivity.Amount != 2000 {
+		t.Errorf("expected Amount=2000, got %v", recordedActivity.Amount)
+	}
+}
+
+func TestStripeService_ProcessWebhook_ActivityRecordError_DoesNotFailWebhook(t *testing.T) {
+	ctx := context.Background()
+
+	obj := pkgstripe.WebhookEventObject{
+		ID:       "pi_act_err",
+		Amount:   1000,
+		Currency: "jpy",
+		Metadata: map[string]string{"project_id": "proj-1", "donor_type": "user", "donor_id": "user-1"},
+	}
+	event := pkgstripe.WebhookEvent{Type: "payment_intent.succeeded", ID: "evt_act_err"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	activityRecorder := &mockStripeActivityRecorder{
+		insertFunc: func(_ context.Context, _ *model.ActivityItem) error {
+			return errors.New("activity db error")
+		},
+	}
+	svc := newTestStripeServiceWithActivity(stripeClient, &mockStripeProjectRepo{}, &mockStripeDonationRepo{}, activityRecorder)
+
+	// Activity recording error should NOT cause webhook processing to fail
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("expected no error even when activity recording fails, got: %v", err)
+	}
+}
+
+func TestStripeService_ProcessWebhook_NilActivityRecorder_StillWorks(t *testing.T) {
+	ctx := context.Background()
+
+	obj := pkgstripe.WebhookEventObject{
+		ID:       "pi_nil",
+		Amount:   1000,
+		Currency: "jpy",
+		Metadata: map[string]string{"project_id": "proj-1", "donor_type": "user", "donor_id": "user-1"},
+	}
+	event := pkgstripe.WebhookEvent{Type: "payment_intent.succeeded", ID: "evt_nil"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	// nil activity recorder — should not panic
+	svc := newTestStripeServiceWithActivity(stripeClient, &mockStripeProjectRepo{}, &mockStripeDonationRepo{}, nil)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("expected no error with nil activity recorder, got: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Helpers / mock repos for stripe tests
 // ---------------------------------------------------------------------------
 
 type mockStripeProjectRepo struct {
@@ -532,4 +687,19 @@ func newTestStripeServiceWithRepo(client pkgstripe.Client, repo StripeProjectRep
 
 func newTestStripeServiceFull(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo) StripeService {
 	return NewStripeService(client, projectRepo, donationRepo, "https://example.com")
+}
+
+type mockStripeActivityRecorder struct {
+	insertFunc func(ctx context.Context, a *model.ActivityItem) error
+}
+
+func (m *mockStripeActivityRecorder) Insert(ctx context.Context, a *model.ActivityItem) error {
+	if m.insertFunc != nil {
+		return m.insertFunc(ctx, a)
+	}
+	return nil
+}
+
+func newTestStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, activityRecorder StripeActivityRecorder) StripeService {
+	return NewStripeServiceWithActivity(client, projectRepo, donationRepo, "https://example.com", activityRecorder)
 }
