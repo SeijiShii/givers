@@ -310,6 +310,120 @@ func TestProjectHandler_Create_Success(t *testing.T) {
 	}
 }
 
+func TestProjectHandler_Create_WithDeadline_YYYYMMDD(t *testing.T) {
+	var created *model.Project
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			created = project
+			project.ID = "new-id"
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	body := bytes.NewBufferString(`{"name":"P","deadline":"2025-12-31"}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected 201, got %d", rec.Code)
+	}
+	if created == nil || created.Deadline == nil {
+		t.Fatal("expected deadline to be set")
+	}
+	if created.Deadline.Year() != 2025 || created.Deadline.Month() != 12 || created.Deadline.Day() != 31 {
+		t.Errorf("expected 2025-12-31, got %v", created.Deadline)
+	}
+}
+
+func TestProjectHandler_Create_WithDeadline_RFC3339(t *testing.T) {
+	var created *model.Project
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			created = project
+			project.ID = "new-id"
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	body := bytes.NewBufferString(`{"name":"P","deadline":"2025-06-15T10:30:00Z"}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected 201, got %d", rec.Code)
+	}
+	if created == nil || created.Deadline == nil {
+		t.Fatal("expected deadline to be set")
+	}
+	if created.Deadline.Year() != 2025 || created.Deadline.Month() != 6 || created.Deadline.Day() != 15 {
+		t.Errorf("expected 2025-06-15, got %v", created.Deadline)
+	}
+}
+
+func TestProjectHandler_Create_EmptyDeadline(t *testing.T) {
+	var created *model.Project
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			created = project
+			project.ID = "new-id"
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	body := bytes.NewBufferString(`{"name":"P","deadline":""}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected 201, got %d", rec.Code)
+	}
+	if created != nil && created.Deadline != nil {
+		t.Errorf("expected nil deadline for empty string, got %v", created.Deadline)
+	}
+}
+
+func TestProjectHandler_Update_Deadline(t *testing.T) {
+	var updated *model.Project
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "u1", Name: "P1"}, nil
+		},
+		updateFunc: func(ctx context.Context, p *model.Project) error {
+			updated = p
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/projects/{id}", http.HandlerFunc(h.Update))
+
+	body := bytes.NewBufferString(`{"deadline":"2026-03-01"}`)
+	req := httptest.NewRequest("PUT", "/api/projects/p1", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if updated == nil || updated.Deadline == nil {
+		t.Fatal("expected deadline to be set after update")
+	}
+	if updated.Deadline.Year() != 2026 || updated.Deadline.Month() != 3 || updated.Deadline.Day() != 1 {
+		t.Errorf("expected 2026-03-01, got %v", updated.Deadline)
+	}
+}
+
 func TestProjectHandler_Update_Forbidden(t *testing.T) {
 	mock := &mockProjectService{
 		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {

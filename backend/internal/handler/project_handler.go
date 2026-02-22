@@ -5,12 +5,28 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/givers/backend/internal/model"
 	"github.com/givers/backend/internal/repository"
 	"github.com/givers/backend/internal/service"
 	"github.com/givers/backend/pkg/auth"
 )
+
+// parseDeadline は "YYYY-MM-DD" または RFC3339 の文字列を *time.Time にパースする。
+// 空文字の場合は nil を返す。
+func parseDeadline(s string) *time.Time {
+	if s == "" {
+		return nil
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return &t
+	}
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return &t
+	}
+	return nil
+}
 
 // hasJSONKey は raw に key が含まれるか判定する
 func hasJSONKey(raw map[string]json.RawMessage, key string) bool {
@@ -139,9 +155,8 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 			SortOrder:     i,
 		})
 	}
-	if req.Deadline != nil && *req.Deadline != "" {
-		// TODO: parse deadline from string (RFC3339 or YYYY-MM-DD)
-		// project.Deadline = parsed
+	if req.Deadline != nil {
+		project.Deadline = parseDeadline(*req.Deadline)
 	}
 
 	// Stripe が設定されている場合、プロジェクトは draft で作成し Connect URL を返す
@@ -222,6 +237,15 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		var v *int
 		_ = json.Unmarshal(raw["owner_want_monthly"], &v)
 		existing.OwnerWantMonthly = v
+	}
+	if b, ok := raw["deadline"]; ok {
+		var v *string
+		_ = json.Unmarshal(b, &v)
+		if v != nil {
+			existing.Deadline = parseDeadline(*v)
+		} else {
+			existing.Deadline = nil
+		}
 	}
 	if b, ok := raw["cost_items"]; ok {
 		var inputs []model.ProjectCostItemInput
