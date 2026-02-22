@@ -61,9 +61,10 @@ giving_platform/
 
 - **users**: id, email, name, google_id, github_id, apple_id, password_hash（いずれも NULL 可のプロバイダ別 ID / パスワードハッシュ）, created_at, updated_at。同一ユーザーは email でリンク（idea.md・phase2-plan 参照）。
 - **sessions**: id（UUID）, user_id（FK → users）, expires_at, created_at。**DB sessions テーブル方式**。Cookie は `session_id=<UUID>`（HttpOnly, Secure, SameSite=Lax）。ログアウト時は行を削除して確実に無効化。
-- **projects**: id, owner_id, name, description, deadline, monthly_target, **status**（`draft` \| `active` \| `frozen` \| `deleted`）, stripe_account_id, ...
+- **projects**: id, owner_id, name, ~~description~~→**overview**（Markdown。旧 description と統合）, share_message（シェアメッセージ）, deadline, monthly_target, **status**（`draft` \| `active` \| `frozen` \| `deleted`）, stripe_account_id, ...
   ※ **`draft` ステータスを追加**。プロジェクト作成フォーム送信時に draft で保存 → Stripe Connect 完了後に active に変更。Stripe 未接続のままプロジェクト公開は不可。
-- **project_costs**: project_id, server_cost, dev_cost, other_cost, ...
+  ※ **`description` → `overview` 統合**: カード用短文と詳細ページ用 Markdown を `overview` 1 カラムに統合。一覧カードでは先頭 N 文字を Markdown ストリップして表示。
+- ~~**project_costs**~~→**project_cost_items**: project_id, label, unit_type, amount_monthly, rate_per_day, days_per_month, sort_order, ...（固定 3 項目から動的行に変更。詳細は `cost-items-plan.md` 参照）
 - **project_alerts**: project_id, warning_threshold, critical_threshold
 - **donations**: id, project_id, **donor_type**（'token' \| 'user'）, **donor_id**（token の UUID または user の UUID）, amount, currency, stripe_payment_id, **is_recurring**（BOOLEAN）, **stripe_subscription_id**（TEXT NULL、定期寄付のみ非 NULL）, created_at, ...
   ※ 単発・定期を同一テーブルで管理。donor_type + donor_id の 2 カラムで識別（検索・インデックス・トークン→ユーザー移行が明確）。アカウントなし・ありを問わず全寄付を記録。idea.md の「全ての寄付者の寄付行動履歴を保存する」方針に基づく。定期寄付の状態管理は stripe_subscription_id + Stripe Webhook で行う。
@@ -137,7 +138,8 @@ giving_platform/
 ### Phase 3: プロジェクト CRUD
 
 - プロジェクト作成・編集・一覧・詳細 API
-- 費用設定（サーバー、開発者、その他）、期限設定
+- **説明フィールド**: `overview` 1 カラム（Markdown）で統合。新規作成フォームでも Markdown 入力可。「後から編集できます」注記を表示
+- **費用設定**: `cost_items` 配列（ラベル・金額の自由入力行）。UI も動的行追加に対応（`cost-items-plan.md` 参照）
 - アラート閾値（WARNING, CRITICAL）設定
 - フロント: プロジェクト一覧・詳細・マイページ（設定フォームは React）
 - **認証**: ミドルウェア注入方式。開発中は `AUTH_REQUIRED=false` で認証なし。詳細は [docs/phase3-plan.md](docs/phase3-plan.md)
@@ -159,6 +161,7 @@ giving_platform/
 - プロジェクト間リンク・発見導線
 - **利用停止・凍結時のメッセージ**: ホスト権限で利用停止されたアカウント、またはオーナーが凍結・削除したプロジェクトに対して寄付等のアクションを試みたときに、状況を理解できる親切なメッセージを表示する。→ `docs/idea.md`・`docs/user-management-mock-plan.md` 1.3・`docs/mock-implementation-status.md` 12.5 参照。
 - **開示用データの出力**: 第三者情報開示請求等に備え、管理画面から**ユーザーID または プロジェクトID 指定で開示用データ（JSON）を出力**できるようにする。ホストのみ実行可能。→ `docs/legal-risk-considerations.md` 4・`docs/user-management-mock-plan.md` 1.4。
+- **ホスト自身の利用停止を禁止**: `PATCH /api/admin/users/:id/suspend` で対象が自分自身の場合は 400 エラー。フロントでも自分の行の「利用停止」ボタンを非表示 or disabled にする。
 - **問い合わせフォーム** (`/contact`): メールアドレス必須でホストにメッセージを送信。認証不要。メッセージは DB 保存し、`CONTACT_NOTIFY_EMAIL` 設定時は受信通知メールを送信。
 - **問い合わせ閲覧** (`/host/contacts`): ホスト権限で問い合わせ一覧を閲覧・既読管理できる管理ページ。
 
@@ -214,7 +217,9 @@ giving_platform/
 - [ ] 自分のプロジェクトを編集できる
 - [ ] 他者のプロジェクトは編集できない
 - [ ] マイページに自分のプロジェクト一覧が表示される
-- [ ] 費用設定・アラート閾値の保存・表示が正しい
+- [ ] 費用設定（動的行追加 UI）・アラート閾値の保存・表示が正しい
+- [ ] 新規作成フォームの説明欄が Markdown 入力可で「後から編集できます」注記がある
+- [ ] 一覧カードに overview の先頭テキスト（Markdown ストリップ済み）が表示される
 
 ### Phase 4: 決済（Stripe Connect）
 
@@ -234,6 +239,8 @@ giving_platform/
 - [ ] 利用停止アカウントで寄付等を試みたときに、状況が分かる親切なメッセージが表示される
 - [ ] 凍結・削除されたプロジェクトに寄付等を試みたときに、状況が分かる親切なメッセージが表示される
 - [ ] ホストが管理画面からユーザーIDまたはプロジェクトIDを指定して開示用データ（JSON）を出力できる
+- [ ] ユーザー管理一覧で自分自身の行に「利用停止」ボタンが非表示 or disabled
+- [ ] 自分自身を停止しようとすると 400 エラーが返る
 - [ ] `/contact` にアクセスするとメールアドレス入力必須の問い合わせフォームが表示される
 - [ ] フォーム送信後に「送信しました」メッセージが表示される
 - [ ] `/host/contacts` でホストが問い合わせ一覧を閲覧できる（未読/既読管理）

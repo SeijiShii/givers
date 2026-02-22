@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/givers/backend/internal/model"
@@ -48,7 +49,7 @@ func newTestAuthHandler() *AuthHandler {
 
 // --- Tests ---
 
-func TestAuthHandler_GoogleLoginURL_SetsStateCookie(t *testing.T) {
+func TestAuthHandler_GoogleLoginURL_ReturnsURLWithState(t *testing.T) {
 	h := newTestAuthHandler()
 	req := httptest.NewRequest("GET", "/api/auth/google/login", nil)
 	rec := httptest.NewRecorder()
@@ -59,36 +60,32 @@ func TestAuthHandler_GoogleLoginURL_SetsStateCookie(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	// レスポンス URL に state パラメータが含まれ、"state-placeholder" でないこと
 	var body map[string]string
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	// oauth_state クッキーが設定されていること
+	url := body["url"]
+	if url == "" {
+		t.Fatal("expected url in response body")
+	}
+	if !strings.Contains(url, "state=") {
+		t.Error("expected state parameter in auth URL")
+	}
+	if !strings.Contains(url, "redirect_uri=") {
+		t.Error("expected redirect_uri parameter in auth URL")
+	}
+
+	// No cookies should be set (server-side state)
 	cookies := rec.Result().Cookies()
-	var stateCookie *http.Cookie
 	for _, c := range cookies {
 		if c.Name == "oauth_state" {
-			stateCookie = c
-			break
+			t.Error("should NOT set oauth_state cookie — state is stored server-side")
 		}
-	}
-	if stateCookie == nil {
-		t.Fatal("expected oauth_state cookie to be set")
-	}
-	if stateCookie.Value == "" {
-		t.Fatal("expected oauth_state cookie to have a non-empty value")
-	}
-	if stateCookie.Value == "state-placeholder" {
-		t.Fatal("state should be random, not placeholder")
-	}
-	if !stateCookie.HttpOnly {
-		t.Error("oauth_state cookie should be HttpOnly")
 	}
 }
 
-func TestAuthHandler_GitHubLoginURL_SetsStateCookie(t *testing.T) {
+func TestAuthHandler_GitHubLoginURL_ReturnsURLWithState(t *testing.T) {
 	h := newTestAuthHandler()
 	req := httptest.NewRequest("GET", "/api/auth/github/login", nil)
 	rec := httptest.NewRecorder()
@@ -99,26 +96,23 @@ func TestAuthHandler_GitHubLoginURL_SetsStateCookie(t *testing.T) {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
 
-	cookies := rec.Result().Cookies()
-	var stateCookie *http.Cookie
-	for _, c := range cookies {
-		if c.Name == "oauth_state" {
-			stateCookie = c
-			break
-		}
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
 	}
-	if stateCookie == nil {
-		t.Fatal("expected oauth_state cookie to be set")
+
+	if body["url"] == "" {
+		t.Fatal("expected url in response body")
 	}
-	if stateCookie.Value == "" || stateCookie.Value == "state-placeholder" {
-		t.Fatal("state should be random, not empty or placeholder")
+	if !strings.Contains(body["url"], "state=") {
+		t.Error("expected state parameter in auth URL")
 	}
 }
 
-func TestAuthHandler_GoogleCallback_RejectsStateMismatch(t *testing.T) {
+func TestAuthHandler_GoogleCallback_RejectsUnknownState(t *testing.T) {
 	h := newTestAuthHandler()
-	req := httptest.NewRequest("GET", "/api/auth/google/callback?code=abc&state=wrong-state", nil)
-	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "correct-state"})
+	// state not stored server-side → should be rejected
+	req := httptest.NewRequest("GET", "/api/auth/google/callback?code=abc&state=unknown-state", nil)
 	rec := httptest.NewRecorder()
 
 	h.GoogleCallback(rec, req)
@@ -127,15 +121,14 @@ func TestAuthHandler_GoogleCallback_RejectsStateMismatch(t *testing.T) {
 		t.Fatalf("expected 302, got %d", rec.Code)
 	}
 	loc := rec.Header().Get("Location")
-	if !containsStr(loc, "error=invalid_state") {
+	if !strings.Contains(loc, "error=invalid_state") {
 		t.Errorf("expected invalid_state error redirect, got %s", loc)
 	}
 }
 
-func TestAuthHandler_GitHubCallback_RejectsStateMismatch(t *testing.T) {
+func TestAuthHandler_GitHubCallback_RejectsUnknownState(t *testing.T) {
 	h := newTestAuthHandler()
-	req := httptest.NewRequest("GET", "/api/auth/github/callback?code=abc&state=wrong-state", nil)
-	req.AddCookie(&http.Cookie{Name: "oauth_state", Value: "correct-state"})
+	req := httptest.NewRequest("GET", "/api/auth/github/callback?code=abc&state=unknown-state", nil)
 	rec := httptest.NewRecorder()
 
 	h.GitHubCallback(rec, req)
@@ -144,15 +137,14 @@ func TestAuthHandler_GitHubCallback_RejectsStateMismatch(t *testing.T) {
 		t.Fatalf("expected 302, got %d", rec.Code)
 	}
 	loc := rec.Header().Get("Location")
-	if !containsStr(loc, "error=invalid_state") {
+	if !strings.Contains(loc, "error=invalid_state") {
 		t.Errorf("expected invalid_state error redirect, got %s", loc)
 	}
 }
 
-func TestAuthHandler_GoogleCallback_RejectsMissingStateCookie(t *testing.T) {
+func TestAuthHandler_GoogleCallback_RejectsMissingState(t *testing.T) {
 	h := newTestAuthHandler()
-	// state クッキーなし
-	req := httptest.NewRequest("GET", "/api/auth/google/callback?code=abc&state=some-state", nil)
+	req := httptest.NewRequest("GET", "/api/auth/google/callback?code=abc", nil)
 	rec := httptest.NewRecorder()
 
 	h.GoogleCallback(rec, req)
@@ -161,8 +153,107 @@ func TestAuthHandler_GoogleCallback_RejectsMissingStateCookie(t *testing.T) {
 		t.Fatalf("expected 302, got %d", rec.Code)
 	}
 	loc := rec.Header().Get("Location")
-	if !containsStr(loc, "error=invalid_state") {
+	if !strings.Contains(loc, "error=invalid_state") {
 		t.Errorf("expected invalid_state error redirect, got %s", loc)
+	}
+}
+
+func TestAuthHandler_FinalizeLogin_ValidCode(t *testing.T) {
+	h := newTestAuthHandler()
+
+	// Store a one-time code
+	storeOneTimeCode("test-code-123", "session-token-abc")
+
+	req := httptest.NewRequest("GET", "/api/auth/finalize?code=test-code-123", nil)
+	rec := httptest.NewRecorder()
+
+	h.FinalizeLogin(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "http://localhost:3000/") {
+		t.Errorf("expected redirect to frontend, got %s", loc)
+	}
+
+	// Check session cookie is set
+	var sessionCookie *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "givers_session" {
+			sessionCookie = c
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatal("expected givers_session cookie to be set")
+	}
+	if sessionCookie.Value != "session-token-abc" {
+		t.Errorf("expected session token session-token-abc, got %s", sessionCookie.Value)
+	}
+	if !sessionCookie.HttpOnly {
+		t.Error("session cookie should be HttpOnly")
+	}
+}
+
+func TestAuthHandler_FinalizeLogin_InvalidCode(t *testing.T) {
+	h := newTestAuthHandler()
+
+	req := httptest.NewRequest("GET", "/api/auth/finalize?code=invalid-code", nil)
+	rec := httptest.NewRecorder()
+
+	h.FinalizeLogin(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "error=invalid_code") {
+		t.Errorf("expected invalid_code error redirect, got %s", loc)
+	}
+}
+
+func TestAuthHandler_FinalizeLogin_MissingCode(t *testing.T) {
+	h := newTestAuthHandler()
+
+	req := httptest.NewRequest("GET", "/api/auth/finalize", nil)
+	rec := httptest.NewRecorder()
+
+	h.FinalizeLogin(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "error=missing_code") {
+		t.Errorf("expected missing_code error redirect, got %s", loc)
+	}
+}
+
+func TestAuthHandler_FinalizeLogin_CodeUsedOnlyOnce(t *testing.T) {
+	h := newTestAuthHandler()
+
+	storeOneTimeCode("once-code", "token-xyz")
+
+	// First use should succeed
+	req1 := httptest.NewRequest("GET", "/api/auth/finalize?code=once-code", nil)
+	rec1 := httptest.NewRecorder()
+	h.FinalizeLogin(rec1, req1)
+	if rec1.Code != http.StatusFound {
+		t.Fatalf("first use: expected 302, got %d", rec1.Code)
+	}
+	if strings.Contains(rec1.Header().Get("Location"), "error=") {
+		t.Fatalf("first use should succeed, got %s", rec1.Header().Get("Location"))
+	}
+
+	// Second use should fail
+	req2 := httptest.NewRequest("GET", "/api/auth/finalize?code=once-code", nil)
+	rec2 := httptest.NewRecorder()
+	h.FinalizeLogin(rec2, req2)
+	loc := rec2.Header().Get("Location")
+	if !strings.Contains(loc, "error=invalid_code") {
+		t.Errorf("second use should fail with invalid_code, got %s", loc)
 	}
 }
 
@@ -218,17 +309,4 @@ func TestAuthHandler_Logout_DeleteError_StillClearsCookie(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
-}
-
-func containsStr(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstr(s, substr))
-}
-
-func containsSubstr(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

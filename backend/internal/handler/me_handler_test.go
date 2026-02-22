@@ -47,7 +47,7 @@ func (m *mockMeSessionValidator) ValidateSession(ctx context.Context, token stri
 }
 
 func TestMeHandler_NoCookie_Returns401(t *testing.T) {
-	h := NewMeHandler(&mockUserRepository{}, &mockMeSessionValidator{})
+	h := NewMeHandler(&mockUserRepository{}, &mockMeSessionValidator{}, nil)
 
 	req := httptest.NewRequest("GET", "/api/me", nil)
 	rec := httptest.NewRecorder()
@@ -65,7 +65,7 @@ func TestMeHandler_InvalidToken_Returns401(t *testing.T) {
 			return "", errors.New("invalid_session")
 		},
 	}
-	h := NewMeHandler(&mockUserRepository{}, sv)
+	h := NewMeHandler(&mockUserRepository{}, sv, nil)
 
 	req := httptest.NewRequest("GET", "/api/me", nil)
 	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "bad-token"})
@@ -88,7 +88,7 @@ func TestMeHandler_UserNotFound_Returns404(t *testing.T) {
 		findByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
 			return nil, errors.New("not found")
 		},
-	}, sv)
+	}, sv, nil)
 
 	req := httptest.NewRequest("GET", "/api/me", nil)
 	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-token"})
@@ -119,7 +119,7 @@ func TestMeHandler_ValidSession_ReturnsUser(t *testing.T) {
 			}
 			return nil, errors.New("not found")
 		},
-	}, sv)
+	}, sv, nil)
 
 	req := httptest.NewRequest("GET", "/api/me", nil)
 	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-token"})
@@ -130,11 +130,46 @@ func TestMeHandler_ValidSession_ReturnsUser(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
-	var got model.User
+	var got meResponse
 	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if got.ID != "u1" || got.Email != "test@example.com" {
 		t.Errorf("expected user u1, got %+v", got)
+	}
+	if got.Role != "" {
+		t.Errorf("expected no role for non-host user, got %q", got.Role)
+	}
+}
+
+func TestMeHandler_HostEmail_ReturnsHostRole(t *testing.T) {
+	sv := &mockMeSessionValidator{
+		validateFunc: func(_ context.Context, token string) (string, error) {
+			return "u1", nil
+		},
+	}
+
+	want := &model.User{ID: "u1", Email: "admin@example.com", Name: "Admin"}
+	h := NewMeHandler(&mockUserRepository{
+		findByIDFunc: func(ctx context.Context, id string) (*model.User, error) {
+			return want, nil
+		},
+	}, sv, []string{"admin@example.com"})
+
+	req := httptest.NewRequest("GET", "/api/me", nil)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-token"})
+	rec := httptest.NewRecorder()
+
+	h.Me(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d", rec.Code)
+	}
+	var got meResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Role != "host" {
+		t.Errorf("expected role=host, got %q", got.Role)
 	}
 }

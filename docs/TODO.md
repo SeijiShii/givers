@@ -84,7 +84,34 @@
 - [ ] **フロント — プロジェクト編集フォーム**: シェアメッセージ入力欄を追加
 - [ ] **テスト**: Project CRUD テストに share_message の検証を追加
 
-### 10. メール送信
+### 10. ホスト自身の利用停止を禁止
+- [x] **バックエンド**: `AdminUserHandler.Suspend` で、対象ユーザーが自分自身の場合は 400 エラーを返す（TDD: 2テスト追加）
+- [x] **フロント**: ユーザー管理一覧で自分自身の行には「利用停止」ボタンを非表示にする
+
+### 11. description と overview を統合
+`overview`（Markdown）を主フィールドとし、`description` は overview から自動生成（先頭200文字プレーンテキスト）。
+
+- [x] **バックエンド API**: Create で `overview` を受け取り、description 未指定時は overview から自動生成（`plainTextFromMarkdown`）
+  - TDD: 2テスト追加（auto-fill + explicit description 保持）
+- [x] **新規プロジェクトフォーム**: 「説明」→「プロジェクト概要」に変更、Markdown プレースホルダー + ヒント + 「後から編集できます」注記
+- [x] **フロント型定義**: `CreateProjectInput` / `UpdateProjectInput` に `overview` 追加
+- [ ] **マイグレーション**: 既存 `description` データを `overview` に移行（既存データがある場合）
+
+### 12. コスト内訳 UI を自由入力に変更
+API は `cost_items`（ラベル・金額の行リスト）で自由入力対応済みだが、
+UI がサーバー費/開発費/その他の固定3項目のまま。API に合わせる。
+
+- [x] **フロント型定義**: `ProjectCostItem` / `ProjectCostItemInput` 型追加、`Project` に `cost_items` 追加
+- [x] **i18n**: コスト内訳動的行用のキー追加（costItemLabel / costItemAmount / costItemAddRow）
+- [ ] **新規プロジェクトフォーム**: 固定3項目 → 動的行追加 UI に変更
+  - 各行: ラベル（自由入力）+ 金額タイプ（月額 / 日額×日数）+ 金額入力
+  - 「＋ 項目を追加」ボタンで行を追加、各行に削除ボタン
+- [ ] **プロジェクト編集フォーム**: 同様に動的行 UI
+- [ ] **monthlyTarget 計算を project.monthly_target に統一**（FeaturedProjects / ProjectList / ProjectDetail / NavFinancialHealthMark）
+- [ ] **mock-api を cost_items 形式に更新**
+- [ ] **プロジェクト詳細ページ**: `cost_items` を個別表示（現状の `costs` 固定表示を置き換え）
+
+### 13. メール送信
 - 問い合わせ通知、マジックリンク認証等
 - 初期はメールログインなし（追って決める）
 - プロバイダー未選定（SendGrid / SES / Resend 等）

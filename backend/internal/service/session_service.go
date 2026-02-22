@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/givers/backend/internal/model"
@@ -25,6 +26,7 @@ func NewSessionService(repo repository.SessionRepository) *SessionService {
 func (s *SessionService) CreateSession(ctx context.Context, userID string) (*model.Session, error) {
 	token, err := auth.GenerateSessionToken()
 	if err != nil {
+		log.Printf("[SESSION] CreateSession: FAIL — token generation error: %v", err)
 		return nil, err
 	}
 	now := time.Now()
@@ -35,22 +37,35 @@ func (s *SessionService) CreateSession(ctx context.Context, userID string) (*mod
 		ExpiresAt: now.Add(auth.SessionDuration),
 	}
 	if err := s.repo.Create(ctx, session); err != nil {
+		log.Printf("[SESSION] CreateSession: FAIL — DB insert error: %v", err)
 		return nil, err
 	}
+	log.Printf("[SESSION] CreateSession: OK — userID=%s, token=%s..., expiresAt=%v", userID, token[:16], session.ExpiresAt)
 	return session, nil
 }
 
 // ValidateSession validates a session token and returns the user ID.
 // Implements auth.SessionValidator.
 func (s *SessionService) ValidateSession(ctx context.Context, token string) (string, error) {
+	tokenPrefix := token
+	if len(tokenPrefix) > 16 {
+		tokenPrefix = tokenPrefix[:16]
+	}
+	log.Printf("[SESSION] ValidateSession: looking up token=%s... (length=%d)", tokenPrefix, len(token))
+
 	session, err := s.repo.FindByToken(ctx, token)
 	if err != nil {
+		log.Printf("[SESSION] ValidateSession: FAIL — token not found in DB: %v", err)
 		return "", errors.New("invalid_session")
 	}
+	log.Printf("[SESSION] ValidateSession: found — userID=%s, expiresAt=%v, now=%v", session.UserID, session.ExpiresAt, time.Now())
+
 	if time.Now().After(session.ExpiresAt) {
+		log.Printf("[SESSION] ValidateSession: FAIL — session expired")
 		_ = s.repo.DeleteByToken(ctx, token)
 		return "", errors.New("session_expired")
 	}
+	log.Printf("[SESSION] ValidateSession: OK — userID=%s", session.UserID)
 	return session.UserID, nil
 }
 

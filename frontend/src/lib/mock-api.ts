@@ -428,6 +428,15 @@ export const mockApi = {
     return [...MOCK_ADMIN_USERS];
   },
 
+  async suspendUser(id: string, suspended: boolean): Promise<{ ok: boolean }> {
+    await delay(MOCK_DELAY);
+    const user = MOCK_ADMIN_USERS.find((u) => u.id === id);
+    if (user) {
+      (user as AdminUser).status = suspended ? "suspended" : "active";
+    }
+    return { ok: true };
+  },
+
   /** 開示用データ出力（ホスト用。第三者情報開示請求等に備える） */
   async getDisclosureExport(
     type: "user" | "project",

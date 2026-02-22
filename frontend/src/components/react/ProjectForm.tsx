@@ -48,7 +48,9 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
   });
 
   const [name, setName] = useState(project?.name ?? "");
-  const [description, setDescription] = useState(project?.description ?? "");
+  const [overview, setOverview] = useState(
+    project?.overview ?? project?.description ?? "",
+  );
   const [ownerWant, setOwnerWant] = useState(project?.owner_want_monthly ?? 0);
   const [costs, setCosts] = useState<ProjectCosts>(
     project?.costs ?? defaultCosts,
@@ -83,7 +85,7 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     try {
       const payload = {
         name,
-        description,
+        overview,
         share_message: shareMessage,
         deadline:
           deadlineType === "date" && deadlineValue ? deadlineValue : null,
@@ -140,21 +142,25 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         />
       </div>
 
-      {/* 説明 */}
+      {/* 概要（Markdown） */}
       <div style={{ marginBottom: "1rem" }}>
         <label
-          htmlFor="description"
+          htmlFor="overview"
           style={{ display: "block", marginBottom: "0.25rem" }}
         >
-          説明
+          {t(locale, "projects.overviewLabel")}
         </label>
         <textarea
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={4}
+          id="overview"
+          value={overview}
+          onChange={(e) => setOverview(e.target.value)}
+          rows={6}
+          placeholder={t(locale, "projects.overviewPlaceholder")}
           style={{ width: "100%", padding: "0.5rem" }}
         />
+        <small style={{ color: "var(--color-text-muted)" }}>
+          {t(locale, "projects.overviewHint")}
+        </small>
       </div>
 
       {/* シェアメッセージ */}

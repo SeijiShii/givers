@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.PUBLIC_API_URL || "http://localhost:8080";
+// dev proxy 時は PUBLIC_API_URL="" (空文字) で相対パス、本番では実 URL を指定
+// ?? を使い、空文字は有効値として扱う（|| だと falsy で fallback してしまう）
+const API_URL = import.meta.env.PUBLIC_API_URL ?? "http://localhost:8080";
 const MOCK_MODE = import.meta.env.PUBLIC_MOCK_MODE === "true";
 
 /** プラットフォームプロジェクト（GIVErS への寄付）の ID */
@@ -66,6 +68,19 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
     ...u,
     status: u.suspended_at ? ("suspended" as const) : ("active" as const),
   }));
+}
+
+/** ユーザーの利用停止・解除（ホストのみ） */
+export async function suspendUser(
+  id: string,
+  suspended: boolean,
+): Promise<{ ok: boolean }> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.suspendUser(id, suspended);
+  return fetchApi("/api/admin/users/" + encodeURIComponent(id) + "/suspend", {
+    method: "PATCH",
+    body: JSON.stringify({ suspended }),
+  });
 }
 
 /** 開示用データ出力（ホストのみ）。第三者情報開示請求等に備えたエクスポート。 */
@@ -284,6 +299,27 @@ export interface ProjectCosts {
   other_cost_monthly: number;
 }
 
+/** コスト内訳の1行（バックエンド cost_items 形式） */
+export interface ProjectCostItem {
+  id?: string;
+  project_id?: string;
+  label: string;
+  unit_type: "monthly" | "daily_x_days";
+  amount_monthly: number;
+  rate_per_day: number;
+  days_per_month: number;
+  sort_order?: number;
+}
+
+/** コスト内訳の入力用（POST/PUT リクエスト） */
+export interface ProjectCostItemInput {
+  label: string;
+  unit_type: "monthly" | "daily_x_days";
+  amount_monthly: number;
+  rate_per_day?: number;
+  days_per_month?: number;
+}
+
 export interface ProjectAlerts {
   id?: string;
   project_id?: string;
@@ -302,6 +338,7 @@ export interface Project {
   created_at: string;
   updated_at: string;
   costs?: ProjectCosts | null;
+  cost_items?: ProjectCostItem[] | null;
   alerts?: ProjectAlerts | null;
   /** 月額寄付の現在合計（モック/Phase4以降） */
   current_monthly_donations?: number;
@@ -356,7 +393,8 @@ export async function getProjects(
   params.set("limit", String(limit));
   if (cursor) params.set("cursor", cursor);
   if (sort) params.set("sort", sort);
-  return fetchApi<ProjectListResult>(`/api/projects?${params}`);
+  const res = await fetchApi<ProjectListResult>(`/api/projects?${params}`);
+  return { ...res, projects: res.projects ?? [] };
 }
 
 export async function getProject(id: string): Promise<Project> {
@@ -706,11 +744,13 @@ export async function deleteProjectUpdate(
 export interface CreateProjectInput {
   name: string;
   description?: string;
+  overview?: string;
   share_message?: string;
   deadline?: string | null;
   status?: string;
   owner_want_monthly?: number | null;
   costs?: ProjectCosts | null;
+  cost_items?: ProjectCostItemInput[] | null;
   alerts?: ProjectAlerts | null;
 }
 
@@ -734,6 +774,7 @@ export interface UpdateProjectInput {
   status?: string;
   owner_want_monthly?: number | null;
   costs?: ProjectCosts | null;
+  cost_items?: ProjectCostItemInput[] | null;
   alerts?: ProjectAlerts | null;
 }
 

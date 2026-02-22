@@ -83,9 +83,16 @@
 | Method | Path | 認証 | 説明 |
 |--------|------|------|------|
 | GET | `/api/admin/users` | 必須（ホスト） | ユーザー一覧 |
-| PATCH | `/api/admin/users/:id/suspend` | 必須（ホスト） | ユーザー利用停止・解除 |
+| PATCH | `/api/admin/users/:id/suspend` | 必須（ホスト） | ユーザー利用停止・解除（**自分自身は不可 → 400**） |
 | GET | `/api/admin/disclosure-export` | 必須（ホスト） | 開示用データ出力（`?type=user&id=xxx` または `?type=project&id=xxx`） |
 | GET | `/api/admin/contacts` | 必須（ホスト） | 問い合わせ一覧 |
+
+### PATCH /api/admin/users/:id/suspend — 追加仕様
+
+- **自分自身の停止を禁止**: 対象ユーザー ID がリクエスト元ユーザー ID と一致する場合は **400 Bad Request** を返す。
+  ```json
+  { "errors": [{ "message": "cannot suspend yourself" }] }
+  ```
 
 ---
 
@@ -135,21 +142,37 @@
 ```json
 {
   "name": "string（必須）",
-  "description": "string（任意）",
+  "overview": "string（任意、Markdown 対応。旧 description を統合）",
   "deadline": "2026-12-31（任意, ISO 8601 date）",
   "owner_want_monthly": 50000,
-  "costs": {
-    "server_cost_monthly": 10000,
-    "dev_cost_per_day": 20000,
-    "dev_days_per_month": 5,
-    "other_cost_monthly": 5000
-  },
+  "cost_items": [
+    {
+      "label": "サーバー費用",
+      "unit_type": "monthly",
+      "amount_monthly": 10000
+    },
+    {
+      "label": "開発者費用",
+      "unit_type": "daily_x_days",
+      "rate_per_day": 20000,
+      "days_per_month": 5
+    },
+    {
+      "label": "その他費用",
+      "unit_type": "monthly",
+      "amount_monthly": 5000
+    }
+  ],
   "alerts": {
     "warning_threshold": 60,
     "critical_threshold": 30
   }
 }
 ```
+
+> **`description` → `overview` 統合**: 旧 `description`（カード用短文）と `overview`（詳細用 Markdown）を `overview` 1 カラムに統合。一覧カードでは先頭 N 文字を Markdown ストリップして表示する。詳細は `cost-items-plan.md` 参照。
+
+> **`costs` → `cost_items` 変更**: 旧固定 3 項目オブジェクトから動的行配列に変更。詳細は `cost-items-plan.md` 参照。
 
 **レスポンス (201)**
 ```json

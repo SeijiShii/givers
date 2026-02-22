@@ -99,6 +99,15 @@ func (h *AdminUserHandler) Suspend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ホスト自身の利用停止を禁止（解除は許可）
+	if req.Suspended {
+		if callerID, ok := auth.UserIDFromContext(r.Context()); ok && callerID == id {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "cannot_suspend_self"})
+			return
+		}
+	}
+
 	if err := h.adminSvc.SuspendUser(r.Context(), id, req.Suspended); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			w.WriteHeader(http.StatusNotFound)

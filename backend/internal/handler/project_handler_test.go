@@ -893,6 +893,70 @@ func TestProjectHandler_Update_ShareMessageNotSentKeepsOld(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Create / Update: overview → description auto-fill tests
+// ---------------------------------------------------------------------------
+
+func TestProjectHandler_Create_OverviewFillsDescription(t *testing.T) {
+	var created *model.Project
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			created = project
+			project.ID = "new-id"
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	body := bytes.NewBufferString(`{"name":"P","overview":"# My Project\n\nThis is a **detailed** overview."}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if created == nil {
+		t.Fatal("expected project to be created")
+	}
+	if created.Overview != "# My Project\n\nThis is a **detailed** overview." {
+		t.Errorf("expected overview to be set, got %q", created.Overview)
+	}
+	// description should be auto-filled from overview (plain text)
+	if created.Description == "" {
+		t.Error("expected description to be auto-filled from overview")
+	}
+	if created.Description == created.Overview {
+		t.Error("description should be plain text, not raw Markdown")
+	}
+}
+
+func TestProjectHandler_Create_ExplicitDescriptionNotOverridden(t *testing.T) {
+	var created *model.Project
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			created = project
+			project.ID = "new-id"
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	body := bytes.NewBufferString(`{"name":"P","description":"Explicit desc","overview":"# Full overview"}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rec.Code)
+	}
+	if created.Description != "Explicit desc" {
+		t.Errorf("expected description='Explicit desc', got %q", created.Description)
+	}
+}
+
 func TestProjectHandler_PatchStatus_NotFound(t *testing.T) {
 	mock := &mockProjectService{
 		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {

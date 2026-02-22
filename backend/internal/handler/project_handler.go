@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/givers/backend/internal/model"
@@ -12,6 +14,19 @@ import (
 	"github.com/givers/backend/internal/service"
 	"github.com/givers/backend/pkg/auth"
 )
+
+// stripMarkdown は Markdown 記法を簡易的に除去してプレーンテキストに変換する。
+var reMarkdown = regexp.MustCompile(`(?m)^#{1,6}\s+|[*_~` + "`" + `\[\]()>]+`)
+
+func plainTextFromMarkdown(md string, maxLen int) string {
+	s := reMarkdown.ReplaceAllString(md, "")
+	s = strings.Join(strings.Fields(s), " ")
+	s = strings.TrimSpace(s)
+	if len([]rune(s)) > maxLen {
+		return string([]rune(s)[:maxLen])
+	}
+	return s
+}
 
 // parseDeadline は "YYYY-MM-DD" または RFC3339 の文字列を *time.Time にパースする。
 // 空文字の場合は nil を返す。
@@ -167,6 +182,11 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Deadline != nil {
 		project.Deadline = parseDeadline(*req.Deadline)
+	}
+
+	// overview → description 自動生成: overview があり description が空の場合
+	if project.Description == "" && project.Overview != "" {
+		project.Description = plainTextFromMarkdown(project.Overview, 200)
 	}
 
 	// Stripe が設定されている場合、プロジェクトは draft で作成し Connect URL を返す

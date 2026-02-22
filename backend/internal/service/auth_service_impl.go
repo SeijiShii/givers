@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/givers/backend/internal/model"
 	"github.com/givers/backend/internal/repository"
@@ -20,10 +21,14 @@ func NewAuthService(userRepo repository.UserRepository) AuthService {
 
 // GetOrCreateUserFromGoogle は Google ユーザー情報からユーザーを取得または作成する
 func (s *AuthServiceImpl) GetOrCreateUserFromGoogle(ctx context.Context, info *GoogleUserInfo) (*model.User, error) {
+	log.Printf("[AUTH-SVC] GetOrCreateUserFromGoogle: sub=%s, email=%s, name=%s", info.Sub, info.Email, info.Name)
+
 	u, err := s.userRepo.FindByGoogleID(ctx, info.Sub)
 	if err == nil {
+		log.Printf("[AUTH-SVC] GetOrCreateUserFromGoogle: found existing user id=%s", u.ID)
 		return u, nil
 	}
+	log.Printf("[AUTH-SVC] GetOrCreateUserFromGoogle: FindByGoogleID failed: %v — will try to create", err)
 
 	// 存在しない場合は作成
 	newUser := &model.User{
@@ -32,8 +37,10 @@ func (s *AuthServiceImpl) GetOrCreateUserFromGoogle(ctx context.Context, info *G
 		Name:     info.Name,
 	}
 	if err := s.userRepo.Create(ctx, newUser); err != nil {
-		return nil, err
+		log.Printf("[AUTH-SVC] GetOrCreateUserFromGoogle: Create failed: %v", err)
+		return nil, fmt.Errorf("create user: %w", err)
 	}
+	log.Printf("[AUTH-SVC] GetOrCreateUserFromGoogle: created new user id=%s", newUser.ID)
 	return newUser, nil
 }
 

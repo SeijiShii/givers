@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/givers/backend/internal/repository"
@@ -19,6 +20,10 @@ func New(db repository.DB, frontendURL string) *Handler {
 
 func (h *Handler) CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		log.Printf("[CORS] %s %s — Origin=%q, AllowOrigin=%q, Cookie=%q",
+			r.Method, r.URL.Path, origin, h.frontendURL, r.Header.Get("Cookie"))
+
 		w.Header().Set("Access-Control-Allow-Origin", h.frontendURL)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")

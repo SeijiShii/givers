@@ -304,6 +304,55 @@ func TestAdminUserHandler_Suspend_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestAdminUserHandler_Suspend_CannotSuspendSelf(t *testing.T) {
+	mock := &mockAdminUserService{
+		suspendFunc: func(ctx context.Context, id string, suspend bool) error {
+			t.Fatal("SuspendUser should not be called when suspending self")
+			return nil
+		},
+	}
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
+
+	// host-id tries to suspend host-id (self)
+	req := adminHostRequest(http.MethodPatch, "/api/admin/users/host-id/suspend", `{"suspended":true}`)
+	req.SetPathValue("id", "host-id")
+	rec := httptest.NewRecorder()
+	h.Suspend(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]string
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if resp["error"] != "cannot_suspend_self" {
+		t.Errorf("expected error=cannot_suspend_self, got %q", resp["error"])
+	}
+}
+
+func TestAdminUserHandler_Suspend_UnsuspendSelfAllowed(t *testing.T) {
+	var called bool
+	mock := &mockAdminUserService{
+		suspendFunc: func(ctx context.Context, id string, suspend bool) error {
+			called = true
+			return nil
+		},
+	}
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
+
+	// host-id unsuspends host-id (self) — this should be allowed
+	req := adminHostRequest(http.MethodPatch, "/api/admin/users/host-id/suspend", `{"suspended":false}`)
+	req.SetPathValue("id", "host-id")
+	rec := httptest.NewRecorder()
+	h.Suspend(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if !called {
+		t.Error("expected SuspendUser to be called for unsuspend-self")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // GET /api/admin/disclosure-export tests
 // ---------------------------------------------------------------------------

@@ -18,7 +18,8 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load()
+	_ = godotenv.Load()    // backend/.env or CWD
+	_ = godotenv.Load("../.env") // project root
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -90,7 +91,7 @@ func main() {
 		AppleClientID:  os.Getenv("APPLE_CLIENT_ID"),
 		EnableEmail:    os.Getenv("ENABLE_EMAIL_LOGIN") == "true",
 	})
-	meHandler := handler.NewMeHandler(userRepo, sessionSvc)
+	meHandler := handler.NewMeHandler(userRepo, sessionSvc, hostEmails)
 	// Stripe が設定されている場合のみ Connect URL を生成する関数を渡す
 	var connectURLFunc func(string) string
 	if os.Getenv("STRIPE_CONNECT_CLIENT_ID") != "" {
@@ -117,6 +118,7 @@ func main() {
 	mux.HandleFunc("GET /api/auth/github/login", authHandler.GitHubLoginURL)
 	mux.HandleFunc("GET /api/auth/github/callback", authHandler.GitHubCallback)
 	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
+	mux.HandleFunc("GET /api/auth/finalize", authHandler.FinalizeLogin)
 	mux.HandleFunc("GET /api/me", meHandler.Me)
 	mux.HandleFunc("POST /api/contact", contactHandler.Submit)
 	mux.HandleFunc("GET /api/legal/{type}", legalHandler.Legal)
