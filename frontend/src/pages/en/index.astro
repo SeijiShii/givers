@@ -3,7 +3,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import HealthStatus from '../../components/react/HealthStatus';
 import FeaturedProjects from '../../components/react/FeaturedProjects';
 import ActivityFeed from '../../components/react/ActivityFeed';
+import ShareButtons from '../../components/react/ShareButtons';
 import { t } from '../../lib/i18n';
+import { SITE_URL } from '../../lib/site';
 
 const locale = 'en';
 ---
@@ -13,6 +15,13 @@ const locale = 'en';
     <h1>{t(locale, 'home.title')}</h1>
     <p class="tagline">{t(locale, 'home.tagline')}</p>
     <p class="accent-line">{t(locale, 'home.description')}</p>
+    <ShareButtons
+      client:load
+      url={`${SITE_URL}/en`}
+      title={t(locale, 'home.title') + ' - ' + t(locale, 'home.tagline')}
+      locale={locale}
+      shareLabel={t(locale, 'share.label')}
+    />
   </div>
 
   <ActivityFeed

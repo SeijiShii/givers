@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { t, type Locale } from '../lib/i18n';
+import { SITE_URL } from '../lib/site';
 import AuthStatus from '../components/react/AuthStatus';
 import NavAdminLink from '../components/react/NavAdminLink';
 import NavFinancialHealthMark from '../components/react/NavFinancialHealthMark';
@@ -8,11 +9,22 @@ import NavFinancialHealthMark from '../components/react/NavFinancialHealthMark';
 interface Props {
   title: string;
   locale?: Locale;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  ogUrl?: string;
+  ogType?: string;
 }
 
-const { title, locale = 'ja' } = Astro.props;
+const { title, locale = 'ja', ogTitle, ogDescription, ogImage, ogUrl, ogType } = Astro.props;
 
 const basePath = locale === 'en' ? '/en' : '';
+
+const resolvedOgTitle = ogTitle || `${title} | GIVErS`;
+const resolvedOgDescription = ogDescription || t(locale, 'home.description');
+const resolvedOgImage = ogImage || `${SITE_URL}/ogp-default.png`;
+const resolvedOgUrl = ogUrl || `${SITE_URL}${Astro.url.pathname}`;
+const resolvedOgType = ogType || 'website';
 ---
 
 <!DOCTYPE html>
@@ -23,6 +35,20 @@ const basePath = locale === 'en' ? '/en' : '';
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <title>{title} | GIVErS</title>
+    <meta name="description" content={resolvedOgDescription} />
+    <!-- Open Graph -->
+    <meta property="og:title" content={resolvedOgTitle} />
+    <meta property="og:description" content={resolvedOgDescription} />
+    <meta property="og:image" content={resolvedOgImage} />
+    <meta property="og:url" content={resolvedOgUrl} />
+    <meta property="og:type" content={resolvedOgType} />
+    <meta property="og:site_name" content="GIVErS" />
+    <meta property="og:locale" content={locale === 'ja' ? 'ja_JP' : 'en_US'} />
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={resolvedOgTitle} />
+    <meta name="twitter:description" content={resolvedOgDescription} />
+    <meta name="twitter:image" content={resolvedOgImage} />
   </head>
   <body>
     <header>

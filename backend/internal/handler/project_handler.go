@@ -126,6 +126,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Name             string                       `json:"name"`
 		Description      string                       `json:"description"`
 		Overview         string                       `json:"overview"`
+		ShareMessage     string                       `json:"share_message"`
 		Deadline         *string                      `json:"deadline"`
 		Status           string                       `json:"status"`
 		OwnerWantMonthly *int                         `json:"owner_want_monthly"`
@@ -149,6 +150,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Name:             req.Name,
 		Description:      req.Description,
 		Overview:         req.Overview,
+		ShareMessage:     req.ShareMessage,
 		Status:           req.Status,
 		OwnerWantMonthly: req.OwnerWantMonthly,
 		Alerts:           req.Alerts,
@@ -247,6 +249,11 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		var v string
 		_ = json.Unmarshal(b, &v)
 		existing.Overview = v
+	}
+	if b, ok := raw["share_message"]; ok {
+		var v string
+		_ = json.Unmarshal(b, &v)
+		existing.ShareMessage = v
 	}
 	if b, ok := raw["status"]; ok {
 		var v string

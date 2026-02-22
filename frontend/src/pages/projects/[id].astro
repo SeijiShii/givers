@@ -2,13 +2,30 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ProjectDetail from '../../components/react/ProjectDetail';
 import { t } from '../../lib/i18n';
+import { SITE_URL } from '../../lib/site';
 
 export const prerender = false;
 const { id } = Astro.params;
 const locale = 'ja';
+
+let ogTitle: string | undefined;
+let ogDescription: string | undefined;
+let ogUrl: string | undefined;
+if (id) {
+  try {
+    const API_URL = import.meta.env.PUBLIC_API_URL || 'http://localhost:8080';
+    const res = await fetch(`${API_URL}/api/projects/${id}`);
+    if (res.ok) {
+      const project = await res.json();
+      ogTitle = `${project.name} | GIVErS`;
+      ogDescription = (project.description || '').substring(0, 120);
+    }
+  } catch { /* fallback to defaults */ }
+  ogUrl = `${SITE_URL}/projects/${id}`;
+}
 ---
 
-<BaseLayout title={id ? `Project ${id}` : 'Project'} locale={locale}>
+<BaseLayout title={id ? `Project ${id}` : 'Project'} locale={locale} ogTitle={ogTitle} ogDescription={ogDescription} ogUrl={ogUrl} ogType="article">
   {id ? (
     <ProjectDetail
       client:load
@@ -56,6 +73,8 @@ const locale = 'ja';
       relatedProjectsLabel={t(locale, 'projects.relatedTitle')}
       watchLabel={t(locale, 'projects.watch')}
       unwatchLabel={t(locale, 'projects.unwatch')}
+      shareUrl={`${SITE_URL}/projects/${id}`}
+      shareLabel={t(locale, 'share.label')}
     />
   ) : (
     <p>Invalid project</p>

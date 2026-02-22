@@ -29,7 +29,7 @@
 ### 作業内容
 
 - [ ] ドメインを取得する（お名前.com / Cloudflare / ConoHa ドメイン等）
-  - 例: `givers.example.com`
+  - 例: `givers.work`
   - ConoHa でドメインも取る場合は Step 3 と同時でも可
 - [ ] 取得したドメイン名をメモしておく（以降の設定で繰り返し使う）
 

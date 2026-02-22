@@ -19,7 +19,7 @@ func NewPgProjectRepository(pool *pgxpool.Pool) *PgProjectRepository {
 	return &PgProjectRepository{pool: pool}
 }
 
-const projectSelectCols = `id, owner_id, name, description, overview, deadline, status, owner_want_monthly, monthly_target, COALESCE(stripe_account_id, ''), created_at, updated_at`
+const projectSelectCols = `id, owner_id, name, description, overview, share_message, deadline, status, owner_want_monthly, monthly_target, COALESCE(stripe_account_id, ''), created_at, updated_at`
 
 // List はプロジェクト一覧を取得する。sort は "new"（デフォルト）または "hot"（達成率降順）。
 // cursor はカーソルベースページネーション用（前回最後のプロジェクト ID）。
@@ -85,7 +85,7 @@ func (r *PgProjectRepository) List(ctx context.Context, sort string, limit int, 
 	var projects []*model.Project
 	for rows.Next() {
 		var p model.Project
-		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)
@@ -109,7 +109,7 @@ func (r *PgProjectRepository) GetByID(ctx context.Context, id string) (*model.Pr
 	var p model.Project
 	err := r.pool.QueryRow(ctx,
 		`SELECT `+projectSelectCols+` FROM projects WHERE id = $1`, id,
-	).Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (r *PgProjectRepository) ListByOwnerID(ctx context.Context, ownerID string)
 	var projects []*model.Project
 	for rows.Next() {
 		var p model.Project
-		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage, &p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget, &p.StripeAccountID, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		projects = append(projects, &p)
@@ -182,10 +182,10 @@ func (r *PgProjectRepository) Create(ctx context.Context, project *model.Project
 	project.MonthlyTarget = model.TotalMonthlyAmount(project.CostItems)
 
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO projects (owner_id, name, description, overview, deadline, status, owner_want_monthly, monthly_target)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO projects (owner_id, name, description, overview, share_message, deadline, status, owner_want_monthly, monthly_target)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		 RETURNING id, created_at, updated_at`,
-		project.OwnerID, project.Name, project.Description, project.Overview, project.Deadline,
+		project.OwnerID, project.Name, project.Description, project.Overview, project.ShareMessage, project.Deadline,
 		project.Status, project.OwnerWantMonthly, project.MonthlyTarget,
 	).Scan(&project.ID, &project.CreatedAt, &project.UpdatedAt)
 	if err != nil {
@@ -225,9 +225,9 @@ func (r *PgProjectRepository) Update(ctx context.Context, project *model.Project
 	defer tx.Rollback(ctx)
 
 	if _, err := tx.Exec(ctx,
-		`UPDATE projects SET name=$1, description=$2, overview=$3, deadline=$4, status=$5, owner_want_monthly=$6, monthly_target=$7, updated_at=NOW()
-		 WHERE id=$8`,
-		project.Name, project.Description, project.Overview, project.Deadline, project.Status,
+		`UPDATE projects SET name=$1, description=$2, overview=$3, share_message=$4, deadline=$5, status=$6, owner_want_monthly=$7, monthly_target=$8, updated_at=NOW()
+		 WHERE id=$9`,
+		project.Name, project.Description, project.Overview, project.ShareMessage, project.Deadline, project.Status,
 		project.OwnerWantMonthly, project.MonthlyTarget, project.ID,
 	); err != nil {
 		return err

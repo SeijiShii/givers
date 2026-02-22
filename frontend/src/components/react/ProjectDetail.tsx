@@ -18,6 +18,7 @@ import DonateForm from "./DonateForm";
 import ProjectChart from "./charts/ProjectChart";
 import ConfirmDialog from "./ConfirmDialog";
 import LoadingSkeleton from "./LoadingSkeleton";
+import ShareButtons from "./ShareButtons";
 import { t, type Locale } from "../../lib/i18n";
 
 interface Props {
@@ -67,6 +68,8 @@ interface Props {
   relatedProjectsLabel: string;
   watchLabel: string;
   unwatchLabel: string;
+  shareUrl?: string;
+  shareLabel: string;
 }
 
 function monthlyTarget(project: Project): number {
@@ -151,6 +154,8 @@ export default function ProjectDetail({
   relatedProjectsLabel,
   watchLabel,
   unwatchLabel,
+  shareUrl,
+  shareLabel,
 }: Props) {
   const [project, setProject] = useState<Project | null>(null);
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
@@ -464,6 +469,16 @@ export default function ProjectDetail({
       <p style={{ marginTop: "0.5rem", color: "var(--color-text-muted)" }}>
         {project.description || ""}
       </p>
+
+      {shareUrl && (
+        <ShareButtons
+          url={shareUrl}
+          title={project.name}
+          locale={locale}
+          shareLabel={shareLabel}
+          defaultMessage={project.share_message}
+        />
+      )}
 
       {project.owner_want_monthly != null && project.owner_want_monthly > 0 && (
         <p style={{ marginTop: "1rem", fontWeight: 600 }}>

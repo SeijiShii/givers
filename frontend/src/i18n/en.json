@@ -268,5 +268,16 @@
   "locale": {
     "ja": "日本語",
     "en": "English"
+  },
+  "share": {
+    "label": "Share",
+    "x": "Share on X",
+    "facebook": "Share on Facebook",
+    "line": "Share on LINE",
+    "messagePlaceholder": "Enter your share message",
+    "post": "Post",
+    "cancel": "Cancel",
+    "formLabel": "Share message",
+    "formHint": "Default message shown when sharing on social media"
   }
 }

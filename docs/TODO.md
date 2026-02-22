@@ -1,6 +1,6 @@
 # TODO — GIVErS プラットフォーム
 
-最終更新: 2026-02-22
+最終更新: 2026-02-23
 
 ---
 
@@ -56,11 +56,35 @@
 - [x] テスト: 12件（既存7 + donation 5新規）
 - 法的要件の確定に依存（弁護士確認後に項目追加の可能性あり）
 
+### 8. SNS シェア機能 — フロントエンド（OGP + シェアボタン UI）
+- [x] `BaseLayout.astro`: OGP メタタグ + Twitter Card メタタグ追加
+- [x] `frontend/src/lib/site.ts`: `SITE_URL` 定数
+- [x] `ShareButtons.tsx`: X / Facebook / LINE シェアボタン（インライン SVG）
+- [x] シェアボタン押下 → メッセージ編集ダイアログ表示
+- [x] localStorage によるメッセージ一時保存（フォールバック）
+- [x] `projects/[id].astro`: SSR でプロジェクト情報取得 → OGP タグ生成
+- [x] `index.astro` / `en/index.astro`: ランディングページにシェアボタン追加
+- [x] i18n キー追加（share.*）、CSS スタイル追加
+
 ---
 
-## 実装 TODO（仕様未確定 / 外部依存）
+## 実装 TODO
 
-### 8. メール送信
+### 9. SNS シェア機能 — バックエンド（シェアメッセージ永続化）
+
+プロジェクトオーナーが設定した「おすすめシェアメッセージ」を DB に保存し、
+シェアダイアログの初期値として全ユーザーに表示する。
+
+- [ ] **マイグレーション (020)**: `ALTER TABLE projects ADD COLUMN share_message TEXT DEFAULT ''`
+- [ ] **Project モデル**: `ShareMessage string` フィールド追加
+- [ ] **Create / Update API**: `share_message` を受け取り・保存（オーナーのみ更新可）
+- [ ] **Get / List API**: `share_message` を返す
+- [ ] **フロント — ProjectDetail**: DB の `share_message` をダイアログ初期値に使用
+  - 優先順位: localStorage 保存済みメッセージ > DB share_message > プロジェクト名
+- [ ] **フロント — プロジェクト編集フォーム**: シェアメッセージ入力欄を追加
+- [ ] **テスト**: Project CRUD テストに share_message の検証を追加
+
+### 10. メール送信
 - 問い合わせ通知、マジックリンク認証等
 - 初期はメールログインなし（追って決める）
 - プロバイダー未選定（SendGrid / SES / Resend 等）
@@ -80,3 +104,4 @@
 
 - [x] **Stripe Connect 接続タイプ** — Standard（無料プラン）に決定
 - [x] **セッション管理方式** — DB session テーブル管理に決定（強制ログアウト対応）
+- [x] **シェアメッセージ保存** — projects テーブルに `share_message` カラム追加（オーナーが設定、全ユーザーに初期値表示）

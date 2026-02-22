@@ -68,6 +68,11 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     project?.alerts ?? defaultAlerts,
   );
 
+  // シェアメッセージ
+  const [shareMessage, setShareMessage] = useState(
+    project?.share_message ?? "",
+  );
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +84,7 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
       const payload = {
         name,
         description,
+        share_message: shareMessage,
         deadline:
           deadlineType === "date" && deadlineValue ? deadlineValue : null,
         owner_want_monthly:
@@ -149,6 +155,27 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
           rows={4}
           style={{ width: "100%", padding: "0.5rem" }}
         />
+      </div>
+
+      {/* シェアメッセージ */}
+      <div style={{ marginBottom: "1rem" }}>
+        <label
+          htmlFor="shareMessage"
+          style={{ display: "block", marginBottom: "0.25rem" }}
+        >
+          {t(locale, "share.formLabel")}
+        </label>
+        <textarea
+          id="shareMessage"
+          value={shareMessage}
+          onChange={(e) => setShareMessage(e.target.value)}
+          rows={2}
+          placeholder={t(locale, "share.messagePlaceholder")}
+          style={{ width: "100%", padding: "0.5rem" }}
+        />
+        <small style={{ color: "var(--color-text-muted)" }}>
+          {t(locale, "share.formHint")}
+        </small>
       </div>
 
       {/* 期限 */}

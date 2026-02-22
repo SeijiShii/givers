@@ -317,6 +317,8 @@ export interface Project {
   stripe_connect_url?: string;
   /** 月額目標（cost_items の合計） */
   monthly_target?: number;
+  /** SNS シェア時のデフォルトメッセージ */
+  share_message?: string;
 }
 
 /** プロジェクトオーナーからのアップデート（モック/Phase5以降） */
@@ -704,6 +706,7 @@ export async function deleteProjectUpdate(
 export interface CreateProjectInput {
   name: string;
   description?: string;
+  share_message?: string;
   deadline?: string | null;
   status?: string;
   owner_want_monthly?: number | null;
@@ -725,6 +728,7 @@ export async function createProject(
 export interface UpdateProjectInput {
   name?: string;
   description?: string;
+  share_message?: string;
   overview?: string | null;
   deadline?: string | null;
   status?: string;

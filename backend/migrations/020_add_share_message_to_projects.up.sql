@@ -1,0 +1,1 @@
+ALTER TABLE projects ADD COLUMN share_message TEXT NOT NULL DEFAULT '';

@@ -268,5 +268,16 @@
   "locale": {
     "ja": "日本語",
     "en": "English"
+  },
+  "share": {
+    "label": "シェアする",
+    "x": "Xでシェア",
+    "facebook": "Facebookでシェア",
+    "line": "LINEでシェア",
+    "messagePlaceholder": "シェア時のメッセージを入力",
+    "post": "投稿する",
+    "cancel": "キャンセル",
+    "formLabel": "シェアメッセージ",
+    "formHint": "SNSシェア時に表示されるデフォルトメッセージです"
   }
 }
