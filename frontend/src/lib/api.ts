@@ -1,8 +1,9 @@
 const API_URL = import.meta.env.PUBLIC_API_URL || "http://localhost:8080";
 const MOCK_MODE = import.meta.env.PUBLIC_MOCK_MODE === "true";
 
-/** プラットフォームプロジェクト（GIVErS への寄付）の ID。モック時は mock-4 */
-export const PLATFORM_PROJECT_ID = "mock-4";
+/** プラットフォームプロジェクト（GIVErS への寄付）の ID */
+export const PLATFORM_PROJECT_ID =
+  import.meta.env.PUBLIC_PLATFORM_PROJECT_ID || "mock-4";
 
 export async function fetchApi<T>(
   path: string,
@@ -579,7 +580,7 @@ export async function unwatchProject(projectId: string): Promise<void> {
   await fetchApi(`/api/projects/${projectId}/watch`, { method: "DELETE" });
 }
 
-// --- Activity Feed (モック時のみ) ---
+// --- Activity Feed ---
 
 export type ActivityType =
   | "project_created"
@@ -601,10 +602,13 @@ export interface ActivityItem {
 export async function getActivityFeed(limit = 10): Promise<ActivityItem[]> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getActivityFeed(limit);
-  return [];
+  const data = await fetchApi<{ activities: ActivityItem[] }>(
+    `/api/activity?limit=${limit}`,
+  );
+  return data.activities;
 }
 
-// --- Project Chart (モック時のみ) ---
+// --- Project Chart ---
 
 export interface ChartDataPoint {
   month: string;
@@ -618,7 +622,10 @@ export async function getProjectChart(
 ): Promise<ChartDataPoint[]> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getProjectChart(projectId);
-  return [];
+  const data = await fetchApi<{ chart: ChartDataPoint[] }>(
+    `/api/projects/${projectId}/chart`,
+  );
+  return data.chart;
 }
 
 /** プロジェクトオーナーからのアップデート */

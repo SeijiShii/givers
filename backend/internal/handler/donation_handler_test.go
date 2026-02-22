@@ -21,11 +21,10 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockDonationService struct {
-	listByUserFunc   func(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
-	patchFunc        func(ctx context.Context, id, userID string, patch model.DonationPatch) error
-	deleteFunc       func(ctx context.Context, id, userID string) error
-	migrateFunc      func(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error)
-	listActivityFunc func(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error)
+	listByUserFunc func(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
+	patchFunc      func(ctx context.Context, id, userID string, patch model.DonationPatch) error
+	deleteFunc     func(ctx context.Context, id, userID string) error
+	migrateFunc    func(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error)
 }
 
 func (m *mockDonationService) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error) {
@@ -52,13 +51,6 @@ func (m *mockDonationService) MigrateToken(ctx context.Context, token, userID st
 	}
 	return nil, nil
 }
-func (m *mockDonationService) ListActivity(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
-	if m.listActivityFunc != nil {
-		return m.listActivityFunc(ctx, projectID, limit)
-	}
-	return nil, nil
-}
-
 // helper: auth request for regular user
 func userAuthRequest(method, url, body string) *http.Request {
 	var r *http.Request
@@ -409,90 +401,3 @@ func TestDonationHandler_MigrateToken_MissingCookie(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GET /api/projects/{id}/activity tests
-// ---------------------------------------------------------------------------
-
-func TestDonationHandler_Activity_Success(t *testing.T) {
-	now := time.Now()
-	items := []*model.ActivityItem{
-		{DonorName: "田中太郎", Amount: 1000, CreatedAt: now, Message: "応援してます"},
-		{DonorName: "匿名", Amount: 500, CreatedAt: now},
-	}
-	mock := &mockDonationService{
-		listActivityFunc: func(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
-			if projectID != "proj-1" {
-				t.Errorf("expected projectID=proj-1, got %q", projectID)
-			}
-			return items, nil
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj-1/activity", nil)
-	req.SetPathValue("id", "proj-1")
-	rec := httptest.NewRecorder()
-	h.Activity(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
-	}
-	var resp struct {
-		Activities []*model.ActivityItem `json:"activities"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if len(resp.Activities) != 2 {
-		t.Errorf("expected 2 activities, got %d", len(resp.Activities))
-	}
-	if resp.Activities[0].DonorName != "田中太郎" {
-		t.Errorf("expected donor_name=田中太郎, got %q", resp.Activities[0].DonorName)
-	}
-	if resp.Activities[1].DonorName != "匿名" {
-		t.Errorf("expected donor_name=匿名, got %q", resp.Activities[1].DonorName)
-	}
-}
-
-func TestDonationHandler_Activity_EmptyReturnsEmptyArray(t *testing.T) {
-	mock := &mockDonationService{
-		listActivityFunc: func(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
-			return nil, nil
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj-1/activity", nil)
-	req.SetPathValue("id", "proj-1")
-	rec := httptest.NewRecorder()
-	h.Activity(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	var resp struct {
-		Activities []*model.ActivityItem `json:"activities"`
-	}
-	_ = json.NewDecoder(rec.Body).Decode(&resp)
-	if resp.Activities == nil {
-		t.Error("expected non-nil activities array")
-	}
-}
-
-func TestDonationHandler_Activity_ServiceError(t *testing.T) {
-	mock := &mockDonationService{
-		listActivityFunc: func(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
-			return nil, errors.New("db error")
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/projects/proj-1/activity", nil)
-	req.SetPathValue("id", "proj-1")
-	rec := httptest.NewRecorder()
-	h.Activity(rec, req)
-
-	if rec.Code != http.StatusInternalServerError {
-		t.Errorf("expected 500, got %d", rec.Code)
-	}
-}

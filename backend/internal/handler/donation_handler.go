@@ -122,25 +122,6 @@ func (h *DonationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }
 
-// Activity handles GET /api/projects/{id}/activity (no auth required).
-func (h *DonationHandler) Activity(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	projectID := r.PathValue("id")
-
-	items, err := h.svc.ListActivity(r.Context(), projectID, 20)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "activity_failed"})
-		return
-	}
-	if items == nil {
-		items = []*model.ActivityItem{}
-	}
-
-	_ = json.NewEncoder(w).Encode(map[string]any{"activities": items})
-}
-
 // MigrateFromToken handles POST /api/me/migrate-from-token (auth required).
 // Reads donor_token from Cookie and migrates anonymous donations to the current user.
 func (h *DonationHandler) MigrateFromToken(w http.ResponseWriter, r *http.Request) {

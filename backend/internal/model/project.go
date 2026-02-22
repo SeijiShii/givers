@@ -7,6 +7,7 @@ type Project struct {
 	OwnerID          string     `json:"owner_id"`
 	Name             string     `json:"name"`
 	Description      string     `json:"description"`
+	Overview         string     `json:"overview,omitempty"`
 	Deadline         *time.Time `json:"deadline,omitempty"`
 	Status           string     `json:"status"`
 	OwnerWantMonthly *int       `json:"owner_want_monthly,omitempty"` // オーナーの「〇〇円欲しい」表明（月額）

@@ -119,6 +119,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name             string                       `json:"name"`
 		Description      string                       `json:"description"`
+		Overview         string                       `json:"overview"`
 		Deadline         *string                      `json:"deadline"`
 		Status           string                       `json:"status"`
 		OwnerWantMonthly *int                         `json:"owner_want_monthly"`
@@ -141,6 +142,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		OwnerID:          userID,
 		Name:             req.Name,
 		Description:      req.Description,
+		Overview:         req.Overview,
 		Status:           req.Status,
 		OwnerWantMonthly: req.OwnerWantMonthly,
 		Alerts:           req.Alerts,
@@ -225,6 +227,11 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		var v string
 		_ = json.Unmarshal(b, &v)
 		existing.Description = v
+	}
+	if b, ok := raw["overview"]; ok {
+		var v string
+		_ = json.Unmarshal(b, &v)
+		existing.Overview = v
 	}
 	if b, ok := raw["status"]; ok {
 		var v string

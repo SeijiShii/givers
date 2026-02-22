@@ -48,6 +48,7 @@ func main() {
 	projectUpdateRepo := repository.NewPgProjectUpdateRepository(pool)
 	platformHealthRepo := repository.NewPgPlatformHealthRepository(pool)
 	donationRepo := repository.NewPgDonationRepository(pool)
+	activityRepo := repository.NewPgActivityRepository(pool)
 	costPresetRepo := repository.NewPgCostPresetRepository(pool)
 	authService := service.NewAuthService(userRepo)
 	projectService := service.NewProjectService(projectRepo)
@@ -64,6 +65,7 @@ func main() {
 	)
 	stripeService := service.NewStripeService(stripeClient, projectRepo, donationRepo, frontendURL)
 	donationService := service.NewDonationService(donationRepo, stripeClient)
+	activityService := service.NewActivityService(activityRepo)
 	costPresetService := service.NewCostPresetService(costPresetRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
@@ -106,6 +108,8 @@ func main() {
 	hostHandler := handler.NewHostHandler(platformHealthService)
 	adminUserHandler := handler.NewAdminUserHandler(adminUserService, projectService)
 	donationHandler := handler.NewDonationHandler(donationService)
+	activityHandler := handler.NewActivityHandler(activityService)
+	chartHandler := handler.NewChartHandler(projectService, donationRepo)
 	costPresetHandler := handler.NewCostPresetHandler(costPresetService)
 
 	mux := http.NewServeMux()
@@ -165,8 +169,10 @@ func main() {
 	// Platform health (no auth required)
 	mux.HandleFunc("GET /api/host", hostHandler.Get)
 
-	// Activity feed (no auth required)
-	mux.HandleFunc("GET /api/projects/{id}/activity", donationHandler.Activity)
+	// Activity feed & chart (no auth required)
+	mux.HandleFunc("GET /api/activity", activityHandler.GlobalFeed)
+	mux.HandleFunc("GET /api/projects/{id}/activity", activityHandler.ProjectFeed)
+	mux.HandleFunc("GET /api/projects/{id}/chart", chartHandler.Chart)
 
 	// Donation routes (auth required)
 	mux.Handle("GET /api/me/donations", wrapAuth(http.HandlerFunc(donationHandler.List)))

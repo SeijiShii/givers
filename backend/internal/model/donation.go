@@ -25,10 +25,29 @@ type DonationPatch struct {
 	Paused *bool
 }
 
-// ActivityItem represents a single entry in a project's activity feed.
+// MonthlySum represents the total donation amount for a single month.
+type MonthlySum struct {
+	Month  string `json:"month"` // "2026-01"
+	Amount int    `json:"amount"`
+}
+
+// ChartDataPoint represents one data point for the project chart.
+type ChartDataPoint struct {
+	Month        string `json:"month"`
+	MinAmount    int    `json:"minAmount"`
+	TargetAmount int    `json:"targetAmount"`
+	ActualAmount int    `json:"actualAmount"`
+}
+
+// ActivityItem represents a single entry in the activity feed.
 type ActivityItem struct {
-	DonorName string    `json:"donor_name"`
-	Amount    int       `json:"amount"`
-	CreatedAt time.Time `json:"created_at"`
-	Message   string    `json:"message,omitempty"`
+	ID          string    `json:"id"`
+	Type        string    `json:"type"` // "donation", "project_created", "project_updated", "milestone"
+	ProjectID   string    `json:"project_id"`
+	ProjectName string    `json:"project_name"`
+	ActorName   *string   `json:"actor_name"`
+	Amount      *int      `json:"amount,omitempty"`
+	Rate        *int      `json:"rate,omitempty"`
+	Message     string    `json:"message,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 }

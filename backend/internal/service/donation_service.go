@@ -31,7 +31,6 @@ type DonationService interface {
 	Patch(ctx context.Context, id, userID string, patch model.DonationPatch) error
 	Delete(ctx context.Context, id, userID string) error
 	MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error)
-	ListActivity(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error)
 }
 
 type donationService struct {
@@ -90,10 +89,6 @@ func (s *donationService) Delete(ctx context.Context, id, userID string) error {
 	}
 
 	return s.repo.Delete(ctx, id)
-}
-
-func (s *donationService) ListActivity(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
-	return s.repo.ListActivityByProject(ctx, projectID, limit)
 }
 
 func (s *donationService) MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error) {

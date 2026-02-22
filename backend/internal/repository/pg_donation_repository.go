@@ -151,29 +151,29 @@ func (r *pgDonationRepository) MigrateToken(ctx context.Context, token string, u
 	return int(tag.RowsAffected()), nil
 }
 
-func (r *pgDonationRepository) ListActivityByProject(ctx context.Context, projectID string, limit int) ([]*model.ActivityItem, error) {
+func (r *pgDonationRepository) MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT
-			CASE WHEN d.donor_type = 'user' THEN COALESCE(u.name, '匿名') ELSE '匿名' END,
-			d.amount, d.created_at, COALESCE(d.message, '')
-		 FROM donations d
-		 LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
-		 WHERE d.project_id = $1
-		 ORDER BY d.created_at DESC
-		 LIMIT $2`,
-		projectID, limit)
+		`SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') AS month,
+		        SUM(amount)::int AS amount
+		 FROM donations
+		 WHERE project_id = $1
+		   AND created_at >= DATE_TRUNC('month', NOW()) - INTERVAL '11 months'
+		 GROUP BY DATE_TRUNC('month', created_at)
+		 ORDER BY month`,
+		projectID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var items []*model.ActivityItem
+	var sums []*model.MonthlySum
 	for rows.Next() {
-		a := &model.ActivityItem{}
-		if err := rows.Scan(&a.DonorName, &a.Amount, &a.CreatedAt, &a.Message); err != nil {
+		s := &model.MonthlySum{}
+		if err := rows.Scan(&s.Month, &s.Amount); err != nil {
 			return nil, err
 		}
-		items = append(items, a)
+		sums = append(sums, s)
 	}
-	return items, rows.Err()
+	return sums, rows.Err()
 }
+
