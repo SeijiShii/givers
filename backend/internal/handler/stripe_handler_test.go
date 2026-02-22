@@ -53,7 +53,7 @@ func (m *mockStripeService) ProcessWebhook(ctx context.Context, payload []byte, 
 // ---------------------------------------------------------------------------
 
 func TestStripeHandler_ConnectCallback_MissingCode(t *testing.T) {
-	h := NewStripeHandler(&mockStripeService{}, "https://example.com")
+	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/stripe/connect/callback?state=proj-1", nil)
 	rec := httptest.NewRecorder()
 	h.ConnectCallback(rec, req)
@@ -63,7 +63,7 @@ func TestStripeHandler_ConnectCallback_MissingCode(t *testing.T) {
 }
 
 func TestStripeHandler_ConnectCallback_MissingState(t *testing.T) {
-	h := NewStripeHandler(&mockStripeService{}, "https://example.com")
+	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/stripe/connect/callback?code=auth_123", nil)
 	rec := httptest.NewRecorder()
 	h.ConnectCallback(rec, req)
@@ -81,7 +81,7 @@ func TestStripeHandler_ConnectCallback_Success(t *testing.T) {
 			return nil
 		},
 	}
-	h := NewStripeHandler(mock, "https://example.com")
+	h := NewStripeHandler(mock, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/stripe/connect/callback?code=auth_123&state=proj-1", nil)
 	rec := httptest.NewRecorder()
 	h.ConnectCallback(rec, req)
@@ -104,7 +104,7 @@ func TestStripeHandler_ConnectCallback_ServiceError(t *testing.T) {
 			return errors.New("stripe error")
 		},
 	}
-	h := NewStripeHandler(mock, "https://example.com")
+	h := NewStripeHandler(mock, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/stripe/connect/callback?code=bad&state=proj-1", nil)
 	rec := httptest.NewRecorder()
 	h.ConnectCallback(rec, req)
@@ -130,7 +130,7 @@ func TestStripeHandler_Checkout_Success(t *testing.T) {
 			return "https://checkout.stripe.com/test-session", nil
 		},
 	}
-	h := NewStripeHandler(mock, "https://example.com")
+	h := NewStripeHandler(mock, "https://example.com", nil)
 
 	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":1000,"currency":"jpy"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
@@ -145,8 +145,34 @@ func TestStripeHandler_Checkout_Success(t *testing.T) {
 	}
 }
 
+func TestStripeHandler_Checkout_DonorToken_PassedThrough(t *testing.T) {
+	var capturedReq service.CheckoutRequest
+	mock := &mockStripeService{
+		createCheckoutFunc: func(_ context.Context, req service.CheckoutRequest) (string, error) {
+			capturedReq = req
+			return "https://checkout.stripe.com/test", nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", nil) // no session secret
+
+	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":500,"currency":"jpy","donor_token":"tok_abc"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
+	rec := httptest.NewRecorder()
+	h.Checkout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if capturedReq.DonorType != "token" {
+		t.Errorf("expected DonorType=token, got %q", capturedReq.DonorType)
+	}
+	if capturedReq.DonorID != "tok_abc" {
+		t.Errorf("expected DonorID=tok_abc, got %q", capturedReq.DonorID)
+	}
+}
+
 func TestStripeHandler_Checkout_InvalidJSON(t *testing.T) {
-	h := NewStripeHandler(&mockStripeService{}, "https://example.com")
+	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout",
 		bytes.NewBufferString(`{bad}`))
 	rec := httptest.NewRecorder()
@@ -157,7 +183,7 @@ func TestStripeHandler_Checkout_InvalidJSON(t *testing.T) {
 }
 
 func TestStripeHandler_Checkout_ProjectRequired(t *testing.T) {
-	h := NewStripeHandler(&mockStripeService{}, "https://example.com")
+	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout",
 		bytes.NewBufferString(`{"amount":1000}`))
 	rec := httptest.NewRecorder()
@@ -173,7 +199,7 @@ func TestStripeHandler_Checkout_ServiceError(t *testing.T) {
 			return "", errors.New("project stripe account not connected")
 		},
 	}
-	h := NewStripeHandler(mock, "https://example.com")
+	h := NewStripeHandler(mock, "https://example.com", nil)
 	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":1000,"currency":"jpy"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
 	rec := httptest.NewRecorder()
@@ -188,7 +214,7 @@ func TestStripeHandler_Checkout_ServiceError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestStripeHandler_Webhook_MissingSignature(t *testing.T) {
-	h := NewStripeHandler(&mockStripeService{}, "https://example.com")
+	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/webhooks/stripe",
 		bytes.NewBufferString(`{"type":"payment_intent.succeeded"}`))
 	// No Stripe-Signature header
@@ -205,7 +231,7 @@ func TestStripeHandler_Webhook_InvalidSignature(t *testing.T) {
 			return errors.New("signature verification failed")
 		},
 	}
-	h := NewStripeHandler(mock, "https://example.com")
+	h := NewStripeHandler(mock, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/webhooks/stripe",
 		bytes.NewBufferString(`{"type":"x"}`))
 	req.Header.Set("Stripe-Signature", "t=123,v1=invalid")
@@ -224,7 +250,7 @@ func TestStripeHandler_Webhook_Success(t *testing.T) {
 			return nil
 		},
 	}
-	h := NewStripeHandler(mock, "https://example.com")
+	h := NewStripeHandler(mock, "https://example.com", nil)
 
 	body := `{"type":"payment_intent.succeeded","id":"pi_test"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/webhooks/stripe",

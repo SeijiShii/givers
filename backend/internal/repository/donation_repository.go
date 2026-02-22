@@ -8,6 +8,8 @@ import (
 
 // DonationRepository handles persistence for donations.
 type DonationRepository interface {
+	// Create inserts a new donation record.
+	Create(ctx context.Context, d *model.Donation) error
 	// ListByUser returns donations where donor_type='user' and donor_id=userID.
 	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
 	// GetByID returns a single donation by ID.

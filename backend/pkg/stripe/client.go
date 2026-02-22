@@ -28,12 +28,30 @@ type CheckoutParams struct {
 	Locale          string // "ja" | "en" | "auto"
 	SuccessURL      string
 	CancelURL       string
+	DonorType       string // "user" or "token" — metadata として保存
+	DonorID         string // user_id or donor_token
+}
+
+// WebhookEventObject は payment_intent や subscription の data.object
+type WebhookEventObject struct {
+	ID       string            `json:"id"`
+	Amount   int               `json:"amount"`
+	Currency string            `json:"currency"`
+	Metadata map[string]string `json:"metadata"`
+	// subscription の場合のみ使用
+	Plan *struct {
+		Amount   int    `json:"amount"`
+		Currency string `json:"currency"`
+	} `json:"plan"`
 }
 
 // WebhookEvent は Stripe Webhook のイベント
 type WebhookEvent struct {
 	Type string `json:"type"`
 	ID   string `json:"id"`
+	Data struct {
+		Object WebhookEventObject `json:"object"`
+	} `json:"data"`
 }
 
 // Client は Stripe API クライアントのインターフェース
@@ -149,6 +167,13 @@ func (c *RealClient) CreateCheckoutSession(ctx context.Context, params CheckoutP
 		data.Set("metadata[message]", params.Message)
 	}
 	data.Set("metadata[project_id]", params.ProjectID)
+	if params.DonorType != "" {
+		data.Set("metadata[donor_type]", params.DonorType)
+		data.Set("metadata[donor_id]", params.DonorID)
+	}
+	if params.IsRecurring {
+		data.Set("metadata[is_recurring]", "true")
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
 		"https://api.stripe.com/v1/checkout/sessions",

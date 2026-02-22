@@ -46,6 +46,9 @@ func (m *mockDonationRepository) Delete(ctx context.Context, id string) error {
 	}
 	return nil
 }
+func (m *mockDonationRepository) Create(ctx context.Context, d *model.Donation) error {
+	return nil
+}
 func (m *mockDonationRepository) MigrateToken(ctx context.Context, token string, userID string) (int, error) {
 	if m.migrateFunc != nil {
 		return m.migrateFunc(ctx, token, userID)

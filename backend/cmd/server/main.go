@@ -65,7 +65,7 @@ func main() {
 		os.Getenv("STRIPE_CONNECT_CLIENT_ID"),
 		os.Getenv("STRIPE_WEBHOOK_SECRET"),
 	)
-	stripeService := service.NewStripeService(stripeClient, projectRepo, frontendURL)
+	stripeService := service.NewStripeService(stripeClient, projectRepo, donationRepo, frontendURL)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	sessionSecretBytes := auth.SessionSecretBytes(sessionSecret)
@@ -97,7 +97,7 @@ func main() {
 	if os.Getenv("STRIPE_CONNECT_CLIENT_ID") != "" {
 		connectURLFunc = stripeService.GenerateConnectURL
 	}
-	stripeHandler := handler.NewStripeHandler(stripeService, frontendURL)
+	stripeHandler := handler.NewStripeHandler(stripeService, frontendURL, sessionSecretBytes)
 	projectHandler := handler.NewProjectHandler(projectService, connectURLFunc)
 	contactHandler := handler.NewContactHandler(contactService)
 	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/givers/backend/internal/model"
 	pkgstripe "github.com/givers/backend/pkg/stripe"
 )
 
@@ -239,18 +240,90 @@ func TestStripeService_ProcessWebhook_InvalidSignature(t *testing.T) {
 	}
 }
 
-func TestStripeService_ProcessWebhook_ValidSignature(t *testing.T) {
+func TestStripeService_ProcessWebhook_ValidSignature_UnknownEvent(t *testing.T) {
 	ctx := context.Background()
 	stripeClient := &mockStripeClient{
 		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
 		parseWebhookEventFunc: func(_ []byte) (pkgstripe.WebhookEvent, error) {
-			return pkgstripe.WebhookEvent{Type: "payment_intent.succeeded", ID: "pi_test"}, nil
+			return pkgstripe.WebhookEvent{Type: "unknown.event"}, nil
 		},
 	}
-	svc := newTestStripeServiceWithRepo(stripeClient, &mockStripeProjectRepo{})
+	svc := newTestStripeServiceFull(stripeClient, &mockStripeProjectRepo{}, &mockStripeDonationRepo{})
 
-	if err := svc.ProcessWebhook(ctx, []byte(`{"type":"payment_intent.succeeded"}`), "valid-sig"); err != nil {
+	if err := svc.ProcessWebhook(ctx, []byte(`{"type":"unknown.event"}`), "valid-sig"); err != nil {
+		t.Fatalf("unexpected error for unknown event: %v", err)
+	}
+}
+
+func TestStripeService_ProcessWebhook_PaymentIntentSucceeded_CreatesDonation(t *testing.T) {
+	ctx := context.Background()
+	var createdDonation *model.Donation
+
+	obj := pkgstripe.WebhookEventObject{
+		ID:       "pi_test",
+		Amount:   1500,
+		Currency: "jpy",
+		Metadata: map[string]string{
+			"project_id": "proj-1",
+			"donor_type": "user",
+			"donor_id":   "user-1",
+			"message":    "頑張れ",
+		},
+	}
+	event := pkgstripe.WebhookEvent{Type: "payment_intent.succeeded", ID: "evt_test"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	donationRepo := &mockStripeDonationRepo{
+		createFunc: func(_ context.Context, d *model.Donation) error {
+			createdDonation = d
+			return nil
+		},
+	}
+	svc := newTestStripeServiceFull(stripeClient, &mockStripeProjectRepo{}, donationRepo)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if createdDonation == nil {
+		t.Fatal("expected donation to be created")
+	}
+	if createdDonation.ProjectID != "proj-1" {
+		t.Errorf("expected ProjectID=proj-1, got %q", createdDonation.ProjectID)
+	}
+	if createdDonation.Amount != 1500 {
+		t.Errorf("expected Amount=1500, got %d", createdDonation.Amount)
+	}
+	if createdDonation.DonorType != "user" {
+		t.Errorf("expected DonorType=user, got %q", createdDonation.DonorType)
+	}
+	if createdDonation.StripePaymentID != "pi_test" {
+		t.Errorf("expected StripePaymentID=pi_test, got %q", createdDonation.StripePaymentID)
+	}
+}
+
+func TestStripeService_ProcessWebhook_PaymentIntentSucceeded_MissingProjectID(t *testing.T) {
+	ctx := context.Background()
+	obj := pkgstripe.WebhookEventObject{
+		ID:       "pi_test",
+		Amount:   1000,
+		Currency: "jpy",
+		Metadata: map[string]string{}, // no project_id
+	}
+	event := pkgstripe.WebhookEvent{Type: "payment_intent.succeeded"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	svc := newTestStripeServiceFull(stripeClient, &mockStripeProjectRepo{}, &mockStripeDonationRepo{})
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err == nil {
+		t.Error("expected error when project_id missing from metadata")
 	}
 }
 
@@ -276,11 +349,25 @@ func (m *mockStripeProjectRepo) UpdateStripeConnect(ctx context.Context, project
 	return nil
 }
 
+type mockStripeDonationRepo struct {
+	createFunc func(ctx context.Context, d *model.Donation) error
+}
+
+func (m *mockStripeDonationRepo) Create(ctx context.Context, d *model.Donation) error {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, d)
+	}
+	return nil
+}
 
 func newTestStripeService(client pkgstripe.Client) StripeService {
-	return NewStripeService(client, &mockStripeProjectRepo{}, "https://example.com")
+	return NewStripeService(client, &mockStripeProjectRepo{}, &mockStripeDonationRepo{}, "https://example.com")
 }
 
 func newTestStripeServiceWithRepo(client pkgstripe.Client, repo StripeProjectRepo) StripeService {
-	return NewStripeService(client, repo, "https://example.com")
+	return NewStripeService(client, repo, &mockStripeDonationRepo{}, "https://example.com")
+}
+
+func newTestStripeServiceFull(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo) StripeService {
+	return NewStripeService(client, projectRepo, donationRepo, "https://example.com")
 }

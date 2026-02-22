@@ -7,17 +7,19 @@ import (
 	"strings"
 
 	"github.com/givers/backend/internal/service"
+	"github.com/givers/backend/pkg/auth"
 )
 
 // StripeHandler は Stripe 関連の HTTP ハンドラ
 type StripeHandler struct {
-	svc         service.StripeService
-	frontendURL string
+	svc           service.StripeService
+	frontendURL   string
+	sessionSecret []byte // optional: non-nil enables donor identification via session cookie
 }
 
 // NewStripeHandler は StripeHandler を生成する
-func NewStripeHandler(svc service.StripeService, frontendURL string) *StripeHandler {
-	return &StripeHandler{svc: svc, frontendURL: frontendURL}
+func NewStripeHandler(svc service.StripeService, frontendURL string, sessionSecret []byte) *StripeHandler {
+	return &StripeHandler{svc: svc, frontendURL: frontendURL, sessionSecret: sessionSecret}
 }
 
 // ConnectCallback handles GET /api/stripe/connect/callback
@@ -58,6 +60,7 @@ func (h *StripeHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		IsRecurring bool   `json:"is_recurring"`
 		Message     string `json:"message"`
 		Locale      string `json:"locale"`
+		DonorToken  string `json:"donor_token"` // anonymous donor token (optional)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -70,6 +73,9 @@ func (h *StripeHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Donor identification: prefer session cookie → fall back to donor_token in body
+	donorType, donorID := h.resolveDonor(r, req.DonorToken)
+
 	checkoutURL, err := h.svc.CreateCheckout(r.Context(), service.CheckoutRequest{
 		ProjectID:   req.ProjectID,
 		Amount:      req.Amount,
@@ -78,6 +84,8 @@ func (h *StripeHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 		Message:     req.Message,
 		Locale:      req.Locale,
 		FrontendURL: h.frontendURL,
+		DonorType:   donorType,
+		DonorID:     donorID,
 	})
 	if err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -119,4 +127,17 @@ func (h *StripeHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]bool{"received": true})
+}
+
+// resolveDonor はセッションクッキーからユーザーIDを取得し、なければ donor_token を使う。
+// セッション検証機能が無効（sessionSecret が nil）の場合は常に token タイプを返す。
+func (h *StripeHandler) resolveDonor(r *http.Request, donorToken string) (donorType, donorID string) {
+	if len(h.sessionSecret) > 0 {
+		if cookie, err := r.Cookie(auth.SessionCookieName()); err == nil {
+			if userID, err := auth.VerifySessionToken(cookie.Value, h.sessionSecret); err == nil {
+				return "user", userID
+			}
+		}
+	}
+	return "token", donorToken
 }

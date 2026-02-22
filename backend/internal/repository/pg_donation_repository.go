@@ -30,6 +30,18 @@ func scanDonation(scan func(...any) error) (*model.Donation, error) {
 	)
 }
 
+func (r *pgDonationRepository) Create(ctx context.Context, d *model.Donation) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO donations
+		 (project_id, donor_type, donor_id, amount, currency, message, is_recurring,
+		  stripe_payment_id, stripe_subscription_id)
+		 VALUES ($1, $2, $3, $4, $5, NULLIF($6,''), $7, NULLIF($8,''), NULLIF($9,''))`,
+		d.ProjectID, d.DonorType, d.DonorID, d.Amount, d.Currency,
+		d.Message, d.IsRecurring, d.StripePaymentID, d.StripeSubscriptionID,
+	)
+	return err
+}
+
 func (r *pgDonationRepository) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT `+donationSelectCols+`

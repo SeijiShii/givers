@@ -98,6 +98,33 @@ func TestRealClient_ParseWebhookEvent(t *testing.T) {
 	}
 }
 
+func TestRealClient_ParseWebhookEvent_PaymentIntentSucceeded(t *testing.T) {
+	c := NewClient("", "", "")
+	payload := []byte(`{
+		"type":"payment_intent.succeeded",
+		"id":"evt_test",
+		"data":{"object":{
+			"id":"pi_test",
+			"amount":1000,
+			"currency":"jpy",
+			"metadata":{"project_id":"proj-1","donor_type":"user","donor_id":"user-1","message":"hello"}
+		}}
+	}`)
+	event, err := c.ParseWebhookEvent(payload)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if event.Data.Object.Amount != 1000 {
+		t.Errorf("expected amount=1000, got %d", event.Data.Object.Amount)
+	}
+	if event.Data.Object.Metadata["project_id"] != "proj-1" {
+		t.Errorf("expected project_id=proj-1, got %q", event.Data.Object.Metadata["project_id"])
+	}
+	if event.Data.Object.Metadata["donor_type"] != "user" {
+		t.Errorf("expected donor_type=user, got %q", event.Data.Object.Metadata["donor_type"])
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
 }
