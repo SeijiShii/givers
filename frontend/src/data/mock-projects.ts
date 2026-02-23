@@ -1,4 +1,4 @@
-import type { Project } from '../lib/api';
+import type { Project } from "../lib/api";
 
 const now = new Date();
 const day = (d: number) => {
@@ -16,11 +16,13 @@ export interface MockProject extends Project {
 
 export const MOCK_PROJECTS: MockProject[] = [
   {
-    id: 'mock-1',
-    owner_id: 'user-1',
-    name: 'オープンソースの軽量エディタ',
-    description: '誰でも使える、シンプルで軽量なテキストエディタ。プラグインで拡張可能。',
-    _mockImageUrl: 'https://placehold.co/800x400/4a7c59/ffffff?text=Lightweight+Editor',
+    id: "mock-1",
+    owner_id: "user-1",
+    name: "オープンソースの軽量エディタ",
+    description:
+      "誰でも使える、シンプルで軽量なテキストエディタ。プラグインで拡張可能。",
+    _mockImageUrl:
+      "https://placehold.co/800x400/4a7c59/ffffff?text=Lightweight+Editor",
     _mockOverview: `## このプロジェクトについて
 
 誰でも使える、シンプルで軽量なテキストエディタを開発しています。Vim や Emacs のような学習コストはなく、かつメモ帳のような機能不足でもない。ちょうど良いバランスのエディタを目指しています。
@@ -44,66 +46,121 @@ export const MOCK_PROJECTS: MockProject[] = [
 - モバイル版の検討
 
 ご支援いただいた方には、リリースノートや開発の近況を定期的にお届けします。よろしくお願いいたします。`,
-    status: 'active',
+    status: "active",
     owner_want_monthly: 50000,
     created_at: day(2),
     updated_at: day(1),
-    costs: {
-      server_cost_monthly: 3000,
-      dev_cost_per_day: 15000,
-      dev_days_per_month: 2,
-      other_cost_monthly: 2000,
-    },
+    cost_items: [
+      {
+        label: "サーバー費用",
+        unit_type: "monthly",
+        amount_monthly: 3000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+      {
+        label: "開発費",
+        unit_type: "daily_x_days",
+        amount_monthly: 0,
+        rate_per_day: 15000,
+        days_per_month: 2,
+      },
+      {
+        label: "その他",
+        unit_type: "monthly",
+        amount_monthly: 2000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+    ],
+    monthly_target: 35000,
     alerts: { warning_threshold: 50, critical_threshold: 20 },
     _mockCurrentMonthly: 42000, // 84%
   },
   {
-    id: 'mock-2',
-    owner_id: 'user-2',
-    name: '無料の日本語学習アプリ',
-    description: '日本語を学びたい人のための、完全無料の学習アプリ。広告なし。',
-    _mockImageUrl: 'https://placehold.co/800x400/6b9b6e/ffffff?text=Japanese+App',
+    id: "mock-2",
+    owner_id: "user-2",
+    name: "無料の日本語学習アプリ",
+    description: "日本語を学びたい人のための、完全無料の学習アプリ。広告なし。",
+    _mockImageUrl:
+      "https://placehold.co/800x400/6b9b6e/ffffff?text=Japanese+App",
     _mockOverview: `日本語を学びたい人のための、完全無料の学習アプリです。広告なし、課金なし。純粋に学びに集中できる環境を提供します。
 
 JLPT（日本語能力試験）N5〜N1 に対応したコンテンツを順次追加しています。単語、文法、聴解、読解の各セクションがあり、スキマ時間で学習できます。`,
-    status: 'active',
+    status: "active",
     owner_want_monthly: 80000,
     created_at: day(30),
     updated_at: day(28),
-    costs: {
-      server_cost_monthly: 5000,
-      dev_cost_per_day: 12000,
-      dev_days_per_month: 4,
-      other_cost_monthly: 3000,
-    },
+    cost_items: [
+      {
+        label: "サーバー費用",
+        unit_type: "monthly",
+        amount_monthly: 5000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+      {
+        label: "開発費",
+        unit_type: "daily_x_days",
+        amount_monthly: 0,
+        rate_per_day: 12000,
+        days_per_month: 4,
+      },
+      {
+        label: "その他",
+        unit_type: "monthly",
+        amount_monthly: 3000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+    ],
+    monthly_target: 56000,
     alerts: { warning_threshold: 50, critical_threshold: 20 },
     _mockCurrentMonthly: 95000, // 119% 超達成
   },
   {
-    id: 'mock-3',
-    owner_id: 'user-3',
-    name: 'アクセシビリティチェックツール',
-    description: 'Webサイトのアクセシビリティを無料でチェック。WCAG 2.1 対応。',
-    _mockImageUrl: 'https://placehold.co/800x400/6b9b6e/ffffff?text=A11y+Tool',
-    status: 'frozen',
+    id: "mock-3",
+    owner_id: "user-3",
+    name: "アクセシビリティチェックツール",
+    description: "Webサイトのアクセシビリティを無料でチェック。WCAG 2.1 対応。",
+    _mockImageUrl: "https://placehold.co/800x400/6b9b6e/ffffff?text=A11y+Tool",
+    status: "frozen",
     owner_want_monthly: 30000,
     created_at: day(5),
     updated_at: day(4),
-    costs: {
-      server_cost_monthly: 2000,
-      dev_cost_per_day: 10000,
-      dev_days_per_month: 2,
-      other_cost_monthly: 1000,
-    },
+    cost_items: [
+      {
+        label: "サーバー費用",
+        unit_type: "monthly",
+        amount_monthly: 2000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+      {
+        label: "開発費",
+        unit_type: "daily_x_days",
+        amount_monthly: 0,
+        rate_per_day: 10000,
+        days_per_month: 2,
+      },
+      {
+        label: "その他",
+        unit_type: "monthly",
+        amount_monthly: 1000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+    ],
+    monthly_target: 23000,
     alerts: { warning_threshold: 50, critical_threshold: 20 },
     _mockCurrentMonthly: 8000, // 27% 危険
   },
   {
-    id: 'mock-4',
-    owner_id: 'user-1',
-    name: 'GIVErS プラットフォーム',
-    description: 'このプラットフォーム自体。GIVEの精神で運営。手数料ゼロ。',
-    _mockImageUrl: 'https://placehold.co/800x400/4a7c59/ffffff?text=GIVErS',
+    id: "mock-4",
+    owner_id: "user-1",
+    name: "GIVErS プラットフォーム",
+    description: "このプラットフォーム自体。GIVEの精神で運営。手数料ゼロ。",
+    _mockImageUrl: "https://placehold.co/800x400/4a7c59/ffffff?text=GIVErS",
     _mockOverview: `## GIVErS とは
 
 GIVErS は「GIVE の精神」に基づく寄付プラットフォームです。作り手の GIVE（見返りを求めず良いものを作る）と、受け手の GIVE（使って良かった人が自発的に応援する）をつなぎます。
@@ -125,54 +182,110 @@ GIVErS 自体も GIVE で運営されます。まわらなくなったら、世�
 - その他運営経費
 
 ご支援はプラットフォームの継続と改善に充てさせていただきます。`,
-    status: 'active',
+    status: "active",
     owner_want_monthly: 100000,
     created_at: day(90),
     updated_at: day(1),
-    costs: {
-      server_cost_monthly: 10000,
-      dev_cost_per_day: 15000,
-      dev_days_per_month: 4,
-      other_cost_monthly: 5000,
-    },
+    cost_items: [
+      {
+        label: "サーバー・インフラ",
+        unit_type: "monthly",
+        amount_monthly: 10000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+      {
+        label: "開発・保守",
+        unit_type: "daily_x_days",
+        amount_monthly: 0,
+        rate_per_day: 15000,
+        days_per_month: 4,
+      },
+      {
+        label: "その他運営経費",
+        unit_type: "monthly",
+        amount_monthly: 5000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+    ],
+    monthly_target: 75000,
     alerts: { warning_threshold: 50, critical_threshold: 20 },
     _mockCurrentMonthly: 52000, // 52% 注意
   },
   {
-    id: 'mock-5',
-    owner_id: 'user-4',
-    name: '子ども向けプログラミング教材',
-    description: '小学校で使える、無料のプログラミング教材。Scratch ベース。',
-    _mockImageUrl: 'https://placehold.co/800x400/6b9b6e/ffffff?text=Kids+Code',
-    status: 'active',
+    id: "mock-5",
+    owner_id: "user-4",
+    name: "子ども向けプログラミング教材",
+    description: "小学校で使える、無料のプログラミング教材。Scratch ベース。",
+    _mockImageUrl: "https://placehold.co/800x400/6b9b6e/ffffff?text=Kids+Code",
+    status: "active",
     owner_want_monthly: 40000,
     created_at: day(1),
     updated_at: day(0),
-    costs: {
-      server_cost_monthly: 2000,
-      dev_cost_per_day: 8000,
-      dev_days_per_month: 3,
-      other_cost_monthly: 2000,
-    },
+    cost_items: [
+      {
+        label: "サーバー費用",
+        unit_type: "monthly",
+        amount_monthly: 2000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+      {
+        label: "開発費",
+        unit_type: "daily_x_days",
+        amount_monthly: 0,
+        rate_per_day: 8000,
+        days_per_month: 3,
+      },
+      {
+        label: "その他",
+        unit_type: "monthly",
+        amount_monthly: 2000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+    ],
+    monthly_target: 28000,
     alerts: { warning_threshold: 50, critical_threshold: 20 },
     _mockCurrentMonthly: 20000, // 50% 境界
   },
   {
-    id: 'mock-6',
-    owner_id: 'user-2',
-    name: '翻訳ボランティア支援サイト',
-    description: 'オープンソースプロジェクトの翻訳を支援。翻訳者とプロジェクトをつなぐ。',
-    _mockImageUrl: 'https://placehold.co/800x400/6b9b6e/ffffff?text=Translation',
-    status: 'active',
+    id: "mock-6",
+    owner_id: "user-2",
+    name: "翻訳ボランティア支援サイト",
+    description:
+      "オープンソースプロジェクトの翻訳を支援。翻訳者とプロジェクトをつなぐ。",
+    _mockImageUrl:
+      "https://placehold.co/800x400/6b9b6e/ffffff?text=Translation",
+    status: "active",
     owner_want_monthly: 25000,
     created_at: day(14),
     updated_at: day(10),
-    costs: {
-      server_cost_monthly: 3000,
-      dev_cost_per_day: 10000,
-      dev_days_per_month: 1,
-      other_cost_monthly: 2000,
-    },
+    cost_items: [
+      {
+        label: "サーバー費用",
+        unit_type: "monthly",
+        amount_monthly: 3000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+      {
+        label: "開発費",
+        unit_type: "daily_x_days",
+        amount_monthly: 0,
+        rate_per_day: 10000,
+        days_per_month: 1,
+      },
+      {
+        label: "その他",
+        unit_type: "monthly",
+        amount_monthly: 2000,
+        rate_per_day: 0,
+        days_per_month: 0,
+      },
+    ],
+    monthly_target: 15000,
     alerts: { warning_threshold: 50, critical_threshold: 20 },
     _mockCurrentMonthly: 22000, // 88%
   },

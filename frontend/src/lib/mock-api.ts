@@ -1,6 +1,5 @@
 import type {
   Project,
-  ProjectCosts,
   ProjectAlerts,
   CreateProjectInput,
   UpdateProjectInput,
@@ -307,16 +306,35 @@ export const mockApi = {
     const ownerId = me?.id ?? "user-mock";
     const id = `mock-new-${Date.now()}`;
     const now = new Date().toISOString();
+    // cost_items から monthly_target を計算
+    const items = input.cost_items ?? [];
+    const mt = items.reduce((sum, ci) => {
+      if (ci.unit_type === "daily_x_days")
+        return sum + (ci.rate_per_day ?? 0) * (ci.days_per_month ?? 0);
+      return sum + ci.amount_monthly;
+    }, 0);
     const newProject: Project = {
       id,
       owner_id: ownerId,
       name: input.name,
       description: input.description ?? "",
+      overview: input.overview ?? "",
       status: input.status ?? "active",
       owner_want_monthly: input.owner_want_monthly ?? null,
       created_at: now,
       updated_at: now,
-      costs: input.costs ?? null,
+      cost_items:
+        items.length > 0
+          ? items.map((ci, i) => ({
+              label: ci.label,
+              unit_type: ci.unit_type,
+              amount_monthly: ci.amount_monthly,
+              rate_per_day: ci.rate_per_day ?? 0,
+              days_per_month: ci.days_per_month ?? 0,
+              sort_order: i,
+            }))
+          : null,
+      monthly_target: mt,
       alerts: input.alerts ?? null,
     };
     return newProject;
@@ -329,15 +347,27 @@ export const mockApi = {
     if (input.status != null) projectStatusOverrides.set(id, input.status);
     if (input.overview != null)
       projectOverviewOverrides.set(id, input.overview);
+    // cost_items 型変換: ProjectCostItemInput → ProjectCostItem 互換
+    const costItems = input.cost_items
+      ? input.cost_items.map((ci, i) => ({
+          label: ci.label,
+          unit_type: ci.unit_type,
+          amount_monthly: ci.amount_monthly,
+          rate_per_day: ci.rate_per_day ?? 0,
+          days_per_month: ci.days_per_month ?? 0,
+          sort_order: i,
+        }))
+      : undefined;
     const merged = {
       ...p,
       ...input,
+      ...(costItems ? { cost_items: costItems } : {}),
       id: p.id,
       owner_id: p.owner_id,
       created_at: p.created_at,
       status: input.status ?? projectStatusOverrides.get(id) ?? p.status,
     };
-    const project = toProject(merged);
+    const project = toProject(merged as typeof p);
     const overviewOverride = projectOverviewOverrides.get(id);
     if (overviewOverride != null) project.overview = overviewOverride;
     return project;

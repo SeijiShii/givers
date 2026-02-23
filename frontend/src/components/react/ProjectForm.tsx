@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type {
   Project,
-  ProjectCosts,
+  ProjectCostItemInput,
   ProjectAlerts,
   AmountInputType,
 } from "../../lib/api";
@@ -14,23 +14,53 @@ interface Props {
   redirectPath: string;
 }
 
-const defaultCosts: ProjectCosts = {
-  server_cost_monthly: 0,
-  dev_cost_per_day: 0,
-  dev_days_per_month: 0,
-  other_cost_monthly: 0,
-};
-
 const defaultAlerts: ProjectAlerts = {
   warning_threshold: 60,
   critical_threshold: 30,
 };
 
-function monthlyTargetFromCosts(c: ProjectCosts): number {
-  return (
-    c.server_cost_monthly +
-    c.dev_cost_per_day * c.dev_days_per_month +
-    c.other_cost_monthly
+/** 既存 project から cost_items 初期値を生成（後方互換: 旧 costs → cost_items 変換） */
+function initCostItems(project?: Project | null): ProjectCostItemInput[] {
+  if (project?.cost_items && project.cost_items.length > 0) {
+    return project.cost_items.map((ci) => ({
+      label: ci.label,
+      unit_type: ci.unit_type,
+      amount_monthly: ci.amount_monthly,
+      rate_per_day: ci.rate_per_day,
+      days_per_month: ci.days_per_month,
+    }));
+  }
+  // 旧 costs 形式からの変換
+  if (project?.costs) {
+    const items: ProjectCostItemInput[] = [];
+    if (project.costs.server_cost_monthly > 0)
+      items.push({
+        label: "サーバー費用",
+        unit_type: "monthly",
+        amount_monthly: project.costs.server_cost_monthly,
+      });
+    if (project.costs.dev_cost_per_day > 0)
+      items.push({
+        label: "開発費",
+        unit_type: "daily_x_days",
+        amount_monthly: 0,
+        rate_per_day: project.costs.dev_cost_per_day,
+        days_per_month: project.costs.dev_days_per_month,
+      });
+    if (project.costs.other_cost_monthly > 0)
+      items.push({
+        label: "その他",
+        unit_type: "monthly",
+        amount_monthly: project.costs.other_cost_monthly,
+      });
+    if (items.length > 0) return items;
+  }
+  return [{ label: "", unit_type: "monthly", amount_monthly: 0 }];
+}
+
+function hasCostItems(items: ProjectCostItemInput[]): boolean {
+  return items.some(
+    (ci) => ci.amount_monthly > 0 || (ci.rate_per_day ?? 0) > 0,
   );
 }
 
@@ -41,7 +71,8 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     if (!project) return "want";
     const hasWant =
       project.owner_want_monthly != null && project.owner_want_monthly > 0;
-    const hasCost = project.costs && monthlyTargetFromCosts(project.costs) > 0;
+    const hasCost =
+      (project.monthly_target ?? 0) > 0 || hasCostItems(initCostItems(project));
     if (hasWant && hasCost) return "both";
     if (hasCost) return "cost";
     return "want";
@@ -52,8 +83,8 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     project?.overview ?? project?.description ?? "",
   );
   const [ownerWant, setOwnerWant] = useState(project?.owner_want_monthly ?? 0);
-  const [costs, setCosts] = useState<ProjectCosts>(
-    project?.costs ?? defaultCosts,
+  const [costItems, setCostItems] = useState<ProjectCostItemInput[]>(() =>
+    initCostItems(project),
   );
 
   // 期限
@@ -78,11 +109,44 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // --- cost_items 操作 ---
+  const updateCostItem = (
+    idx: number,
+    patch: Partial<ProjectCostItemInput>,
+  ) => {
+    setCostItems((prev) => prev.map((ci, i) => (i === idx ? { ...ci, ...patch } : ci)));
+  };
+  const addCostItem = () => {
+    setCostItems((prev) => [
+      ...prev,
+      { label: "", unit_type: "monthly", amount_monthly: 0 },
+    ]);
+  };
+  const removeCostItem = (idx: number) => {
+    setCostItems((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      return next.length === 0
+        ? [{ label: "", unit_type: "monthly", amount_monthly: 0 }]
+        : next;
+    });
+  };
+
   const doSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
+      // cost_items: ラベルか金額が入っている行のみ送信
+      const validItems =
+        amountType === "cost" || amountType === "both"
+          ? costItems.filter(
+              (ci) =>
+                ci.label.trim() !== "" ||
+                ci.amount_monthly > 0 ||
+                (ci.rate_per_day ?? 0) > 0,
+            )
+          : null;
+
       const payload = {
         name,
         overview,
@@ -95,7 +159,7 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
               ? ownerWant
               : null
             : null,
-        costs: amountType === "cost" || amountType === "both" ? costs : null,
+        cost_items: validItems && validItems.length > 0 ? validItems : null,
         alerts: alertsEnabled ? alerts : null,
       };
       if (isEdit) {
@@ -104,10 +168,8 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
       } else {
         const created = await createProject(payload);
         if (created.stripe_connect_url) {
-          // Stripe Connect OAuth にリダイレクト
           window.location.href = created.stripe_connect_url;
         } else {
-          // Stripe 未設定（開発環境等）→ プロジェクトページへ
           window.location.href = redirectPath;
         }
       }
@@ -281,7 +343,7 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         </div>
       )}
 
-      {/* コスト内訳 */}
+      {/* コスト内訳（動的行） */}
       {(amountType === "cost" || amountType === "both") && (
         <div
           style={{
@@ -294,90 +356,101 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
           <h3 style={{ marginTop: 0 }}>
             {t(locale, "projects.costBreakdown")}
           </h3>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label
-              htmlFor="serverCost"
-              style={{ display: "block", marginBottom: "0.25rem" }}
+          {costItems.map((ci, idx) => (
+            <div
+              key={idx}
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                alignItems: "flex-end",
+                marginBottom: "0.5rem",
+              }}
             >
-              {t(locale, "projects.serverCost")} (¥)
-            </label>
-            <input
-              id="serverCost"
-              type="number"
-              min={0}
-              value={costs.server_cost_monthly || ""}
-              onChange={(e) =>
-                setCosts({
-                  ...costs,
-                  server_cost_monthly: parseInt(e.target.value, 10) || 0,
-                })
-              }
-              style={{ width: "100%", padding: "0.5rem" }}
-            />
-          </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label
-              htmlFor="devCostPerDay"
-              style={{ display: "block", marginBottom: "0.25rem" }}
-            >
-              {t(locale, "projects.devCostPerDay")} (¥)
-            </label>
-            <input
-              id="devCostPerDay"
-              type="number"
-              min={0}
-              value={costs.dev_cost_per_day || ""}
-              onChange={(e) =>
-                setCosts({
-                  ...costs,
-                  dev_cost_per_day: parseInt(e.target.value, 10) || 0,
-                })
-              }
-              style={{ width: "100%", padding: "0.5rem" }}
-            />
-          </div>
-          <div style={{ marginBottom: "0.5rem" }}>
-            <label
-              htmlFor="devDaysPerMonth"
-              style={{ display: "block", marginBottom: "0.25rem" }}
-            >
-              {t(locale, "projects.devDaysPerMonth")}
-            </label>
-            <input
-              id="devDaysPerMonth"
-              type="number"
-              min={0}
-              value={costs.dev_days_per_month || ""}
-              onChange={(e) =>
-                setCosts({
-                  ...costs,
-                  dev_days_per_month: parseInt(e.target.value, 10) || 0,
-                })
-              }
-              style={{ width: "100%", padding: "0.5rem" }}
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="otherCost"
-              style={{ display: "block", marginBottom: "0.25rem" }}
-            >
-              {t(locale, "projects.otherCost")} (¥)
-            </label>
-            <input
-              id="otherCost"
-              type="number"
-              min={0}
-              value={costs.other_cost_monthly || ""}
-              onChange={(e) =>
-                setCosts({
-                  ...costs,
-                  other_cost_monthly: parseInt(e.target.value, 10) || 0,
-                })
-              }
-              style={{ width: "100%", padding: "0.5rem" }}
-            />
-          </div>
+              <div style={{ flex: 2 }}>
+                {idx === 0 && (
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {t(locale, "projects.costItemLabel")}
+                  </label>
+                )}
+                <input
+                  type="text"
+                  value={ci.label}
+                  onChange={(e) =>
+                    updateCostItem(idx, { label: e.target.value })
+                  }
+                  placeholder={t(locale, "projects.costItemLabelPlaceholder")}
+                  style={{ width: "100%", padding: "0.5rem" }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                {idx === 0 && (
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {t(locale, "projects.costItemAmount")}
+                  </label>
+                )}
+                <input
+                  type="number"
+                  min={0}
+                  value={
+                    ci.unit_type === "monthly"
+                      ? ci.amount_monthly || ""
+                      : (ci.rate_per_day ?? 0) || ""
+                  }
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10) || 0;
+                    if (ci.unit_type === "monthly") {
+                      updateCostItem(idx, { amount_monthly: v });
+                    } else {
+                      updateCostItem(idx, { rate_per_day: v });
+                    }
+                  }}
+                  style={{ width: "100%", padding: "0.5rem" }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeCostItem(idx)}
+                style={{
+                  padding: "0.5rem",
+                  background: "none",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  lineHeight: 1,
+                }}
+                title="削除"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addCostItem}
+            style={{
+              marginTop: "0.25rem",
+              padding: "0.4rem 0.75rem",
+              background: "none",
+              border: "1px dashed var(--color-border)",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontSize: "0.9rem",
+            }}
+          >
+            {t(locale, "projects.costItemAddRow")}
+          </button>
         </div>
       )}
 

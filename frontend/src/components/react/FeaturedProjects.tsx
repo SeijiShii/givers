@@ -17,15 +17,11 @@ interface Props {
 }
 
 function monthlyTarget(project: Project): number {
+  if (project.monthly_target != null && project.monthly_target > 0) {
+    return project.monthly_target;
+  }
   if (project.owner_want_monthly != null && project.owner_want_monthly > 0) {
     return project.owner_want_monthly;
-  }
-  if (project.costs) {
-    return (
-      project.costs.server_cost_monthly +
-      project.costs.dev_cost_per_day * project.costs.dev_days_per_month +
-      project.costs.other_cost_monthly
-    );
   }
   return 0;
 }

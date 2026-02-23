@@ -103,13 +103,10 @@ UI がサーバー費/開発費/その他の固定3項目のまま。API に合�
 
 - [x] **フロント型定義**: `ProjectCostItem` / `ProjectCostItemInput` 型追加、`Project` に `cost_items` 追加
 - [x] **i18n**: コスト内訳動的行用のキー追加（costItemLabel / costItemAmount / costItemAddRow）
-- [ ] **新規プロジェクトフォーム**: 固定3項目 → 動的行追加 UI に変更
-  - 各行: ラベル（自由入力）+ 金額タイプ（月額 / 日額×日数）+ 金額入力
-  - 「＋ 項目を追加」ボタンで行を追加、各行に削除ボタン
-- [ ] **プロジェクト編集フォーム**: 同様に動的行 UI
-- [ ] **monthlyTarget 計算を project.monthly_target に統一**（FeaturedProjects / ProjectList / ProjectDetail / NavFinancialHealthMark）
-- [ ] **mock-api を cost_items 形式に更新**
-- [ ] **プロジェクト詳細ページ**: `cost_items` を個別表示（現状の `costs` 固定表示を置き換え）
+- [x] **新規/編集プロジェクトフォーム**: 固定3項目 → 動的行追加 UI に変更（ラベル+金額+削除ボタン、＋追加ボタン）
+- [x] **monthlyTarget 計算を project.monthly_target に統一**（FeaturedProjects / ProjectList / ProjectDetail / NavFinancialHealthMark 4件）
+- [x] **mock-api を cost_items 形式に更新**（mock-projects.ts + mock-api.ts createProject/updateProject）
+- [x] **プロジェクト詳細ページ**: `cost_items` を個別表示（旧 `costs` 固定表示を置き換え）
 
 ### 13. メール送信
 - 問い合わせ通知、マジックリンク認証等

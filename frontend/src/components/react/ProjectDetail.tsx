@@ -73,15 +73,11 @@ interface Props {
 }
 
 function monthlyTarget(project: Project): number {
+  if (project.monthly_target != null && project.monthly_target > 0) {
+    return project.monthly_target;
+  }
   if (project.owner_want_monthly != null && project.owner_want_monthly > 0) {
     return project.owner_want_monthly;
-  }
-  if (project.costs) {
-    return (
-      project.costs.server_cost_monthly +
-      project.costs.dev_cost_per_day * project.costs.dev_days_per_month +
-      project.costs.other_cost_monthly
-    );
   }
   return 0;
 }
@@ -485,20 +481,25 @@ export default function ProjectDetail({
           最低希望額: 月額 ¥{project.owner_want_monthly.toLocaleString()}
         </p>
       )}
-      {project.costs &&
-        (project.costs.server_cost_monthly > 0 ||
-          project.costs.dev_cost_per_day > 0 ||
-          project.costs.other_cost_monthly > 0) && (
-          <p style={{ marginTop: "0.5rem", color: "var(--color-text-muted)" }}>
+      {project.cost_items && project.cost_items.length > 0 && (
+        <div style={{ marginTop: "0.5rem", color: "var(--color-text-muted)" }}>
+          <p style={{ marginBottom: "0.25rem" }}>
             必要額（コスト内訳）: 月額 ¥
-            {(
-              project.costs.server_cost_monthly +
-              project.costs.dev_cost_per_day *
-                project.costs.dev_days_per_month +
-              project.costs.other_cost_monthly
-            ).toLocaleString()}
+            {(project.monthly_target ?? 0).toLocaleString()}
           </p>
-        )}
+          <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.9rem" }}>
+            {project.cost_items.map((ci, i) => (
+              <li key={ci.id ?? i}>
+                {ci.label}: ¥
+                {ci.unit_type === "daily_x_days"
+                  ? (ci.rate_per_day * ci.days_per_month).toLocaleString()
+                  : ci.amount_monthly.toLocaleString()}
+                /月
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* 概要（常時表示・寄付者をモチベートする大切な情報） */}
       <section
