@@ -197,6 +197,7 @@ Webhook エンドポイントもテスト用と本番用で別に登録してお
 
 ## 関連ドキュメント
 
+- [stripe-connect-setup.md](stripe-connect-setup.md) - Stripe Connect ホストアカウント設定ガイド（詳細）
 - [conoha-deployment.md](conoha-deployment.md) - サーバー設定の詳細手順
 - [oauth2-setup.md](oauth2-setup.md) - Google / GitHub OAuth の設定
 - [implementation-plan.md](implementation-plan.md) - 環境変数一覧

@@ -6,8 +6,12 @@
 *.out
 *.test
 
+# frontendテスト結果
+frontend/test-results/*
+
 # OS
 .DS_Store
 Thumbs.db
 
 .claude
+
