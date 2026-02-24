@@ -591,7 +591,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...          # 本番 Webhook 用
 | `backend/internal/handler/stripe_handler.go` | HTTP ハンドラー（3エンドポイント） |
 | `backend/migrations/015_add_stripe_to_projects.up.sql` | `stripe_account_id` カラム追加 |
 | `.env.example` | 環境変数テンプレート |
-| `docs/launch-setup-order.md` | 本番リリース前の設定順序 |
+| `docs/setup/launch-setup-order.md` | 本番リリース前の設定順序 |
 
 ---
 

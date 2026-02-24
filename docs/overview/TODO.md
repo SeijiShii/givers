@@ -1,6 +1,6 @@
 # TODO — GIVErS プラットフォーム
 
-最終更新: 2026-02-23
+最終更新: 2026-02-24
 
 ---
 
@@ -112,6 +112,38 @@ UI がサーバー費/開発費/その他の固定3項目のまま。API に合�
 - 問い合わせ通知、マジックリンク認証等
 - 初期はメールログインなし（追って決める）
 - プロバイダー未選定（SendGrid / SES / Resend 等）
+
+---
+
+## Stripe 本番移行セキュリティ対策
+
+> 詳細: [setup/stripe-production-checklist.md](../setup/stripe-production-checklist.md)
+
+### アプリ層（P1: 高優先度）
+
+- [ ] **A8. セキュリティヘッダーミドルウェア**: CSP / X-Frame-Options / X-Content-Type-Options 等を `handler.go` に追加
+- [ ] **A9. レートリミット**: `/api/donations/checkout` に IP ベース制限（10 req/min）を導入
+- [ ] **A11. ログの機密情報除去**: `auth_handler.go` の userID・トークンプレフィックスのログ出力を修正
+
+### アプリ層（P2: 中優先度）
+
+- [ ] **A10. Statement Descriptor**: Checkout Session に `statement_descriptor_suffix` を追加
+- [ ] **A12. IdleTimeout 追加**: `main.go` の `http.Server` に `IdleTimeout: 120s` を設定
+- [ ] **A13. Stripe エラー型区別**: `card_error` / `invalid_request_error` を区別して適切にハンドリング
+
+### インフラ層（P0: 必須 — 本番稼働の前提条件）
+
+- [ ] **B5. TLS/HTTPS**: nginx + Let's Encrypt で SSL 終端、HTTP→HTTPS リダイレクト
+- [ ] **B6. 本番 Webhook 登録**: Stripe Dashboard で本番 URL を登録、`STRIPE_WEBHOOK_SECRET` を更新
+- [ ] **B7. API キー切替**: `sk_test_` → `sk_live_` に切替、テスト用キーの残存箇所を確認
+- [ ] **B8. 2FA 有効化**: Stripe アカウントの二要素認証を有効化
+
+### インフラ層（P1-P2: 高〜中優先度）
+
+- [ ] **B9. DB 接続 SSL 化**: `DATABASE_URL` を `sslmode=require` + 強固なパスワードに変更
+- [ ] **B10. PCI コンプライアンス**: Stripe Dashboard で SAQ-A を提出（年次）
+- [ ] **B11. Statement Descriptor (Dashboard)**: ビジネス名・明細表示名を設定
+- [ ] **B12. チャージバック対策**: 不正取引レビュー・異議申し立て対応フローを整備
 
 ---
 

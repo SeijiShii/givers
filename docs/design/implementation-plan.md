@@ -142,7 +142,7 @@ giving_platform/
 - **費用設定**: `cost_items` 配列（ラベル・金額の自由入力行）。UI も動的行追加に対応（`cost-items-plan.md` 参照）
 - アラート閾値（WARNING, CRITICAL）設定
 - フロント: プロジェクト一覧・詳細・マイページ（設定フォームは React）
-- **認証**: ミドルウェア注入方式。開発中は `AUTH_REQUIRED=false` で認証なし。詳細は [docs/phase3-plan.md](docs/phase3-plan.md)
+- **認証**: ミドルウェア注入方式。開発中は `AUTH_REQUIRED=false` で認証なし。詳細は [phase3-plan.md](phase3-plan.md)
 
 ### Phase 4: 決済（Stripe Connect）
 
@@ -151,17 +151,17 @@ giving_platform/
 - 寄付用 Checkout Session / サブスク作成
 - Webhook で決済完了・サブスク状態の同期
 - フロント: 寄付フォーム（React）、金額・通貨・単発/定期の選択
-- **匿名寄付者トークン**: 単発寄付は決済成功時（Webhook または成功リダイレクト）に donor_token を発行し、donations に記録すると同時に Cookie で返す。Cookie は HttpOnly, Secure（本番）, SameSite=Lax、有効期限は 1 年程度。詳細は `docs/mock-implementation-status.md` 12.2「単発寄付時のトークン発行タイミング」。
-- **利用停止時の決済**: ホストが利用停止したユーザーに紐づく Stripe サブスクは解約する。**凍結時**: 新規寄付・新規サブスク受付停止、既存サブスクは継続。**削除時**: 新規停止に加え既存サブスクも解約。→ `docs/mock-implementation-status.md` 12.5・`docs/idea.md` 参照。
+- **匿名寄付者トークン**: 単発寄付は決済成功時（Webhook または成功リダイレクト）に donor_token を発行し、donations に記録すると同時に Cookie で返す。Cookie は HttpOnly, Secure（本番）, SameSite=Lax、有効期限は 1 年程度。詳細は `mock-implementation-status.md` 12.2「単発寄付時のトークン発行タイミング」。
+- **利用停止時の決済**: ホストが利用停止したユーザーに紐づく Stripe サブスクは解約する。**凍結時**: 新規寄付・新規サブスク受付停止、既存サブスクは継続。**削除時**: 新規停止に加え既存サブスクも解約。→ `mock-implementation-status.md` 12.5・`../overview/idea.md` 参照。
 
 ### Phase 5: プラットフォーム機能
 
 - サービスホストページ（健全性表示: 青/黄/赤）
 - プロジェクト単位の達成率・アラート表示
-- トップページ: 新着・HOT プロジェクト表示（新着＝created_at 降順、HOT＝達成率降順。→ `docs/mock-implementation-status.md` 12.5）
+- トップページ: 新着・HOT プロジェクト表示（新着＝created_at 降順、HOT＝達成率降順。→ `mock-implementation-status.md` 12.5）
 - プロジェクト間リンク・発見導線
-- **利用停止・凍結時のメッセージ**: ホスト権限で利用停止されたアカウント、またはオーナーが凍結・削除したプロジェクトに対して寄付等のアクションを試みたときに、状況を理解できる親切なメッセージを表示する。→ `docs/idea.md`・`docs/user-management-mock-plan.md` 1.3・`docs/mock-implementation-status.md` 12.5 参照。
-- **開示用データの出力**: 第三者情報開示請求等に備え、管理画面から**ユーザーID または プロジェクトID 指定で開示用データ（JSON）を出力**できるようにする。ホストのみ実行可能。→ `docs/legal-risk-considerations.md` 4・`docs/user-management-mock-plan.md` 1.4。
+- **利用停止・凍結時のメッセージ**: ホスト権限で利用停止されたアカウント、またはオーナーが凍結・削除したプロジェクトに対して寄付等のアクションを試みたときに、状況を理解できる親切なメッセージを表示する。→ `../overview/idea.md`・`user-management-mock-plan.md` 1.3・`mock-implementation-status.md` 12.5 参照。
+- **開示用データの出力**: 第三者情報開示請求等に備え、管理画面から**ユーザーID または プロジェクトID 指定で開示用データ（JSON）を出力**できるようにする。ホストのみ実行可能。→ `../legal/legal-risk-considerations.md` 4・`user-management-mock-plan.md` 1.4。
 - **ホスト自身の利用停止を禁止**: `PATCH /api/admin/users/:id/suspend` で対象が自分自身の場合は 400 エラー。フロントでも自分の行の「利用停止」ボタンを非表示 or disabled にする。
 - **問い合わせフォーム** (`/contact`): メールアドレス必須でホストにメッセージを送信。認証不要。メッセージは DB 保存し、`CONTACT_NOTIFY_EMAIL` 設定時は受信通知メールを送信。
 - **問い合わせ閲覧** (`/host/contacts`): ホスト権限で問い合わせ一覧を閲覧・既読管理できる管理ページ。
@@ -170,7 +170,7 @@ giving_platform/
 
 - **プロジェクトページ**: 折れ線グラフで目標金額・実際の寄付額・費やしたコストの時系列推移
 - **マイページ**: 月ごと合計寄付額、プロジェクト別寄付額のチャート表示
-- 詳細は [docs/charts-plan.md](docs/charts-plan.md) を参照
+- 詳細は [charts-plan.md](charts-plan.md) を参照
 
 ### Phase 6: 仕上げ
 
@@ -178,7 +178,7 @@ giving_platform/
 - **法的文書ページ** (`/terms`, `/privacy`, `/disclaimer`): `LEGAL_DOCS_DIR` に Markdown ファイルを配置すると表示される。`GET /api/legal/:type` で内容取得 → フロントでレンダリング。ファイルが存在しないページはリンクを非表示。自ホスト向けにサンプル Markdown テンプレートを `legal/` ディレクトリに同梱する。
 - 本番用 Docker 設定、環境変数管理
 - 基本的な E2E テスト
-- ConoHa での運用設定は [docs/conoha-deployment.md](docs/conoha-deployment.md) を参照
+- ConoHa での運用設定は [conoha-deployment.md](../setup/conoha-deployment.md) を参照
 
 ---
 
@@ -298,7 +298,7 @@ giving_platform/
 
 ## バックエンド詳細（Go）
 
-**API 仕様（エンドポイント一覧・スキーマ・エラー形式・セッション管理・Stripe Connect フロー・環境変数）は [docs/api-specs.md](api-specs.md) を参照。**
+**API 仕様（エンドポイント一覧・スキーマ・エラー形式・セッション管理・Stripe Connect フロー・環境変数）は [api-specs.md](api-specs.md) を参照。**
 
 ### ディレクトリ構成
 

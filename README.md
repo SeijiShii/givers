@@ -31,9 +31,17 @@ cd frontend && npm run dev
 - **Google**: [Google Cloud Console](https://console.cloud.google.com/) で OAuth 2.0 クライアント ID を作成。リダイレクト URI: `http://localhost:8080/api/auth/google/callback`
 - **GitHub**: [GitHub Developer Settings](https://github.com/settings/developers) で OAuth App を作成。Authorization callback URL: `http://localhost:8080/api/auth/github/callback`
 
-## 詳細
+## ドキュメント
 
-詳しい思想や仕様は [docs/idea.md](docs/idea.md) を参照してください。
+| ドキュメント | 内容 |
+|---|---|
+| [docs/index.md](docs/index.md) | ドキュメント一覧（目次） |
+| [docs/overview/idea.md](docs/overview/idea.md) | GIVErS の思想・コンセプト |
+| [docs/setup/env-vars.md](docs/setup/env-vars.md) | 環境変数リファレンス |
+| [docs/design/api-specs.md](docs/design/api-specs.md) | バックエンド API 仕様 |
+| [docs/design/implementation-plan.md](docs/design/implementation-plan.md) | 実装プラン |
+
+全ドキュメントの一覧は [docs/index.md](docs/index.md) を参照してください。
 
 ## License
 
