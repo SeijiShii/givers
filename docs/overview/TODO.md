@@ -75,14 +75,14 @@
 プロジェクトオーナーが設定した「おすすめシェアメッセージ」を DB に保存し、
 シェアダイアログの初期値として全ユーザーに表示する。
 
-- [ ] **マイグレーション (020)**: `ALTER TABLE projects ADD COLUMN share_message TEXT DEFAULT ''`
-- [ ] **Project モデル**: `ShareMessage string` フィールド追加
-- [ ] **Create / Update API**: `share_message` を受け取り・保存（オーナーのみ更新可）
-- [ ] **Get / List API**: `share_message` を返す
+- [x] **マイグレーション (020)**: `ALTER TABLE projects ADD COLUMN share_message TEXT DEFAULT ''`
+- [x] **Project モデル**: `ShareMessage string` フィールド追加
+- [x] **Create / Update API**: `share_message` を受け取り・保存（オーナーのみ更新可）
+- [x] **Get / List API**: `share_message` を返す
 - [ ] **フロント — ProjectDetail**: DB の `share_message` をダイアログ初期値に使用
   - 優先順位: localStorage 保存済みメッセージ > DB share_message > プロジェクト名
 - [ ] **フロント — プロジェクト編集フォーム**: シェアメッセージ入力欄を追加
-- [ ] **テスト**: Project CRUD テストに share_message の検証を追加
+- [x] **テスト**: Project CRUD テストに share_message の検証を追加（Create / Update / 未送信時保持 の3件）
 
 ### 10. ホスト自身の利用停止を禁止
 - [x] **バックエンド**: `AdminUserHandler.Suspend` で、対象ユーザーが自分自身の場合は 400 エラーを返す（TDD: 2テスト追加）
@@ -121,14 +121,14 @@ UI がサーバー費/開発費/その他の固定3項目のまま。API に合�
 
 ### アプリ層（P1: 高優先度）
 
-- [ ] **A8. セキュリティヘッダーミドルウェア**: CSP / X-Frame-Options / X-Content-Type-Options 等を `handler.go` に追加
-- [ ] **A9. レートリミット**: `/api/donations/checkout` に IP ベース制限（10 req/min）を導入
+- [x] **A8. セキュリティヘッダーミドルウェア**: CSP / X-Frame-Options / X-Content-Type-Options / HSTS / Permissions-Policy を `middleware.go` に追加（TDD: 4テスト）
+- [x] **A9. レートリミット**: `/api/donations/checkout` に IP ベース制限（10 req/min）を導入（TDD: 5テスト、X-Forwarded-For 対応）
 - [ ] **A11. ログの機密情報除去**: `auth_handler.go` の userID・トークンプレフィックスのログ出力を修正
 
 ### アプリ層（P2: 中優先度）
 
 - [ ] **A10. Statement Descriptor**: Checkout Session に `statement_descriptor_suffix` を追加
-- [ ] **A12. IdleTimeout 追加**: `main.go` の `http.Server` に `IdleTimeout: 120s` を設定
+- [x] **A12. IdleTimeout 追加**: `main.go` の `http.Server` に `IdleTimeout: 120s` を設定
 - [ ] **A13. Stripe エラー型区別**: `card_error` / `invalid_request_error` を区別して適切にハンドリング
 
 ### インフラ層（P0: 必須 — 本番稼働の前提条件）

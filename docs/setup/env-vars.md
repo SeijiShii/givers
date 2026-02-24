@@ -16,7 +16,7 @@ GIVErS プラットフォームで使用する全環境変数の一覧、意味�
   - [GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET](#github_client_id--github_client_secret)
   - [STRIPE_SECRET_KEY](#stripe_secret_key)
   - [STRIPE_WEBHOOK_SECRET](#stripe_webhook_secret)
-  - [STRIPE_CONNECT_CLIENT_ID](#stripe_connect_client_id)
+  - ~~STRIPE_CONNECT_CLIENT_ID~~ (v2 API 移行により廃止)
   - [HOST_EMAILS](#host_emails)
   - [OFFICIAL_DOMAIN](#official_domain)
 - [フロントエンド環境変数](#フロントエンド環境変数)
@@ -214,27 +214,9 @@ stripe listen --forward-to localhost:8080/api/webhooks/stripe
 
 ---
 
-### STRIPE_CONNECT_CLIENT_ID
+---
 
-| 項目 | 内容 |
-|------|------|
-| **必須** | はい（プロジェクトオーナーの Stripe Connect を使う場合） |
-| **形式** | `ca_...` |
-| **用途** | Stripe Connect Standard の OAuth 認可 URL 生成に使用。プロジェクトオーナーが自分の Stripe アカウントを連携する際に必要 |
-
-**入手方法:**
-
-1. Stripe ダッシュボード → **Connect** → **設定** を開く
-2. プラットフォーム名・アイコンを設定
-3. **OAuth** セクションを開く
-4. **リダイレクト URI** を追加:
-   - ローカル: `http://localhost:8080/api/stripe/connect/callback`
-   - 本番: `https://your-domain/api/stripe/connect/callback`
-5. 画面に表示される **`client_id`**（`ca_...`）をコピー
-
-> **テスト/本番で共通**: `ca_...` はテスト環境でも本番環境でも同じ値を使用。環境の切り替えは `STRIPE_SECRET_KEY` で行われる。
-
-> 詳細手順: [stripe-connect-setup.md](stripe-connect-setup.md) の「3. Connect Standard の有効化」セクション
+> **注意**: `STRIPE_CONNECT_CLIENT_ID`（`ca_...`）は不要になりました。Accounts v2 API では `STRIPE_SECRET_KEY` のみで連結アカウントの作成・オンボーディングが可能です。
 
 ---
 
@@ -378,7 +360,7 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxxxx
 
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_CONNECT_CLIENT_ID=ca_...
+# STRIPE_CONNECT_CLIENT_ID は廃止（v2 API 移行済み）
 
 HOST_EMAILS=admin@example.com
 ```
@@ -406,7 +388,7 @@ GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_CONNECT_CLIENT_ID=ca_...
+# STRIPE_CONNECT_CLIENT_ID は廃止（v2 API 移行済み）
 
 HOST_EMAILS=admin@givers.work
 OFFICIAL_DOMAIN=https://givers.work

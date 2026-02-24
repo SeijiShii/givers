@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -49,21 +51,24 @@ func hasJSONKey(raw map[string]json.RawMessage, key string) bool {
 	return ok
 }
 
+// ConnectAccountFunc は v2 API でアカウント作成+オンボーディング URL を返す関数
+type ConnectAccountFunc func(ctx context.Context, projectID string) (onboardingURL string, err error)
+
 // ProjectHandler はプロジェクト CRUD の HTTP ハンドラ
 type ProjectHandler struct {
-	connectURLFunc  func(string) string // nil = Stripe not configured
-	projectService  service.ProjectService
-	activityService service.ActivityService // optional, nil = skip
+	connectAccountFunc ConnectAccountFunc     // nil = Stripe not configured
+	projectService     service.ProjectService
+	activityService    service.ActivityService // optional, nil = skip
 }
 
 // NewProjectHandler は ProjectHandler を生成する
-func NewProjectHandler(projectService service.ProjectService, connectURLFunc func(string) string) *ProjectHandler {
-	return &ProjectHandler{projectService: projectService, connectURLFunc: connectURLFunc}
+func NewProjectHandler(projectService service.ProjectService, connectAccountFunc ConnectAccountFunc) *ProjectHandler {
+	return &ProjectHandler{projectService: projectService, connectAccountFunc: connectAccountFunc}
 }
 
 // NewProjectHandlerWithActivity は ActivityService 付きの ProjectHandler を生成する
-func NewProjectHandlerWithActivity(projectService service.ProjectService, connectURLFunc func(string) string, actSvc service.ActivityService) *ProjectHandler {
-	return &ProjectHandler{projectService: projectService, connectURLFunc: connectURLFunc, activityService: actSvc}
+func NewProjectHandlerWithActivity(projectService service.ProjectService, connectAccountFunc ConnectAccountFunc, actSvc service.ActivityService) *ProjectHandler {
+	return &ProjectHandler{projectService: projectService, connectAccountFunc: connectAccountFunc, activityService: actSvc}
 }
 
 // List は GET /api/projects を処理する
@@ -189,13 +194,13 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		project.Description = plainTextFromMarkdown(project.Overview, 200)
 	}
 
-	// ホストの場合: Stripe Connect OAuth 不要 → 直接 active にする
-	// 一般オーナーの場合: draft で作成し Connect URL を返す
+	// ホストの場合: Stripe Connect 不要 → 直接 active にする
+	// 一般オーナーの場合: draft で作成し v2 API でアカウント作成 → オンボーディング URL を返す
 	isHost := auth.IsHostFromContext(r.Context())
 	if project.Status == "" {
 		if isHost {
 			project.Status = "active"
-		} else if h.connectURLFunc != nil {
+		} else if h.connectAccountFunc != nil {
 			project.Status = "draft"
 		}
 	}
@@ -215,8 +220,13 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if h.connectURLFunc != nil && !isHost {
-		project.StripeConnectURL = h.connectURLFunc(project.ID)
+	if h.connectAccountFunc != nil && !isHost {
+		onboardingURL, err := h.connectAccountFunc(r.Context(), project.ID)
+		if err != nil {
+			log.Printf("stripe: failed to create account for project %s: %v", project.ID, err)
+		} else {
+			project.StripeConnectURL = onboardingURL
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

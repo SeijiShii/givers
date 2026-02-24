@@ -18,23 +18,30 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockStripeService struct {
-	generateConnectURLFunc func(projectID string) string
-	completeConnectFunc    func(ctx context.Context, code, projectID string) error
-	createCheckoutFunc     func(ctx context.Context, req service.CheckoutRequest) (string, error)
-	processWebhookFunc     func(ctx context.Context, payload []byte, sigHeader string) error
+	createAccountAndOnboardingFunc func(ctx context.Context, projectID string) (string, error)
+	completeOnboardingFunc         func(ctx context.Context, projectID string) error
+	refreshOnboardingFunc          func(ctx context.Context, projectID string) (string, error)
+	createCheckoutFunc             func(ctx context.Context, req service.CheckoutRequest) (string, error)
+	processWebhookFunc             func(ctx context.Context, payload []byte, sigHeader string) error
 }
 
-func (m *mockStripeService) GenerateConnectURL(projectID string) string {
-	if m.generateConnectURLFunc != nil {
-		return m.generateConnectURLFunc(projectID)
+func (m *mockStripeService) CreateAccountAndOnboarding(ctx context.Context, projectID string) (string, error) {
+	if m.createAccountAndOnboardingFunc != nil {
+		return m.createAccountAndOnboardingFunc(ctx, projectID)
 	}
-	return ""
+	return "https://connect.stripe.com/setup/mock", nil
 }
-func (m *mockStripeService) CompleteConnect(ctx context.Context, code, projectID string) error {
-	if m.completeConnectFunc != nil {
-		return m.completeConnectFunc(ctx, code, projectID)
+func (m *mockStripeService) CompleteOnboarding(ctx context.Context, projectID string) error {
+	if m.completeOnboardingFunc != nil {
+		return m.completeOnboardingFunc(ctx, projectID)
 	}
 	return nil
+}
+func (m *mockStripeService) RefreshOnboarding(ctx context.Context, projectID string) (string, error) {
+	if m.refreshOnboardingFunc != nil {
+		return m.refreshOnboardingFunc(ctx, projectID)
+	}
+	return "https://connect.stripe.com/setup/refresh", nil
 }
 func (m *mockStripeService) CreateCheckout(ctx context.Context, req service.CheckoutRequest) (string, error) {
 	if m.createCheckoutFunc != nil {
@@ -62,71 +69,135 @@ func (m *mockStripeSessionValidator) ValidateSession(ctx context.Context, token 
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/stripe/connect/callback
+// GET /api/stripe/onboarding/return
 // ---------------------------------------------------------------------------
 
-func TestStripeHandler_ConnectCallback_MissingCode(t *testing.T) {
+func TestStripeHandler_OnboardingReturn_MissingProjectID(t *testing.T) {
 	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/stripe/connect/callback?state=proj-1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/stripe/onboarding/return", nil)
 	rec := httptest.NewRecorder()
-	h.ConnectCallback(rec, req)
+	h.OnboardingReturn(rec, req)
 	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for missing code, got %d", rec.Code)
+		t.Errorf("expected 400 for missing project_id, got %d", rec.Code)
 	}
 }
 
-func TestStripeHandler_ConnectCallback_MissingState(t *testing.T) {
-	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/stripe/connect/callback?code=auth_123", nil)
-	rec := httptest.NewRecorder()
-	h.ConnectCallback(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected 400 for missing state, got %d", rec.Code)
-	}
-}
-
-func TestStripeHandler_ConnectCallback_Success(t *testing.T) {
-	var capturedCode, capturedProjectID string
+func TestStripeHandler_OnboardingReturn_Success(t *testing.T) {
+	var capturedProjectID string
 	mock := &mockStripeService{
-		completeConnectFunc: func(_ context.Context, code, projectID string) error {
-			capturedCode = code
+		completeOnboardingFunc: func(_ context.Context, projectID string) error {
 			capturedProjectID = projectID
 			return nil
 		},
 	}
 	h := NewStripeHandler(mock, "https://example.com", nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/stripe/connect/callback?code=auth_123&state=proj-1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/stripe/onboarding/return?project_id=proj-1", nil)
 	rec := httptest.NewRecorder()
-	h.ConnectCallback(rec, req)
+	h.OnboardingReturn(rec, req)
 
 	if rec.Code != http.StatusFound {
 		t.Fatalf("expected 302 redirect, got %d — body: %s", rec.Code, rec.Body.String())
 	}
-	if capturedCode != "auth_123" || capturedProjectID != "proj-1" {
-		t.Errorf("expected code=auth_123 state=proj-1, got code=%q state=%q", capturedCode, capturedProjectID)
+	if capturedProjectID != "proj-1" {
+		t.Errorf("expected projectID=proj-1, got %q", capturedProjectID)
 	}
 	loc := rec.Header().Get("Location")
-	if !strings.Contains(loc, "proj-1") {
-		t.Errorf("expected redirect to contain project ID, got %q", loc)
+	if !strings.Contains(loc, "stripe_connected=1") {
+		t.Errorf("expected redirect with stripe_connected=1, got %q", loc)
 	}
 }
 
-func TestStripeHandler_ConnectCallback_ServiceError(t *testing.T) {
+func TestStripeHandler_OnboardingReturn_NotYetComplete(t *testing.T) {
 	mock := &mockStripeService{
-		completeConnectFunc: func(_ context.Context, _, _ string) error {
+		completeOnboardingFunc: func(_ context.Context, _ string) error {
+			return errors.New("stripe: onboarding not yet complete")
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/stripe/onboarding/return?project_id=proj-1", nil)
+	rec := httptest.NewRecorder()
+	h.OnboardingReturn(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Errorf("expected 302, got %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "stripe_pending=1") {
+		t.Errorf("expected redirect with stripe_pending=1, got %q", loc)
+	}
+}
+
+func TestStripeHandler_OnboardingReturn_ServiceError(t *testing.T) {
+	mock := &mockStripeService{
+		completeOnboardingFunc: func(_ context.Context, _ string) error {
 			return errors.New("stripe error")
 		},
 	}
 	h := NewStripeHandler(mock, "https://example.com", nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/stripe/connect/callback?code=bad&state=proj-1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/stripe/onboarding/return?project_id=proj-1", nil)
 	rec := httptest.NewRecorder()
-	h.ConnectCallback(rec, req)
+	h.OnboardingReturn(rec, req)
+
 	if rec.Code != http.StatusFound {
 		t.Errorf("expected 302 (redirect to error page), got %d", rec.Code)
 	}
 	loc := rec.Header().Get("Location")
-	if !strings.Contains(loc, "error") {
-		t.Errorf("expected redirect with error param, got %q", loc)
+	if !strings.Contains(loc, "stripe_error=1") {
+		t.Errorf("expected redirect with stripe_error=1, got %q", loc)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/stripe/onboarding/refresh
+// ---------------------------------------------------------------------------
+
+func TestStripeHandler_OnboardingRefresh_MissingProjectID(t *testing.T) {
+	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/stripe/onboarding/refresh", nil)
+	rec := httptest.NewRecorder()
+	h.OnboardingRefresh(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for missing project_id, got %d", rec.Code)
+	}
+}
+
+func TestStripeHandler_OnboardingRefresh_Success(t *testing.T) {
+	mock := &mockStripeService{
+		refreshOnboardingFunc: func(_ context.Context, projectID string) (string, error) {
+			return "https://connect.stripe.com/setup/new-link", nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/stripe/onboarding/refresh?project_id=proj-1", nil)
+	rec := httptest.NewRecorder()
+	h.OnboardingRefresh(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302 redirect, got %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if loc != "https://connect.stripe.com/setup/new-link" {
+		t.Errorf("expected redirect to onboarding URL, got %q", loc)
+	}
+}
+
+func TestStripeHandler_OnboardingRefresh_ServiceError(t *testing.T) {
+	mock := &mockStripeService{
+		refreshOnboardingFunc: func(_ context.Context, _ string) (string, error) {
+			return "", errors.New("stripe error")
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/stripe/onboarding/refresh?project_id=proj-1", nil)
+	rec := httptest.NewRecorder()
+	h.OnboardingRefresh(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Errorf("expected 302 (redirect to error page), got %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "stripe_error=1") {
+		t.Errorf("expected redirect with stripe_error=1, got %q", loc)
 	}
 }
 

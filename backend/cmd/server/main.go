@@ -59,7 +59,6 @@ func main() {
 	// Stripe 設定（未設定の場合は Stripe 機能を無効化）
 	stripeClient := pkgstripe.NewClient(
 		os.Getenv("STRIPE_SECRET_KEY"),
-		os.Getenv("STRIPE_CONNECT_CLIENT_ID"),
 		os.Getenv("STRIPE_WEBHOOK_SECRET"),
 	)
 	activityService := service.NewActivityService(activityRepo)
@@ -92,13 +91,13 @@ func main() {
 		EnableEmail:    os.Getenv("ENABLE_EMAIL_LOGIN") == "true",
 	})
 	meHandler := handler.NewMeHandler(userRepo, sessionSvc, hostEmails)
-	// Stripe が設定されている場合のみ Connect URL を生成する関数を渡す
-	var connectURLFunc func(string) string
-	if os.Getenv("STRIPE_CONNECT_CLIENT_ID") != "" {
-		connectURLFunc = stripeService.GenerateConnectURL
+	// Stripe が設定されている場合のみ v2 API でアカウント作成+オンボーディングを行う
+	var connectAccountFunc handler.ConnectAccountFunc
+	if os.Getenv("STRIPE_SECRET_KEY") != "" {
+		connectAccountFunc = stripeService.CreateAccountAndOnboarding
 	}
 	stripeHandler := handler.NewStripeHandler(stripeService, frontendURL, sessionSvc)
-	projectHandler := handler.NewProjectHandlerWithActivity(projectService, connectURLFunc, activityService)
+	projectHandler := handler.NewProjectHandlerWithActivity(projectService, connectAccountFunc, activityService)
 	contactHandler := handler.NewContactHandler(contactService)
 	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})
 	watchHandler := handler.NewWatchHandler(watchService)
@@ -187,15 +186,20 @@ func main() {
 	mux.Handle("DELETE /api/me/cost-presets/{id}", wrapAuth(http.HandlerFunc(costPresetHandler.Delete)))
 
 	// Stripe routes (no auth — Stripe handles security via signatures/state)
-	mux.HandleFunc("GET /api/stripe/connect/callback", stripeHandler.ConnectCallback)
-	mux.HandleFunc("POST /api/donations/checkout", stripeHandler.Checkout)
+	mux.HandleFunc("GET /api/stripe/onboarding/return", stripeHandler.OnboardingReturn)
+	mux.HandleFunc("GET /api/stripe/onboarding/refresh", stripeHandler.OnboardingRefresh)
+	// Rate limit on checkout endpoint (10 req/min per IP)
+	checkoutRL := handler.NewRateLimiter(10)
+	mux.Handle("POST /api/donations/checkout", checkoutRL.Middleware(http.HandlerFunc(stripeHandler.Checkout)))
 	mux.HandleFunc("POST /api/webhooks/stripe", stripeHandler.Webhook)
 
+	// Middleware chain: SecurityHeaders → CORS → mux
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      h.CORS(mux),
+		Handler:      handler.SecurityHeaders(h.CORS(mux)),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	go func() {

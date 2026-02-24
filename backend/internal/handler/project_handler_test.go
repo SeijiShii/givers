@@ -970,8 +970,8 @@ func TestProjectHandler_Create_HostGetsActiveStatus(t *testing.T) {
 			return nil
 		},
 	}
-	connectURL := func(id string) string { return "https://connect.stripe.com/oauth?state=" + id }
-	h := NewProjectHandler(mock, connectURL)
+	connectFunc := func(_ context.Context, id string) (string, error) { return "https://connect.stripe.com/setup?acct=" + id, nil }
+	h := NewProjectHandler(mock, connectFunc)
 
 	body := bytes.NewBufferString(`{"name":"Host Project"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
@@ -1005,8 +1005,8 @@ func TestProjectHandler_Create_RegularOwnerGetsDraftStatus(t *testing.T) {
 			return nil
 		},
 	}
-	connectURL := func(id string) string { return "https://connect.stripe.com/oauth?state=" + id }
-	h := NewProjectHandler(mock, connectURL)
+	connectFunc := func(_ context.Context, id string) (string, error) { return "https://connect.stripe.com/setup?acct=" + id, nil }
+	h := NewProjectHandler(mock, connectFunc)
 
 	body := bytes.NewBufferString(`{"name":"Owner Project"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)

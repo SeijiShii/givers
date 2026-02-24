@@ -14,6 +14,8 @@ type ProjectRepository interface {
 	Create(ctx context.Context, project *model.Project) error
 	Update(ctx context.Context, project *model.Project) error
 	Delete(ctx context.Context, id string) error
-	// UpdateStripeConnect は Stripe Connect 完了後に stripe_account_id と status='active' を保存する
-	UpdateStripeConnect(ctx context.Context, projectID, stripeAccountID string) error
+	// SaveStripeAccountID は stripe_account_id のみを保存する（status は変更しない）
+	SaveStripeAccountID(ctx context.Context, projectID, stripeAccountID string) error
+	// ActivateProject はプロジェクトの status を 'active' に更新する
+	ActivateProject(ctx context.Context, projectID string) error
 }

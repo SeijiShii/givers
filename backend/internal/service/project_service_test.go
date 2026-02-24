@@ -60,7 +60,11 @@ func (m *mockProjectRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *mockProjectRepository) UpdateStripeConnect(_ context.Context, _, _ string) error {
+func (m *mockProjectRepository) SaveStripeAccountID(_ context.Context, _, _ string) error {
+	return nil
+}
+
+func (m *mockProjectRepository) ActivateProject(_ context.Context, _ string) error {
 	return nil
 }
 

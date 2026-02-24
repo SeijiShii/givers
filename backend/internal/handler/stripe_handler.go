@@ -24,30 +24,47 @@ func NewStripeHandler(svc service.StripeService, frontendURL string, sv auth.Ses
 	return &StripeHandler{svc: svc, frontendURL: frontendURL, sv: sv}
 }
 
-// ConnectCallback handles GET /api/stripe/connect/callback
-// Stripe Connect OAuth 完了後のコールバック。code と state(project_id) を受け取る。
-func (h *StripeHandler) ConnectCallback(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	projectID := r.URL.Query().Get("state")
-
-	if code == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "code_required"})
-		return
-	}
+// OnboardingReturn handles GET /api/stripe/onboarding/return
+// Stripe Account Link オンボーディング完了後のリターン URL。
+// アカウントの要件を確認し、完了なら active にしてフロントへリダイレクト。
+func (h *StripeHandler) OnboardingReturn(w http.ResponseWriter, r *http.Request) {
+	projectID := r.URL.Query().Get("project_id")
 	if projectID == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "state_required"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "project_id_required"})
 		return
 	}
 
-	if err := h.svc.CompleteConnect(r.Context(), code, projectID); err != nil {
-		redirectURL := h.frontendURL + "/projects/" + projectID + "?stripe_error=1"
-		http.Redirect(w, r, redirectURL, http.StatusFound)
+	if err := h.svc.CompleteOnboarding(r.Context(), projectID); err != nil {
+		if strings.Contains(err.Error(), "not yet complete") {
+			// オンボーディング未完了 → フロントへ pending 状態で戻す
+			http.Redirect(w, r, h.frontendURL+"/projects/"+projectID+"?stripe_pending=1", http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, h.frontendURL+"/projects/"+projectID+"?stripe_error=1", http.StatusFound)
 		return
 	}
 
 	http.Redirect(w, r, h.frontendURL+"/projects/"+projectID+"?stripe_connected=1", http.StatusFound)
+}
+
+// OnboardingRefresh handles GET /api/stripe/onboarding/refresh
+// Account Link の有効期限切れ時に新しいリンクを生成してリダイレクト。
+func (h *StripeHandler) OnboardingRefresh(w http.ResponseWriter, r *http.Request) {
+	projectID := r.URL.Query().Get("project_id")
+	if projectID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "project_id_required"})
+		return
+	}
+
+	onboardingURL, err := h.svc.RefreshOnboarding(r.Context(), projectID)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/projects/"+projectID+"?stripe_error=1", http.StatusFound)
+		return
+	}
+
+	http.Redirect(w, r, onboardingURL, http.StatusFound)
 }
 
 // Checkout handles POST /api/donations/checkout

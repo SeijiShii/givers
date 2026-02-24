@@ -67,7 +67,8 @@
 | Method | Path | 認証 | 説明 |
 |--------|------|------|------|
 | POST | `/api/donations/checkout` | 不要（匿名寄付あり） | Stripe Checkout Session 作成 |
-| GET | `/api/stripe/connect/callback` | 不要（Stripe からのリダイレクト） | Stripe Connect オンボーディング完了コールバック |
+| GET | `/api/stripe/onboarding/return` | 不要（Stripe からのリダイレクト） | Stripe v2 オンボーディング完了コールバック |
+| GET | `/api/stripe/onboarding/refresh` | 不要（Stripe からのリダイレクト） | オンボーディングリンク再生成 |
 | POST | `/api/webhooks/stripe` | 不要（Stripe 署名検証） | Stripe Webhook |
 
 ### プラットフォーム
@@ -181,7 +182,7 @@
 {
   "id": "uuid",
   "status": "draft",
-  "stripe_connect_url": "https://connect.stripe.com/..."
+  "stripe_connect_url": "https://connect.stripe.com/setup/s/..."
 }
 ```
 
@@ -192,7 +193,7 @@
   "status": "active"
 }
 ```
-> ホストは `HOST_EMAILS` 環境変数で判定。Stripe Connect OAuth は不要で、プラットフォームの Stripe アカウントで直接決済される。
+> ホストは `HOST_EMAILS` 環境変数で判定。Stripe Connect は不要で、プラットフォームの Stripe アカウントで直接決済される。
 
 ### PUT /api/projects/:id
 
@@ -378,15 +379,15 @@
 
 ## Stripe Connect フロー（プロジェクト作成時）
 
-### 一般プロジェクトオーナー
+### 一般プロジェクトオーナー（Accounts v2 API）
 
-1. `POST /api/projects`（status: draft で保存） → `{ "id": "...", "stripe_connect_url": "https://connect.stripe.com/..." }` を返す
-2. フロントは `stripe_connect_url` にリダイレクト
-3. オーナーが Stripe Connect を完了 → Stripe が `GET /api/stripe/connect/callback?code=...&state=project_id` にリダイレクト
-4. バックエンドが `code` を Stripe に送って `stripe_account_id` を取得 → `projects.stripe_account_id` を保存 → `status: draft → active` に更新
-5. フロントにリダイレクト（`/projects/<id>`）
+1. `POST /api/projects`（status: draft で保存）→ バックエンドが v2 API で連結アカウント作成 + Account Link 生成 → `{ "id": "...", "stripe_connect_url": "https://connect.stripe.com/setup/..." }` を返す
+2. フロントは `stripe_connect_url` にリダイレクト（Stripe のオンボーディングページ）
+3. オーナーが本人確認・銀行口座設定を完了 → Stripe が `GET /api/stripe/onboarding/return?project_id=...` にリダイレクト
+4. バックエンドがアカウント要件を確認 → 完了なら `status: draft → active` に更新
+5. フロントにリダイレクト（`/projects/<id>?stripe_connected=1`）
 
-**離脱時の扱い**: draft のままマイページに「未接続のプロジェクト」として表示。「Stripe 接続を続ける」リンクを提供。
+**離脱時の扱い**: draft のままマイページに「未接続のプロジェクト」として表示。`GET /api/stripe/onboarding/refresh?project_id=...` で新しいオンボーディングリンクを生成。
 
 ### サービスホスト（プラットフォーム運営者）
 
@@ -422,8 +423,7 @@
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth（オプション。未設定なら GitHub ログイン無効） |
 | `APPLE_CLIENT_ID` / `APPLE_CLIENT_SECRET` / `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Apple Sign In（オプション。将来実装。未設定なら Apple ログイン無効） |
 | `ENABLE_EMAIL_LOGIN` | `true` でメールログイン（マジックリンク）を有効化（オプション。将来実装） |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe |
-| `STRIPE_CONNECT_CLIENT_ID` | Stripe Connect |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe（v2 API で連結アカウント作成にも使用） |
 | `FRONTEND_URL` | CORS・リダイレクト用 |
 | `OFFICIAL_DOMAIN` | 公式ドメイン（自ホスト判定用） |
 | `AUTH_REQUIRED` | `true` で認証ミドルウェアを有効化（本番）。未設定または `false` で開発モード（認証スキップ） |

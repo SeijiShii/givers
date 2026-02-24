@@ -15,24 +15,31 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockStripeClient struct {
-	generateConnectURLFunc    func(projectID string) string
-	exchangeConnectCodeFunc   func(ctx context.Context, code string) (string, error)
-	createCheckoutSessionFunc func(ctx context.Context, params pkgstripe.CheckoutParams) (string, error)
+	createConnectedAccountFunc func(ctx context.Context, params pkgstripe.CreateAccountParams) (string, error)
+	createAccountLinkFunc      func(ctx context.Context, accountID, returnURL, refreshURL string) (string, error)
+	getAccountOnboardedFunc    func(ctx context.Context, accountID string) (bool, error)
+	createCheckoutSessionFunc  func(ctx context.Context, params pkgstripe.CheckoutParams) (string, error)
 	verifyWebhookSignatureFunc func(payload []byte, sigHeader string) error
-	parseWebhookEventFunc     func(payload []byte) (pkgstripe.WebhookEvent, error)
+	parseWebhookEventFunc      func(payload []byte) (pkgstripe.WebhookEvent, error)
 }
 
-func (m *mockStripeClient) GenerateConnectURL(projectID string) string {
-	if m.generateConnectURLFunc != nil {
-		return m.generateConnectURLFunc(projectID)
+func (m *mockStripeClient) CreateConnectedAccount(ctx context.Context, params pkgstripe.CreateAccountParams) (string, error) {
+	if m.createConnectedAccountFunc != nil {
+		return m.createConnectedAccountFunc(ctx, params)
 	}
-	return ""
+	return "acct_mock", nil
 }
-func (m *mockStripeClient) ExchangeConnectCode(ctx context.Context, code string) (string, error) {
-	if m.exchangeConnectCodeFunc != nil {
-		return m.exchangeConnectCodeFunc(ctx, code)
+func (m *mockStripeClient) CreateAccountLink(ctx context.Context, accountID, returnURL, refreshURL string) (string, error) {
+	if m.createAccountLinkFunc != nil {
+		return m.createAccountLinkFunc(ctx, accountID, returnURL, refreshURL)
 	}
-	return "", nil
+	return "https://connect.stripe.com/setup/mock", nil
+}
+func (m *mockStripeClient) GetAccountOnboarded(ctx context.Context, accountID string) (bool, error) {
+	if m.getAccountOnboardedFunc != nil {
+		return m.getAccountOnboardedFunc(ctx, accountID)
+	}
+	return true, nil
 }
 func (m *mockStripeClient) CreateCheckoutSession(ctx context.Context, params pkgstripe.CheckoutParams) (string, error) {
 	if m.createCheckoutSessionFunc != nil {
@@ -57,70 +64,29 @@ func (m *mockStripeClient) ResumeSubscription(_ context.Context, _ string) error
 func (m *mockStripeClient) CancelSubscription(_ context.Context, _ string) error { return nil }
 
 // ---------------------------------------------------------------------------
-// Mock ProjectRepository (slim: only methods needed by StripeService)
+// Tests: CreateAccountAndOnboarding
 // ---------------------------------------------------------------------------
 
-type mockProjectRepoForStripe struct {
-	getByIDFunc            func(ctx context.Context, id string) (*mockProjectBasic, error)
-	updateStripeConnectFunc func(ctx context.Context, projectID, stripeAccountID string) error
-}
-
-// We don't want to import model here, so we use a simple struct
-type mockProjectBasic struct {
-	id              string
-	ownerID         string
-	stripeAccountID string
-}
-
-// ---------------------------------------------------------------------------
-// Tests: GenerateConnectURL
-// ---------------------------------------------------------------------------
-
-func TestStripeService_GenerateConnectURL_WithClientID(t *testing.T) {
-	mock := &mockStripeClient{
-		generateConnectURLFunc: func(projectID string) string {
-			if projectID != "proj-1" {
-				t.Errorf("expected project-1, got %q", projectID)
-			}
-			return "https://connect.stripe.com/oauth/authorize?client_id=ca_xxx&state=proj-1"
-		},
-	}
-	svc := newTestStripeService(mock)
-	url := svc.GenerateConnectURL("proj-1")
-	if url == "" {
-		t.Error("expected non-empty URL")
-	}
-}
-
-func TestStripeService_GenerateConnectURL_EmptyWhenNotConfigured(t *testing.T) {
-	mock := &mockStripeClient{
-		generateConnectURLFunc: func(_ string) string { return "" },
-	}
-	svc := newTestStripeService(mock)
-	url := svc.GenerateConnectURL("proj-1")
-	if url != "" {
-		t.Errorf("expected empty URL when not configured, got %q", url)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Tests: CompleteConnect
-// ---------------------------------------------------------------------------
-
-func TestStripeService_CompleteConnect_Success(t *testing.T) {
+func TestStripeService_CreateAccountAndOnboarding_Success(t *testing.T) {
 	ctx := context.Background()
 	var savedProjectID, savedAccountID string
 
 	stripeClient := &mockStripeClient{
-		exchangeConnectCodeFunc: func(_ context.Context, code string) (string, error) {
-			if code != "auth_code_123" {
-				t.Errorf("expected code=auth_code_123, got %q", code)
+		createConnectedAccountFunc: func(_ context.Context, params pkgstripe.CreateAccountParams) (string, error) {
+			if params.Country != "jp" {
+				t.Errorf("expected country=jp, got %q", params.Country)
 			}
 			return "acct_test123", nil
 		},
+		createAccountLinkFunc: func(_ context.Context, accountID, _, _ string) (string, error) {
+			if accountID != "acct_test123" {
+				t.Errorf("expected accountID=acct_test123, got %q", accountID)
+			}
+			return "https://connect.stripe.com/setup/test", nil
+		},
 	}
 	projectRepo := &mockStripeProjectRepo{
-		updateStripeConnectFunc: func(_ context.Context, projectID, stripeAccountID string) error {
+		saveStripeAccountIDFunc: func(_ context.Context, projectID, stripeAccountID string) error {
 			savedProjectID = projectID
 			savedAccountID = stripeAccountID
 			return nil
@@ -128,8 +94,12 @@ func TestStripeService_CompleteConnect_Success(t *testing.T) {
 	}
 	svc := newTestStripeServiceWithRepo(stripeClient, projectRepo)
 
-	if err := svc.CompleteConnect(ctx, "auth_code_123", "proj-1"); err != nil {
+	url, err := svc.CreateAccountAndOnboarding(ctx, "proj-1")
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if url != "https://connect.stripe.com/setup/test" {
+		t.Errorf("unexpected URL: %q", url)
 	}
 	if savedProjectID != "proj-1" {
 		t.Errorf("expected projectID=proj-1, got %q", savedProjectID)
@@ -139,18 +109,118 @@ func TestStripeService_CompleteConnect_Success(t *testing.T) {
 	}
 }
 
-func TestStripeService_CompleteConnect_StripeError(t *testing.T) {
+func TestStripeService_CreateAccountAndOnboarding_StripeError(t *testing.T) {
 	ctx := context.Background()
 	stripeClient := &mockStripeClient{
-		exchangeConnectCodeFunc: func(_ context.Context, _ string) (string, error) {
-			return "", errors.New("invalid code")
+		createConnectedAccountFunc: func(_ context.Context, _ pkgstripe.CreateAccountParams) (string, error) {
+			return "", errors.New("stripe error")
 		},
 	}
 	svc := newTestStripeServiceWithRepo(stripeClient, &mockStripeProjectRepo{})
 
-	err := svc.CompleteConnect(ctx, "bad_code", "proj-1")
+	_, err := svc.CreateAccountAndOnboarding(ctx, "proj-1")
 	if err == nil {
 		t.Error("expected error on Stripe failure")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests: CompleteOnboarding
+// ---------------------------------------------------------------------------
+
+func TestStripeService_CompleteOnboarding_Success(t *testing.T) {
+	ctx := context.Background()
+	var activatedProjectID string
+
+	stripeClient := &mockStripeClient{
+		getAccountOnboardedFunc: func(_ context.Context, accountID string) (bool, error) {
+			if accountID != "acct_test123" {
+				t.Errorf("expected accountID=acct_test123, got %q", accountID)
+			}
+			return true, nil
+		},
+	}
+	projectRepo := &mockStripeProjectRepo{
+		getByIDFunc: func(_ context.Context, id string) (string, error) {
+			return "acct_test123", nil
+		},
+		activateProjectFunc: func(_ context.Context, projectID string) error {
+			activatedProjectID = projectID
+			return nil
+		},
+	}
+	svc := newTestStripeServiceWithRepo(stripeClient, projectRepo)
+
+	if err := svc.CompleteOnboarding(ctx, "proj-1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if activatedProjectID != "proj-1" {
+		t.Errorf("expected activatedProjectID=proj-1, got %q", activatedProjectID)
+	}
+}
+
+func TestStripeService_CompleteOnboarding_NotYetComplete(t *testing.T) {
+	ctx := context.Background()
+	stripeClient := &mockStripeClient{
+		getAccountOnboardedFunc: func(_ context.Context, _ string) (bool, error) {
+			return false, nil
+		},
+	}
+	projectRepo := &mockStripeProjectRepo{
+		getByIDFunc: func(_ context.Context, _ string) (string, error) {
+			return "acct_test123", nil
+		},
+	}
+	svc := newTestStripeServiceWithRepo(stripeClient, projectRepo)
+
+	err := svc.CompleteOnboarding(ctx, "proj-1")
+	if err == nil {
+		t.Error("expected error when onboarding not complete")
+	}
+}
+
+func TestStripeService_CompleteOnboarding_NoAccount(t *testing.T) {
+	ctx := context.Background()
+	projectRepo := &mockStripeProjectRepo{
+		getByIDFunc: func(_ context.Context, _ string) (string, error) {
+			return "", nil // empty = no account
+		},
+	}
+	svc := newTestStripeServiceWithRepo(&mockStripeClient{}, projectRepo)
+
+	err := svc.CompleteOnboarding(ctx, "proj-1")
+	if err == nil {
+		t.Error("expected error when no account linked")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests: RefreshOnboarding
+// ---------------------------------------------------------------------------
+
+func TestStripeService_RefreshOnboarding_Success(t *testing.T) {
+	ctx := context.Background()
+	stripeClient := &mockStripeClient{
+		createAccountLinkFunc: func(_ context.Context, accountID, _, _ string) (string, error) {
+			if accountID != "acct_test123" {
+				t.Errorf("expected accountID=acct_test123, got %q", accountID)
+			}
+			return "https://connect.stripe.com/setup/refresh", nil
+		},
+	}
+	projectRepo := &mockStripeProjectRepo{
+		getByIDFunc: func(_ context.Context, _ string) (string, error) {
+			return "acct_test123", nil
+		},
+	}
+	svc := newTestStripeServiceWithRepo(stripeClient, projectRepo)
+
+	url, err := svc.RefreshOnboarding(ctx, "proj-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if url != "https://connect.stripe.com/setup/refresh" {
+		t.Errorf("unexpected URL: %q", url)
 	}
 }
 
@@ -421,11 +491,11 @@ func TestStripeService_ProcessWebhook_SubscriptionCreated_CreatesDonation(t *tes
 		Amount:   0, // subscription の amount はトップレベルではなく plan に
 		Currency: "",
 		Metadata: map[string]string{
-			"project_id":   "proj-2",
-			"donor_type":   "user",
-			"donor_id":     "user-2",
-			"message":      "毎月応援します",
-			"is_recurring":  "true",
+			"project_id":  "proj-2",
+			"donor_type":  "user",
+			"donor_id":    "user-2",
+			"message":     "毎月応援します",
+			"is_recurring": "true",
 		},
 		Plan: &struct {
 			Amount   int    `json:"amount"`
@@ -656,7 +726,8 @@ func TestStripeService_ProcessWebhook_NilActivityRecorder_StillWorks(t *testing.
 
 type mockStripeProjectRepo struct {
 	getByIDFunc             func(ctx context.Context, id string) (string, error) // returns stripeAccountID
-	updateStripeConnectFunc func(ctx context.Context, projectID, stripeAccountID string) error
+	saveStripeAccountIDFunc func(ctx context.Context, projectID, stripeAccountID string) error
+	activateProjectFunc     func(ctx context.Context, projectID string) error
 }
 
 func (m *mockStripeProjectRepo) GetStripeAccountID(ctx context.Context, id string) (string, error) {
@@ -665,9 +736,15 @@ func (m *mockStripeProjectRepo) GetStripeAccountID(ctx context.Context, id strin
 	}
 	return "", nil
 }
-func (m *mockStripeProjectRepo) UpdateStripeConnect(ctx context.Context, projectID, stripeAccountID string) error {
-	if m.updateStripeConnectFunc != nil {
-		return m.updateStripeConnectFunc(ctx, projectID, stripeAccountID)
+func (m *mockStripeProjectRepo) SaveStripeAccountID(ctx context.Context, projectID, stripeAccountID string) error {
+	if m.saveStripeAccountIDFunc != nil {
+		return m.saveStripeAccountIDFunc(ctx, projectID, stripeAccountID)
+	}
+	return nil
+}
+func (m *mockStripeProjectRepo) ActivateProject(ctx context.Context, projectID string) error {
+	if m.activateProjectFunc != nil {
+		return m.activateProjectFunc(ctx, projectID)
 	}
 	return nil
 }

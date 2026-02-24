@@ -26,7 +26,8 @@ type CheckoutRequest struct {
 // StripeProjectRepo は StripeService が必要とするプロジェクト操作のミニマムインターフェース
 type StripeProjectRepo interface {
 	GetStripeAccountID(ctx context.Context, projectID string) (string, error)
-	UpdateStripeConnect(ctx context.Context, projectID, stripeAccountID string) error
+	SaveStripeAccountID(ctx context.Context, projectID, stripeAccountID string) error
+	ActivateProject(ctx context.Context, projectID string) error
 }
 
 // StripeDonationRepo は Webhook イベントで寄付レコードを操作するためのミニマムインターフェース
@@ -47,10 +48,12 @@ type StripeMilestoneNotifier interface {
 
 // StripeService は Stripe 連携のビジネスロジック
 type StripeService interface {
-	// GenerateConnectURL は Stripe Connect OAuth URL を生成する（API コールなし）
-	GenerateConnectURL(projectID string) string
-	// CompleteConnect は OAuth code を交換して stripe_account_id を保存する
-	CompleteConnect(ctx context.Context, code, projectID string) error
+	// CreateAccountAndOnboarding は v2 API でアカウント作成 → Account Link URL を返す
+	CreateAccountAndOnboarding(ctx context.Context, projectID string) (onboardingURL string, err error)
+	// CompleteOnboarding はオンボーディング完了を確認し、完了なら status='active' にする
+	CompleteOnboarding(ctx context.Context, projectID string) error
+	// RefreshOnboarding は新しい Account Link URL を生成する（再オンボーディング用）
+	RefreshOnboarding(ctx context.Context, projectID string) (onboardingURL string, err error)
 	// CreateCheckout は Stripe Checkout Session を作成し URL を返す
 	CreateCheckout(ctx context.Context, req CheckoutRequest) (string, error)
 	// ProcessWebhook は Webhook のシグネチャを検証してイベントを処理する
@@ -59,11 +62,11 @@ type StripeService interface {
 
 // StripeServiceImpl は StripeService の実装
 type StripeServiceImpl struct {
-	client           pkgstripe.Client
-	projectRepo      StripeProjectRepo
-	donationRepo     StripeDonationRepo
-	activityRecorder   StripeActivityRecorder   // optional, nil = skip
-	milestoneNotifier  StripeMilestoneNotifier  // optional, nil = skip
+	client             pkgstripe.Client
+	projectRepo        StripeProjectRepo
+	donationRepo       StripeDonationRepo
+	activityRecorder   StripeActivityRecorder  // optional, nil = skip
+	milestoneNotifier  StripeMilestoneNotifier // optional, nil = skip
 	frontendURL        string
 }
 
@@ -89,18 +92,66 @@ func NewStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripePro
 	}
 }
 
-// GenerateConnectURL は Stripe Connect OAuth URL を返す
-func (s *StripeServiceImpl) GenerateConnectURL(projectID string) string {
-	return s.client.GenerateConnectURL(projectID)
+// CreateAccountAndOnboarding は v2 API でアカウントを作成し、Account Link URL を返す
+func (s *StripeServiceImpl) CreateAccountAndOnboarding(ctx context.Context, projectID string) (string, error) {
+	// v2 アカウント作成
+	accountID, err := s.client.CreateConnectedAccount(ctx, pkgstripe.CreateAccountParams{
+		Country: "jp",
+	})
+	if err != nil {
+		return "", fmt.Errorf("stripe create account: %w", err)
+	}
+
+	// stripe_account_id を DB に保存（status は draft のまま）
+	if err := s.projectRepo.SaveStripeAccountID(ctx, projectID, accountID); err != nil {
+		return "", fmt.Errorf("save stripe account id: %w", err)
+	}
+
+	// Account Link 作成
+	returnURL := s.frontendURL + "/api/stripe/onboarding/return?project_id=" + projectID
+	refreshURL := s.frontendURL + "/api/stripe/onboarding/refresh?project_id=" + projectID
+	onboardingURL, err := s.client.CreateAccountLink(ctx, accountID, returnURL, refreshURL)
+	if err != nil {
+		return "", fmt.Errorf("stripe create account link: %w", err)
+	}
+
+	return onboardingURL, nil
 }
 
-// CompleteConnect は OAuth code を交換して stripe_account_id を projects テーブルに保存する
-func (s *StripeServiceImpl) CompleteConnect(ctx context.Context, code, projectID string) error {
-	stripeAccountID, err := s.client.ExchangeConnectCode(ctx, code)
+// CompleteOnboarding はオンボーディング完了を確認し、完了なら status='active' にする
+func (s *StripeServiceImpl) CompleteOnboarding(ctx context.Context, projectID string) error {
+	accountID, err := s.projectRepo.GetStripeAccountID(ctx, projectID)
 	if err != nil {
-		return fmt.Errorf("stripe connect exchange: %w", err)
+		return fmt.Errorf("get stripe account id: %w", err)
 	}
-	return s.projectRepo.UpdateStripeConnect(ctx, projectID, stripeAccountID)
+	if accountID == "" {
+		return errors.New("stripe: no account linked to project")
+	}
+
+	onboarded, err := s.client.GetAccountOnboarded(ctx, accountID)
+	if err != nil {
+		return fmt.Errorf("stripe get account status: %w", err)
+	}
+	if !onboarded {
+		return errors.New("stripe: onboarding not yet complete")
+	}
+
+	return s.projectRepo.ActivateProject(ctx, projectID)
+}
+
+// RefreshOnboarding は新しい Account Link URL を生成する
+func (s *StripeServiceImpl) RefreshOnboarding(ctx context.Context, projectID string) (string, error) {
+	accountID, err := s.projectRepo.GetStripeAccountID(ctx, projectID)
+	if err != nil {
+		return "", fmt.Errorf("get stripe account id: %w", err)
+	}
+	if accountID == "" {
+		return "", errors.New("stripe: no account linked to project")
+	}
+
+	returnURL := s.frontendURL + "/api/stripe/onboarding/return?project_id=" + projectID
+	refreshURL := s.frontendURL + "/api/stripe/onboarding/refresh?project_id=" + projectID
+	return s.client.CreateAccountLink(ctx, accountID, returnURL, refreshURL)
 }
 
 // CreateCheckout はプロジェクトの stripe_account_id を取得して Checkout Session を作成する

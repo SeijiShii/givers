@@ -7,7 +7,7 @@
 ```
 ドメイン取得
     │
-    ├──→ Stripe Connect 設定（コールバック URL にドメインを使う）
+    ├──→ Stripe 設定（Webhook URL にドメインを使う）
     │         │
     │         └──→ Webhook URL 登録（https://your-domain/api/webhooks/stripe）
     │
@@ -42,7 +42,7 @@
 
 ## Step 2：Stripe アカウント設定
 
-**理由：** Stripe Connect のコールバック URL と Webhook URL の登録にドメインが必要。
+**理由：** Stripe Webhook URL の登録にドメインが必要。
 ConoHa でアプリを動かす前に Stripe 側の設定を完成させておくと、
 デプロイ後すぐに決済テストができる。
 
@@ -54,34 +54,16 @@ ConoHa でアプリを動かす前に Stripe 側の設定を完成させてお�
   - 個人の場合：個人事業主として登録
 - [ ] テストモードと本番モードを切り替えるキーをそれぞれ取得
 
-### 2-2. Connect の設定
+### 2-2. Connect の設定（Accounts v2 API）
 
-プロジェクトオーナーが自分の Stripe アカウントを連携する機能（Connect）の設定。
+プロジェクトオーナー用の連結アカウントを作成する機能の設定。
+Accounts v2 API を使用しており、OAuth や `STRIPE_CONNECT_CLIENT_ID` は不要。
 
 - [ ] Stripe ダッシュボード → **Connect** → 設定を開く
-- [ ] **プラットフォーム名・アイコン** を設定する（オーナーの OAuth 画面に表示される）
-- [ ] Connect アカウントタイプを選択する
+- [ ] **プラットフォーム名・アイコン** を設定する（オーナーのオンボーディング画面に表示される）
 
-#### Standard か Express か
-
-| | Standard | Express |
-|---|---|---|
-| オーナーの操作 | 既存の Stripe アカウントを OAuth で接続 | Stripe が簡易アカウントを作成（KYC含む） |
-| `STRIPE_CONNECT_CLIENT_ID` | **必要**（`ca_...`） | 不要 |
-| 向いているケース | すでに Stripe を使っている事業者が多い | 一般ユーザーを想定、手続きを簡単にしたい |
-
-現在の `.env.example` は Standard を想定した構成になっている。
-
-**Standard の場合：**
-- [ ] **OAuth → リダイレクト URI** に以下を追加
-  ```
-  https://your-domain.example.com/api/stripe/connect/callback
-  ```
-- [ ] `STRIPE_CONNECT_CLIENT_ID`（`ca_...`）をメモ
-
-**Express の場合：**
-- [ ] Connect 設定でブランディング（名前・アイコン）のみ設定
-- [ ] `STRIPE_CONNECT_CLIENT_ID` は不要
+> **Note:** v2 API ではプラットフォームがアカウントを作成し、Account Links でオンボーディングを行う。
+> `STRIPE_SECRET_KEY` のみで連結アカウントの作成が可能。
 
 ### 2-3. Webhook エンドポイントの登録
 
@@ -107,7 +89,6 @@ ConoHa でアプリを動かす前に Stripe 側の設定を完成させてお�
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_PUBLISHABLE_KEY=pk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_CONNECT_CLIENT_ID=ca_...  # Standard の場合のみ
 ```
 
 > テストモードのキー（`sk_test_...`）と本番キー（`sk_live_...`）を混在させない。
@@ -179,7 +160,7 @@ sudo certbot --nginx -d your-domain.example.com
 - [ ] Stripe テストモードで寄付フローが通る
 - [ ] Stripe ダッシュボードで Webhook の受信ログが確認できる（`200 OK`）
 - [ ] Google / GitHub OAuth でのログインが通る（コールバック URL が正しく設定されているか）
-- [ ] プロジェクトオーナーの Stripe Connect 連携フローが通る
+- [ ] プロジェクトオーナーの Stripe オンボーディングフローが通る
 
 ---
 

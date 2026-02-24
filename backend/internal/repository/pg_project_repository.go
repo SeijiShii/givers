@@ -291,11 +291,26 @@ func (r *PgProjectRepository) GetStripeAccountID(ctx context.Context, projectID 
 	return id, nil
 }
 
-// UpdateStripeConnect は Stripe Connect 完了後に stripe_account_id と status='active' を保存する
-func (r *PgProjectRepository) UpdateStripeConnect(ctx context.Context, projectID, stripeAccountID string) error {
+// SaveStripeAccountID は stripe_account_id のみを保存する（status は変更しない）
+func (r *PgProjectRepository) SaveStripeAccountID(ctx context.Context, projectID, stripeAccountID string) error {
 	tag, err := r.pool.Exec(ctx,
-		`UPDATE projects SET stripe_account_id=$1, status='active', updated_at=NOW() WHERE id=$2`,
+		`UPDATE projects SET stripe_account_id=$1, updated_at=NOW() WHERE id=$2`,
 		stripeAccountID, projectID,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ActivateProject はプロジェクトの status を 'active' に更新する
+func (r *PgProjectRepository) ActivateProject(ctx context.Context, projectID string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE projects SET status='active', updated_at=NOW() WHERE id=$1`,
+		projectID,
 	)
 	if err != nil {
 		return err

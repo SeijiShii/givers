@@ -3,6 +3,7 @@
 package stripe
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -16,6 +17,16 @@ import (
 	"strings"
 	"time"
 )
+
+// StripeAPIVersion は v2 API で使用する Stripe-Version ヘッダーの値
+const StripeAPIVersion = "2025-04-30.basil"
+
+// CreateAccountParams は v2 連結アカウント作成に必要なパラメータ
+type CreateAccountParams struct {
+	Email       string // 連結アカウントの連絡先メール
+	DisplayName string // 表示名
+	Country     string // "jp", "us" など
+}
 
 // CheckoutParams はチェックアウトセッション作成に必要なパラメータ
 type CheckoutParams struct {
@@ -56,10 +67,12 @@ type WebhookEvent struct {
 
 // Client は Stripe API クライアントのインターフェース
 type Client interface {
-	// GenerateConnectURL は Stripe Connect OAuth URL を生成する（API コールなし）
-	GenerateConnectURL(projectID string) string
-	// ExchangeConnectCode は OAuth code を stripe_account_id に交換する
-	ExchangeConnectCode(ctx context.Context, code string) (string, error)
+	// CreateConnectedAccount は v2 API で連結アカウントを作成し acct_... を返す
+	CreateConnectedAccount(ctx context.Context, params CreateAccountParams) (string, error)
+	// CreateAccountLink はオンボーディング用の Account Link URL を生成する
+	CreateAccountLink(ctx context.Context, accountID, returnURL, refreshURL string) (string, error)
+	// GetAccountOnboarded は連結アカウントのオンボーディング完了状態を返す
+	GetAccountOnboarded(ctx context.Context, accountID string) (bool, error)
 	// CreateCheckoutSession は Stripe Checkout Session を作成し URL を返す
 	CreateCheckoutSession(ctx context.Context, params CheckoutParams) (string, error)
 	// VerifyWebhookSignature は Stripe-Signature ヘッダーを検証する
@@ -76,55 +89,74 @@ type Client interface {
 
 // RealClient は Stripe API への raw HTTP クライアント実装
 type RealClient struct {
-	SecretKey       string
-	ConnectClientID string // ca_... （Standard Connect）
-	WebhookSecret   string // whsec_...
-	httpClient      *http.Client
+	SecretKey     string
+	WebhookSecret string // whsec_...
+	httpClient    *http.Client
 }
 
 // NewClient は RealClient を生成する
-func NewClient(secretKey, connectClientID, webhookSecret string) *RealClient {
+func NewClient(secretKey, webhookSecret string) *RealClient {
 	return &RealClient{
-		SecretKey:       secretKey,
-		ConnectClientID: connectClientID,
-		WebhookSecret:   webhookSecret,
-		httpClient:      &http.Client{Timeout: 30 * time.Second},
+		SecretKey:     secretKey,
+		WebhookSecret: webhookSecret,
+		httpClient:    &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
 // ErrNotConfigured は Stripe が設定されていない場合のエラー
 var ErrNotConfigured = errors.New("stripe: not configured")
 
-// GenerateConnectURL は Stripe Connect Standard の OAuth URL を返す
-func (c *RealClient) GenerateConnectURL(projectID string) string {
-	if c.ConnectClientID == "" {
-		return ""
-	}
-	v := url.Values{}
-	v.Set("response_type", "code")
-	v.Set("client_id", c.ConnectClientID)
-	v.Set("scope", "read_write")
-	v.Set("state", projectID)
-	return "https://connect.stripe.com/oauth/authorize?" + v.Encode()
-}
-
-// ExchangeConnectCode は code を stripe_account_id (stripe_user_id) に交換する
-func (c *RealClient) ExchangeConnectCode(ctx context.Context, code string) (string, error) {
+// CreateConnectedAccount は Accounts v2 API で連結アカウントを作成する
+func (c *RealClient) CreateConnectedAccount(ctx context.Context, params CreateAccountParams) (string, error) {
 	if c.SecretKey == "" {
 		return "", ErrNotConfigured
 	}
-	data := url.Values{}
-	data.Set("code", code)
-	data.Set("grant_type", "authorization_code")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://connect.stripe.com/oauth/token",
-		strings.NewReader(data.Encode()))
+	country := params.Country
+	if country == "" {
+		country = "jp"
+	}
+
+	body := map[string]any{
+		"contact_email": params.Email,
+		"display_name":  params.DisplayName,
+		"dashboard":     "full",
+		"identity": map[string]any{
+			"country":     country,
+			"entity_type": "individual",
+		},
+		"configuration": map[string]any{
+			"merchant": map[string]any{
+				"capabilities": map[string]any{
+					"card_payments": map[string]any{
+						"requested": true,
+					},
+				},
+			},
+		},
+		"defaults": map[string]any{
+			"currency": "jpy",
+			"responsibilities": map[string]any{
+				"fees_collector":   "stripe",
+				"losses_collector": "stripe",
+			},
+		},
+	}
+
+	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(c.SecretKey, "")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"https://api.stripe.com/v2/core/accounts",
+		bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.SecretKey)
+	req.Header.Set("Stripe-Version", StripeAPIVersion)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -133,17 +165,119 @@ func (c *RealClient) ExchangeConnectCode(ctx context.Context, code string) (stri
 	defer resp.Body.Close()
 
 	var result struct {
-		StripeUserID string `json:"stripe_user_id"`
-		Error        string `json:"error"`
-		ErrorDesc    string `json:"error_description"`
+		ID    string `json:"id"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
-	if result.Error != "" {
-		return "", fmt.Errorf("stripe connect error: %s — %s", result.Error, result.ErrorDesc)
+	if result.Error != nil {
+		return "", fmt.Errorf("stripe create account: %s", result.Error.Message)
 	}
-	return result.StripeUserID, nil
+	if result.ID == "" {
+		return "", errors.New("stripe create account: empty account ID in response")
+	}
+	return result.ID, nil
+}
+
+// CreateAccountLink は v2 API で Account Link（オンボーディング URL）を作成する
+func (c *RealClient) CreateAccountLink(ctx context.Context, accountID, returnURL, refreshURL string) (string, error) {
+	if c.SecretKey == "" {
+		return "", ErrNotConfigured
+	}
+
+	body := map[string]any{
+		"account": accountID,
+		"use_case": map[string]any{
+			"type": "account_onboarding",
+			"account_onboarding": map[string]any{
+				"configurations": []string{"merchant"},
+				"return_url":     returnURL,
+				"refresh_url":    refreshURL,
+			},
+		},
+	}
+
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		"https://api.stripe.com/v2/core/account_links",
+		bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.SecretKey)
+	req.Header.Set("Stripe-Version", StripeAPIVersion)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		URL   string `json:"url"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.Error != nil {
+		return "", fmt.Errorf("stripe create account link: %s", result.Error.Message)
+	}
+	if result.URL == "" {
+		return "", errors.New("stripe create account link: empty URL in response")
+	}
+	return result.URL, nil
+}
+
+// GetAccountOnboarded は v2 API で連結アカウントのオンボーディング完了状態を確認する
+// currently_due が空の場合に true を返す
+func (c *RealClient) GetAccountOnboarded(ctx context.Context, accountID string) (bool, error) {
+	if c.SecretKey == "" {
+		return false, ErrNotConfigured
+	}
+
+	endpoint := fmt.Sprintf("https://api.stripe.com/v2/core/accounts/%s?include=requirements", accountID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.SecretKey)
+	req.Header.Set("Stripe-Version", StripeAPIVersion)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Requirements *struct {
+			CurrentlyDue []string `json:"currently_due"`
+		} `json:"requirements"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, err
+	}
+	if result.Error != nil {
+		return false, fmt.Errorf("stripe get account: %s", result.Error.Message)
+	}
+	if result.Requirements == nil {
+		return true, nil
+	}
+	return len(result.Requirements.CurrentlyDue) == 0, nil
 }
 
 // CreateCheckoutSession は Stripe Checkout Session を作成し URL を返す

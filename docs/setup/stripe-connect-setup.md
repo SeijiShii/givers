@@ -1,12 +1,52 @@
-# Stripe Connect ホストアカウント設定ガイド
+# Stripe Connect 設定ガイド（Accounts v2 API）
 
-GIVErS プラットフォームは **Stripe Connect Standard** を採用しています。
-本ドキュメントでは、プラットフォームホスト（運営者）が Stripe を設定する手順と、
-プロジェクトオーナーが自分の Stripe アカウントを連携するフローを詳細に説明します。
+> **2026-02 更新**: Stripe Connect Standard（OAuth）から **Accounts v2 API** に移行しました。
+> `STRIPE_CONNECT_CLIENT_ID`（`ca_...`）は不要です。`STRIPE_SECRET_KEY` のみで動作します。
+
+## v2 API 概要
+
+GIVErS プラットフォームは **Stripe Accounts v2 API** を使用して連結アカウントを管理します。
+
+### 新しいフロー
+
+1. プロジェクト作成時に `POST /v2/core/accounts` で連結アカウントを自動作成
+2. `POST /v2/core/account_links` でオンボーディング URL を生成
+3. プロジェクトオーナーが Stripe のオンボーディングページで本人確認・銀行口座を設定
+4. 完了後に `GET /api/stripe/onboarding/return` にリダイレクト → プロジェクトが `active` に
+
+### 設定
+
+| パラメータ | 値 | 説明 |
+|-----------|-----|------|
+| `dashboard` | `full` | オーナーが Stripe ダッシュボードにフルアクセス可能 |
+| `fees_collector` | `stripe` | Stripe が手数料を直接徴収 |
+| `losses_collector` | `stripe` | 損失は Stripe が負担 |
+| `capabilities` | `card_payments` | カード決済を有効化 |
+
+### 必要な環境変数
+
+```env
+STRIPE_SECRET_KEY=sk_test_...    # API 認証
+STRIPE_WEBHOOK_SECRET=whsec_...  # Webhook 署名検証
+# STRIPE_CONNECT_CLIENT_ID は廃止
+```
+
+### API エンドポイント
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| `GET` | `/api/stripe/onboarding/return` | オンボーディング完了後のリターン URL |
+| `GET` | `/api/stripe/onboarding/refresh` | オンボーディング再開（リンク期限切れ時） |
+| `POST` | `/api/donations/checkout` | Stripe Checkout セッション作成 |
+| `POST` | `/api/webhooks/stripe` | Webhook 受信 |
 
 ---
 
-## 目次
+> **以下は旧ドキュメント（OAuth ベース）です。参考情報として残しています。**
+
+---
+
+## 目次（旧ドキュメント）
 
 1. [アーキテクチャ概要](#1-アーキテクチャ概要)
 2. [ホスト側の Stripe アカウント作成](#2-ホスト側の-stripe-アカウント作成)
