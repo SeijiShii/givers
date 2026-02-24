@@ -236,6 +236,60 @@ stripeClient := pkgstripe.NewClient(
 
 ---
 
+## 5.5. サービスホストのプロジェクト（Connect 不要）
+
+サービスホスト（`HOST_EMAILS` 環境変数に含まれるユーザー）がプロジェクトを作成する場合、
+Stripe Connect OAuth は不要です。
+
+### ホストプロジェクトの動作
+
+| 項目 | 一般オーナー | サービスホスト |
+|------|-------------|---------------|
+| ログイン方法 | Google/GitHub OAuth2 | Google/GitHub OAuth2（同一） |
+| プロジェクト作成時の status | `draft` | `active`（即時公開） |
+| Stripe Connect OAuth | 必須 | 不要（スキップ） |
+| 使用する Stripe アカウント | オーナー自身の Connected Account (`acct_...`) | プラットフォームの Stripe アカウント |
+| `stripe_account_id` | `acct_...`（Connected Account） | 空（NULL） |
+| 決済時の `Stripe-Account` ヘッダー | 設定する | 設定しない（プラットフォーム直接入金） |
+| 入金先 | オーナーの銀行口座 | プラットフォーム運営者の銀行口座 |
+
+### 判定の仕組み
+
+```
+ユーザーがログイン
+  │
+  ▼
+HostMiddleware: メールアドレスが HOST_EMAILS に含まれるか？
+  │
+  ├── YES → コンテキストに is_host=true を設定
+  │         → プロジェクト作成時: status=active, Connect URL なし
+  │         → 決済時: Stripe-Account ヘッダー省略（プラットフォーム口座へ直接入金）
+  │
+  └── NO  → 通常のプロジェクトオーナーフロー
+            → プロジェクト作成時: status=draft, Connect URL を返す
+            → 決済時: Stripe-Account ヘッダーに acct_... を設定
+```
+
+### 資金の流れ（ホストプロジェクト）
+
+```
+寄付者
+  │
+  │  Stripe Checkout で決済（Stripe-Account ヘッダーなし）
+  ▼
+┌────────────────────────────────┐
+│  プラットフォームの Stripe      │   ← 寄付金はプラットフォームに入る
+│  アカウント                     │
+│ （STRIPE_SECRET_KEY の持ち主）  │
+└────────────────────────────────┘
+        │
+        │ Stripe 決済手数料 3.6% のみ差し引き
+        ▼
+  プラットフォーム運営者の銀行口座に自動入金
+```
+
+---
+
 ## 6. プロジェクトオーナーの連携フロー
 
 ### フロー全体図

@@ -957,6 +957,78 @@ func TestProjectHandler_Create_ExplicitDescriptionNotOverridden(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Create: host vs regular owner (Stripe Connect skip)
+// ---------------------------------------------------------------------------
+
+func TestProjectHandler_Create_HostGetsActiveStatus(t *testing.T) {
+	var created *model.Project
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			created = project
+			project.ID = "host-proj"
+			return nil
+		},
+	}
+	connectURL := func(id string) string { return "https://connect.stripe.com/oauth?state=" + id }
+	h := NewProjectHandler(mock, connectURL)
+
+	body := bytes.NewBufferString(`{"name":"Host Project"}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	ctx := auth.WithUserID(context.Background(), "host-user")
+	ctx = auth.WithIsHost(ctx, true)
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if created == nil || created.Status != "active" {
+		t.Errorf("expected status=active for host, got %q", created.Status)
+	}
+
+	// Response should NOT contain a Stripe Connect URL
+	var resp model.Project
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.StripeConnectURL != "" {
+		t.Errorf("expected no StripeConnectURL for host, got %q", resp.StripeConnectURL)
+	}
+}
+
+func TestProjectHandler_Create_RegularOwnerGetsDraftStatus(t *testing.T) {
+	var created *model.Project
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			created = project
+			project.ID = "owner-proj"
+			return nil
+		},
+	}
+	connectURL := func(id string) string { return "https://connect.stripe.com/oauth?state=" + id }
+	h := NewProjectHandler(mock, connectURL)
+
+	body := bytes.NewBufferString(`{"name":"Owner Project"}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "regular-user"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if created == nil || created.Status != "draft" {
+		t.Errorf("expected status=draft for regular owner, got %q", created.Status)
+	}
+
+	// Response should contain a Stripe Connect URL
+	var resp model.Project
+	_ = json.NewDecoder(rec.Body).Decode(&resp)
+	if resp.StripeConnectURL == "" {
+		t.Error("expected StripeConnectURL for regular owner, got empty")
+	}
+}
+
 func TestProjectHandler_PatchStatus_NotFound(t *testing.T) {
 	mock := &mockProjectService{
 		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {

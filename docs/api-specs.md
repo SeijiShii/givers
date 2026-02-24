@@ -34,7 +34,7 @@
 |--------|------|------|------|
 | GET | `/api/projects` | 不要 | プロジェクト一覧（`status=active` のみ。クエリ詳細は下記） |
 | GET | `/api/projects/:id` | 不要 | プロジェクト詳細 |
-| POST | `/api/projects` | 必須 | プロジェクト作成。`status: draft` で作成。Stripe Connect 完了後に active へ |
+| POST | `/api/projects` | 必須 | プロジェクト作成。一般オーナー: `status: draft` → Stripe Connect 完了後に active。ホスト: `status: active`（Connect 不要） |
 | PUT | `/api/projects/:id` | 必須（オーナー） | プロジェクト更新 |
 | DELETE | `/api/projects/:id` | 必須（オーナー） | プロジェクト削除（論理削除: status → deleted） |
 | PATCH | `/api/projects/:id/status` | 必須（オーナーまたはホスト） | 状態変更（`frozen` ↔ `active`） |
@@ -175,6 +175,8 @@
 > **`costs` → `cost_items` 変更**: 旧固定 3 項目オブジェクトから動的行配列に変更。詳細は `cost-items-plan.md` 参照。
 
 **レスポンス (201)**
+
+一般オーナーの場合:
 ```json
 {
   "id": "uuid",
@@ -182,6 +184,15 @@
   "stripe_connect_url": "https://connect.stripe.com/..."
 }
 ```
+
+ホスト（サービス運営者）の場合:
+```json
+{
+  "id": "uuid",
+  "status": "active"
+}
+```
+> ホストは `HOST_EMAILS` 環境変数で判定。Stripe Connect OAuth は不要で、プラットフォームの Stripe アカウントで直接決済される。
 
 ### PUT /api/projects/:id
 
@@ -367,6 +378,8 @@
 
 ## Stripe Connect フロー（プロジェクト作成時）
 
+### 一般プロジェクトオーナー
+
 1. `POST /api/projects`（status: draft で保存） → `{ "id": "...", "stripe_connect_url": "https://connect.stripe.com/..." }` を返す
 2. フロントは `stripe_connect_url` にリダイレクト
 3. オーナーが Stripe Connect を完了 → Stripe が `GET /api/stripe/connect/callback?code=...&state=project_id` にリダイレクト
@@ -374,6 +387,14 @@
 5. フロントにリダイレクト（`/projects/<id>`）
 
 **離脱時の扱い**: draft のままマイページに「未接続のプロジェクト」として表示。「Stripe 接続を続ける」リンクを提供。
+
+### サービスホスト（プラットフォーム運営者）
+
+1. `POST /api/projects`（status: **active** で即時保存） → `{ "id": "...", "status": "active" }` を返す
+2. Stripe Connect OAuth は不要。`stripe_connect_url` はレスポンスに含まれない
+3. 寄付はプラットフォームの Stripe アカウントで直接決済される（`Stripe-Account` ヘッダー省略 → プラットフォーム口座に入金）
+
+**判定方法**: ログインユーザーのメールアドレスが `HOST_EMAILS` 環境変数に含まれる場合、自動的にホストとして扱われる。
 
 ---
 
@@ -406,6 +427,6 @@
 | `FRONTEND_URL` | CORS・リダイレクト用 |
 | `OFFICIAL_DOMAIN` | 公式ドメイン（自ホスト判定用） |
 | `AUTH_REQUIRED` | `true` で認証ミドルウェアを有効化（本番）。未設定または `false` で開発モード（認証スキップ） |
-| `HOST_USER_ID` | ホスト権限を持つユーザー ID（admin API のアクセス制御用） |
+| `HOST_EMAILS` | ホスト権限を持つメールアドレス（カンマ区切り。admin API のアクセス制御 + プロジェクト作成時の Stripe Connect スキップ判定用） |
 | `CONTACT_NOTIFY_EMAIL` | 問い合わせ受信時の通知先メールアドレス（オプション。未設定なら DB 保存のみ） |
 | `LEGAL_DOCS_DIR` | 利用規約等の Markdown ファイルを配置するディレクトリ（デフォルト: `./legal/`） |

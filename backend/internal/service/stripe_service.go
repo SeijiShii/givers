@@ -113,9 +113,8 @@ func (s *StripeServiceImpl) CreateCheckout(ctx context.Context, req CheckoutRequ
 	if err != nil {
 		return "", fmt.Errorf("get project: %w", err)
 	}
-	if stripeAccountID == "" {
-		return "", errors.New("project stripe account not connected")
-	}
+	// stripeAccountID が空の場合はプラットフォームアカウントで直接決済
+	// （ホストのプロジェクトは Stripe Connect 不要）
 
 	currency := req.Currency
 	if currency == "" {

@@ -189,9 +189,15 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		project.Description = plainTextFromMarkdown(project.Overview, 200)
 	}
 
-	// Stripe が設定されている場合、プロジェクトは draft で作成し Connect URL を返す
-	if h.connectURLFunc != nil && project.Status == "" {
-		project.Status = "draft"
+	// ホストの場合: Stripe Connect OAuth 不要 → 直接 active にする
+	// 一般オーナーの場合: draft で作成し Connect URL を返す
+	isHost := auth.IsHostFromContext(r.Context())
+	if project.Status == "" {
+		if isHost {
+			project.Status = "active"
+		} else if h.connectURLFunc != nil {
+			project.Status = "draft"
+		}
 	}
 
 	if err := h.projectService.Create(r.Context(), project); err != nil {
@@ -209,7 +215,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	if h.connectURLFunc != nil {
+	if h.connectURLFunc != nil && !isHost {
 		project.StripeConnectURL = h.connectURLFunc(project.ID)
 	}
 

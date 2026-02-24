@@ -146,7 +146,8 @@ giving_platform/
 
 ### Phase 4: 決済（Stripe Connect）
 
-- **Stripe Connect オンボーディングはプロジェクト作成時に必須**。作成フォームの最終ステップで Stripe Connect にリダイレクト。オンボーディング完了後にプロジェクトが公開される。Stripe 未接続のままプロジェクト公開は不可。
+- **Stripe Connect オンボーディングは一般プロジェクトオーナーのプロジェクト作成時に必須**。作成フォームの最終ステップで Stripe Connect にリダイレクト。オンボーディング完了後にプロジェクトが公開される。Stripe 未接続のままプロジェクト公開は不可。
+- **サービスホスト（`HOST_EMAILS` に含まれるユーザー）は Connect 不要**。プロジェクトは `status: active` で即時公開され、プラットフォームの Stripe アカウントで直接決済される。
 - 寄付用 Checkout Session / サブスク作成
 - Webhook で決済完了・サブスク状態の同期
 - フロント: 寄付フォーム（React）、金額・通貨・単発/定期の選択
@@ -188,7 +189,6 @@ giving_platform/
 ### Phase 1: 基盤構築
 
 - [ ] `docker compose up` で db / backend / frontend が起動する
-- [ ] フロント http://localhost:4321 にアクセスするとトップページが表示される
 - [ ] トップページの「API ステータス」が `ok - GIVErS API` と表示される
 - [ ] http://localhost:8080/api/health に GET でアクセスすると `{"status":"ok",...}` が返る
 - [ ] DB 停止時、/api/health が unhealthy を返す

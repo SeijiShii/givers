@@ -197,22 +197,36 @@ func TestStripeService_CreateCheckout_Success(t *testing.T) {
 	}
 }
 
-func TestStripeService_CreateCheckout_ProjectNotConnected(t *testing.T) {
+func TestStripeService_CreateCheckout_PlatformDirect(t *testing.T) {
 	ctx := context.Background()
-	projectRepo := &mockStripeProjectRepo{
-		getByIDFunc: func(_ context.Context, _ string) (string, error) {
-			return "", nil // empty stripeAccountID = not connected
+	var capturedParams pkgstripe.CheckoutParams
+
+	stripeClient := &mockStripeClient{
+		createCheckoutSessionFunc: func(_ context.Context, params pkgstripe.CheckoutParams) (string, error) {
+			capturedParams = params
+			return "https://checkout.stripe.com/platform", nil
 		},
 	}
-	svc := newTestStripeServiceWithRepo(&mockStripeClient{}, projectRepo)
+	projectRepo := &mockStripeProjectRepo{
+		getByIDFunc: func(_ context.Context, _ string) (string, error) {
+			return "", nil // empty stripeAccountID = platform direct
+		},
+	}
+	svc := newTestStripeServiceWithRepo(stripeClient, projectRepo)
 
-	_, err := svc.CreateCheckout(ctx, CheckoutRequest{
-		ProjectID: "proj-1",
+	url, err := svc.CreateCheckout(ctx, CheckoutRequest{
+		ProjectID: "proj-host",
 		Amount:    500,
 		Currency:  "jpy",
 	})
-	if err == nil {
-		t.Error("expected error when project has no stripe account")
+	if err != nil {
+		t.Fatalf("expected no error for platform-direct checkout, got: %v", err)
+	}
+	if url != "https://checkout.stripe.com/platform" {
+		t.Errorf("unexpected URL: %q", url)
+	}
+	if capturedParams.StripeAccountID != "" {
+		t.Errorf("expected empty StripeAccountID for platform-direct, got %q", capturedParams.StripeAccountID)
 	}
 }
 
