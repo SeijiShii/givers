@@ -150,7 +150,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Deadline         *string                      `json:"deadline"`
 		Status           string                       `json:"status"`
 		OwnerWantMonthly *int                         `json:"owner_want_monthly"`
-		CostItems        []model.ProjectCostItemInput `json:"cost_items"`
+		CostItems        []model.CostItem             `json:"cost_items"`
 		Alerts           *model.ProjectAlerts         `json:"alerts"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -175,16 +175,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		OwnerWantMonthly: req.OwnerWantMonthly,
 		Alerts:           req.Alerts,
 	}
-	for i, input := range req.CostItems {
-		project.CostItems = append(project.CostItems, &model.ProjectCostItem{
-			Label:         input.Label,
-			UnitType:      input.UnitType,
-			AmountMonthly: input.AmountMonthly,
-			RatePerDay:    input.RatePerDay,
-			DaysPerMonth:  input.DaysPerMonth,
-			SortOrder:     i,
-		})
-	}
+	project.CostItems = req.CostItems
 	if req.Deadline != nil {
 		project.Deadline = parseDeadline(*req.Deadline)
 	}
@@ -206,6 +197,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.projectService.Create(r.Context(), project); err != nil {
+		log.Printf("[ERROR] project create failed: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "create_failed"})
 		return
@@ -313,19 +305,9 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if b, ok := raw["cost_items"]; ok {
-		var inputs []model.ProjectCostItemInput
-		_ = json.Unmarshal(b, &inputs)
-		existing.CostItems = nil
-		for i, input := range inputs {
-			existing.CostItems = append(existing.CostItems, &model.ProjectCostItem{
-				Label:         input.Label,
-				UnitType:      input.UnitType,
-				AmountMonthly: input.AmountMonthly,
-				RatePerDay:    input.RatePerDay,
-				DaysPerMonth:  input.DaysPerMonth,
-				SortOrder:     i,
-			})
-		}
+		var items []model.CostItem
+		_ = json.Unmarshal(b, &items)
+		existing.CostItems = items
 	}
 	if b, ok := raw["alerts"]; ok {
 		var v *model.ProjectAlerts

@@ -27,14 +27,6 @@ export async function fetchApi<T>(
   return res.json();
 }
 
-export async function healthCheck(): Promise<{
-  status: string;
-  message: string;
-}> {
-  if (MOCK_MODE) return (await import("./mock-api")).mockApi.healthCheck();
-  return fetchApi("/api/health");
-}
-
 export interface User {
   id: string;
   email: string;
@@ -290,34 +282,11 @@ export async function getLegalDoc(
 
 // --- Projects API ---
 
-export interface ProjectCosts {
-  id?: string;
-  project_id?: string;
-  server_cost_monthly: number;
-  dev_cost_per_day: number;
-  dev_days_per_month: number;
-  other_cost_monthly: number;
-}
-
-/** コスト内訳の1行（バックエンド cost_items 形式） */
-export interface ProjectCostItem {
-  id?: string;
-  project_id?: string;
+/** 見積詳細の1行（単価×数量） */
+export interface CostItem {
   label: string;
-  unit_type: "monthly" | "daily_x_days";
-  amount_monthly: number;
-  rate_per_day: number;
-  days_per_month: number;
-  sort_order?: number;
-}
-
-/** コスト内訳の入力用（POST/PUT リクエスト） */
-export interface ProjectCostItemInput {
-  label: string;
-  unit_type: "monthly" | "daily_x_days";
-  amount_monthly: number;
-  rate_per_day?: number;
-  days_per_month?: number;
+  unit_price: number;
+  quantity: number;
 }
 
 export interface ProjectAlerts {
@@ -337,8 +306,7 @@ export interface Project {
   owner_want_monthly?: number | null;
   created_at: string;
   updated_at: string;
-  costs?: ProjectCosts | null;
-  cost_items?: ProjectCostItem[] | null;
+  cost_items?: CostItem[] | null;
   alerts?: ProjectAlerts | null;
   /** 月額寄付の現在合計（モック/Phase4以降） */
   current_monthly_donations?: number;
@@ -749,8 +717,7 @@ export interface CreateProjectInput {
   deadline?: string | null;
   status?: string;
   owner_want_monthly?: number | null;
-  costs?: ProjectCosts | null;
-  cost_items?: ProjectCostItemInput[] | null;
+  cost_items?: CostItem[] | null;
   alerts?: ProjectAlerts | null;
 }
 
@@ -773,8 +740,7 @@ export interface UpdateProjectInput {
   deadline?: string | null;
   status?: string;
   owner_want_monthly?: number | null;
-  costs?: ProjectCosts | null;
-  cost_items?: ProjectCostItemInput[] | null;
+  cost_items?: CostItem[] | null;
   alerts?: ProjectAlerts | null;
 }
 

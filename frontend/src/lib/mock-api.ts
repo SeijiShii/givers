@@ -122,11 +122,6 @@ function toProject(p: MockProject): Project {
 }
 
 export const mockApi = {
-  async healthCheck(): Promise<{ status: string; message: string }> {
-    await delay(MOCK_DELAY);
-    return { status: "ok", message: "GIVErS API (Mock)" };
-  },
-
   async getMe(): Promise<User | null> {
     await delay(MOCK_DELAY);
     if (typeof window === "undefined" || !window.localStorage) {
@@ -308,11 +303,7 @@ export const mockApi = {
     const now = new Date().toISOString();
     // cost_items から monthly_target を計算
     const items = input.cost_items ?? [];
-    const mt = items.reduce((sum, ci) => {
-      if (ci.unit_type === "daily_x_days")
-        return sum + (ci.rate_per_day ?? 0) * (ci.days_per_month ?? 0);
-      return sum + ci.amount_monthly;
-    }, 0);
+    const mt = items.reduce((sum, ci) => sum + ci.unit_price * ci.quantity, 0);
     const newProject: Project = {
       id,
       owner_id: ownerId,
@@ -323,17 +314,7 @@ export const mockApi = {
       owner_want_monthly: input.owner_want_monthly ?? null,
       created_at: now,
       updated_at: now,
-      cost_items:
-        items.length > 0
-          ? items.map((ci, i) => ({
-              label: ci.label,
-              unit_type: ci.unit_type,
-              amount_monthly: ci.amount_monthly,
-              rate_per_day: ci.rate_per_day ?? 0,
-              days_per_month: ci.days_per_month ?? 0,
-              sort_order: i,
-            }))
-          : null,
+      cost_items: items.length > 0 ? items : null,
       monthly_target: mt,
       alerts: input.alerts ?? null,
     };
@@ -347,21 +328,9 @@ export const mockApi = {
     if (input.status != null) projectStatusOverrides.set(id, input.status);
     if (input.overview != null)
       projectOverviewOverrides.set(id, input.overview);
-    // cost_items 型変換: ProjectCostItemInput → ProjectCostItem 互換
-    const costItems = input.cost_items
-      ? input.cost_items.map((ci, i) => ({
-          label: ci.label,
-          unit_type: ci.unit_type,
-          amount_monthly: ci.amount_monthly,
-          rate_per_day: ci.rate_per_day ?? 0,
-          days_per_month: ci.days_per_month ?? 0,
-          sort_order: i,
-        }))
-      : undefined;
     const merged = {
       ...p,
       ...input,
-      ...(costItems ? { cost_items: costItems } : {}),
       id: p.id,
       owner_id: p.owner_id,
       created_at: p.created_at,

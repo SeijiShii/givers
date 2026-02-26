@@ -1,6 +1,5 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import HealthStatus from '../components/react/HealthStatus';
 import FeaturedProjects from '../components/react/FeaturedProjects';
 import ActivityFeed from '../components/react/ActivityFeed';
 import ShareButtons from '../components/react/ShareButtons';
@@ -41,8 +40,4 @@ const locale = 'ja';
     platformBadge={t(locale, 'platformProject.badge')}
   />
 
-  <section class="card" style="margin-top: 2rem;">
-    <h2>{t(locale, 'home.apiStatus')}</h2>
-    <HealthStatus client:load label={t(locale, 'home.apiStatus')} />
-  </section>
 </BaseLayout>

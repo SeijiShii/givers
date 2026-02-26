@@ -17,7 +17,7 @@ type Project struct {
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 
-	CostItems []*ProjectCostItem `json:"cost_items,omitempty"`
+	CostItems []CostItem `json:"cost_items,omitempty"`
 	Alerts    *ProjectAlerts     `json:"alerts,omitempty"`
 
 	// Transient: not stored in DB, set by handlers

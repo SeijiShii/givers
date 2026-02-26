@@ -45,7 +45,7 @@ func (h *ChartHandler) Chart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	minAmount := model.TotalMonthlyAmount(project.CostItems)
+	minAmount := model.TotalMonthly(project.CostItems)
 	targetAmount := project.MonthlyTarget
 
 	// Build lookup from monthly sums

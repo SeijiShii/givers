@@ -36,9 +36,9 @@ func TestChartHandler_Chart_Success(t *testing.T) {
 			return &model.Project{
 				ID:            id,
 				MonthlyTarget: 50000,
-				CostItems: []*model.ProjectCostItem{
-					{UnitType: "monthly", AmountMonthly: 10000},
-					{UnitType: "daily_x_days", RatePerDay: 5000, DaysPerMonth: 4},
+				CostItems: []model.CostItem{
+					{Label: "サーバー費用", UnitPrice: 10000, Quantity: 1},
+					{Label: "開発費", UnitPrice: 5000, Quantity: 4},
 				},
 			}, nil
 		},

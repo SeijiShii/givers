@@ -484,20 +484,62 @@ export default function ProjectDetail({
       {project.cost_items && project.cost_items.length > 0 && (
         <div style={{ marginTop: "0.5rem", color: "var(--color-text-muted)" }}>
           <p style={{ marginBottom: "0.25rem" }}>
-            必要額（コスト内訳）: 月額 ¥
+            {t(locale, "projects.costBreakdown")}: 月額 ¥
             {(project.monthly_target ?? 0).toLocaleString()}
           </p>
-          <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.9rem" }}>
-            {project.cost_items.map((ci, i) => (
-              <li key={ci.id ?? i}>
-                {ci.label}: ¥
-                {ci.unit_type === "daily_x_days"
-                  ? (ci.rate_per_day * ci.days_per_month).toLocaleString()
-                  : ci.amount_monthly.toLocaleString()}
-                /月
-              </li>
-            ))}
-          </ul>
+          <table
+            style={{
+              width: "100%",
+              fontSize: "0.9rem",
+              borderCollapse: "collapse",
+            }}
+          >
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
+                <th style={{ textAlign: "left", padding: "0.25rem 0" }}>
+                  {t(locale, "projects.costItemLabel")}
+                </th>
+                <th style={{ textAlign: "right", padding: "0.25rem 0.5rem" }}>
+                  {t(locale, "projects.costItemUnitPrice")}
+                </th>
+                <th style={{ textAlign: "center", padding: "0.25rem 0.5rem" }}>
+                  {t(locale, "projects.costItemQuantity")}
+                </th>
+                <th style={{ textAlign: "right", padding: "0.25rem 0" }}>
+                  {t(locale, "projects.costItemSubtotal")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {project.cost_items.map((ci, i) => {
+                const subtotal = ci.unit_price * ci.quantity;
+                return (
+                  <tr key={i}>
+                    <td style={{ padding: "0.25rem 0" }}>{ci.label}</td>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        padding: "0.25rem 0.5rem",
+                      }}
+                    >
+                      ¥{ci.unit_price.toLocaleString()}
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "center",
+                        padding: "0.25rem 0.5rem",
+                      }}
+                    >
+                      {ci.quantity}
+                    </td>
+                    <td style={{ textAlign: "right", padding: "0.25rem 0" }}>
+                      ¥{subtotal.toLocaleString()}/月
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
