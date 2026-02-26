@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/givers/backend/internal/model"
 )
@@ -49,7 +49,7 @@ func NewMilestoneService(
 func (s *MilestoneService) NotifyDonation(ctx context.Context, projectID string) error {
 	target, err := s.projectRepo.GetMonthlyTarget(ctx, projectID)
 	if err != nil {
-		log.Printf("[milestone] GetMonthlyTarget error for %s: %v", projectID, err)
+		slog.Warn("milestone: get monthly target failed", "project_id", projectID, "error", err)
 		return nil
 	}
 	if target <= 0 {
@@ -58,7 +58,7 @@ func (s *MilestoneService) NotifyDonation(ctx context.Context, projectID string)
 
 	sum, err := s.donationRepo.CurrentMonthSumByProject(ctx, projectID)
 	if err != nil {
-		log.Printf("[milestone] CurrentMonthSumByProject error for %s: %v", projectID, err)
+		slog.Warn("milestone: get month sum failed", "project_id", projectID, "error", err)
 		return nil
 	}
 
@@ -70,7 +70,7 @@ func (s *MilestoneService) NotifyDonation(ctx context.Context, projectID string)
 		}
 		exists, err := s.activityRepo.ExistsMilestoneThisMonth(ctx, projectID, threshold)
 		if err != nil {
-			log.Printf("[milestone] ExistsMilestoneThisMonth error for %s@%d: %v", projectID, threshold, err)
+			slog.Warn("milestone: exists check failed", "project_id", projectID, "threshold", threshold, "error", err)
 			continue
 		}
 		if exists {
@@ -82,7 +82,7 @@ func (s *MilestoneService) NotifyDonation(ctx context.Context, projectID string)
 			ProjectID: projectID,
 			Rate:      &t,
 		}); err != nil {
-			log.Printf("[milestone] Insert error for %s@%d: %v", projectID, threshold, err)
+			slog.Warn("milestone: insert failed", "project_id", projectID, "threshold", threshold, "error", err)
 		}
 	}
 	return nil

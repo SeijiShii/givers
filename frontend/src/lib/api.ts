@@ -755,3 +755,32 @@ export async function updateProject(
     body: JSON.stringify(input),
   });
 }
+
+export async function uploadProjectImage(
+  projectId: string,
+  file: File,
+): Promise<{ image_url: string }> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.uploadProjectImage(
+      projectId,
+      file,
+    );
+  const formData = new FormData();
+  formData.append("image", file);
+  const res = await fetch(`${API_URL}/api/projects/${projectId}/image`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Upload failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function deleteProjectImage(projectId: string): Promise<void> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.deleteProjectImage(projectId);
+  await fetchApi(`/api/projects/${projectId}/image`, { method: "DELETE" });
+}

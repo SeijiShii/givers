@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -165,62 +165,61 @@ func (h *AuthHandler) GoogleLoginURL(w http.ResponseWriter, r *http.Request) {
 	state := generateRandomString()
 	storeOAuthState(state)
 	url := h.googleConfig.AuthCodeURL(state)
-	log.Printf("[AUTH] GoogleLoginURL: redirectURL=%s, clientID=%s...%s",
-		h.googleConfig.RedirectURL,
-		h.googleConfig.ClientID[:8],
-		h.googleConfig.ClientID[len(h.googleConfig.ClientID)-4:])
-	log.Printf("[AUTH] GoogleLoginURL: state=%s... (server-side), authURL length=%d", state[:8], len(url))
+	slog.Debug("google login url", "redirect_url", h.googleConfig.RedirectURL, "client_id_prefix", h.googleConfig.ClientID[:8])
+	slog.Debug("google login url: state stored", "state_prefix", state[:8], "auth_url_length", len(url))
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"url": url})
 }
 
 // GoogleCallback は OAuth コールバックを処理する（GET /api/auth/google/callback）
 func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[AUTH] GoogleCallback: START — url=%s", r.URL.String())
-	log.Printf("[AUTH] GoogleCallback: cookies received: %s", formatCookies(r.Cookies()))
+	slog.Debug("google callback start", "url", r.URL.String())
+	if slog.Default().Enabled(r.Context(), slog.LevelDebug) {
+		slog.Debug("google callback cookies", "cookies", formatCookies(r.Cookies()))
+	}
 
 	// Server-side state verification (no cookies needed)
 	queryState := r.URL.Query().Get("state")
 	if !verifyAndDeleteOAuthState(queryState) {
-		log.Printf("[AUTH] GoogleCallback: FAIL — state verification failed (state=%s...)", truncate(queryState, 8))
+		slog.Warn("google callback: state verification failed", "state_prefix", truncate(queryState, 8))
 		http.Redirect(w, r, h.frontendURL+"/?error=invalid_state", http.StatusFound)
 		return
 	}
-	log.Printf("[AUTH] GoogleCallback: state verified OK (server-side)")
+	slog.Debug("google callback: state verified")
 
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		log.Printf("[AUTH] GoogleCallback: FAIL — no code in query params")
+		slog.Warn("google callback: no code in query params")
 		http.Redirect(w, r, h.frontendURL+"/?error=no_code", http.StatusFound)
 		return
 	}
-	log.Printf("[AUTH] GoogleCallback: code received (length=%d)", len(code))
+	slog.Debug("google callback: code received", "code_length", len(code))
 
 	token, err := h.googleConfig.Exchange(r.Context(), code)
 	if err != nil {
-		log.Printf("[AUTH] GoogleCallback: FAIL — token exchange error: %v", err)
+		slog.Warn("google callback: token exchange failed", "error", err)
 		http.Redirect(w, r, h.frontendURL+"/?error=exchange_failed", http.StatusFound)
 		return
 	}
-	log.Printf("[AUTH] GoogleCallback: token exchange OK (type=%s, expiry=%v)", token.TokenType, token.Expiry)
+	slog.Debug("google callback: token exchange ok", "token_type", token.TokenType, "expiry", token.Expiry)
 
 	client := h.googleConfig.Client(r.Context(), token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
-		log.Printf("[AUTH] GoogleCallback: FAIL — userinfo request error: %v", err)
+		slog.Warn("google callback: userinfo request failed", "error", err)
 		http.Redirect(w, r, h.frontendURL+"/?error=userinfo_failed", http.StatusFound)
 		return
 	}
 	defer resp.Body.Close()
-	log.Printf("[AUTH] GoogleCallback: userinfo response status=%d", resp.StatusCode)
+	slog.Debug("google callback: userinfo response", "status", resp.StatusCode)
 
 	var info googleUserInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		log.Printf("[AUTH] GoogleCallback: FAIL — userinfo decode error: %v", err)
+		slog.Warn("google callback: userinfo decode failed", "error", err)
 		http.Redirect(w, r, h.frontendURL+"/?error=decode_failed", http.StatusFound)
 		return
 	}
-	log.Printf("[AUTH] GoogleCallback: userinfo OK — sub=%s, email=%s, name=%s", info.Sub, info.Email, info.Name)
+	slog.Debug("google callback: userinfo ok", "sub", info.Sub, "email", info.Email, "name", info.Name)
 
 	user, err := h.authService.GetOrCreateUserFromGoogle(r.Context(), &service.GoogleUserInfo{
 		Sub:   info.Sub,
@@ -228,26 +227,26 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		Name:  info.Name,
 	})
 	if err != nil {
-		log.Printf("[AUTH] GoogleCallback: FAIL — GetOrCreateUser error: %v", err)
+		slog.Error("google callback: get or create user failed", "error", err)
 		http.Redirect(w, r, h.frontendURL+"/?error=create_user_failed", http.StatusFound)
 		return
 	}
-	log.Printf("[AUTH] GoogleCallback: user OK — id=%s, email=%s, name=%s", user.ID, user.Email, user.Name)
+	slog.Debug("google callback: user ok", "user_id", user.ID, "email", user.Email)
 
 	session, err := h.sessionSvc.CreateSession(r.Context(), user.ID)
 	if err != nil {
-		log.Printf("[AUTH] GoogleCallback: FAIL — session creation error: %v", err)
+		slog.Error("google callback: session creation failed", "error", err)
 		http.Redirect(w, r, h.frontendURL+"/?error=session_failed", http.StatusFound)
 		return
 	}
-	log.Printf("[AUTH] GoogleCallback: session created — token=%s..., expiresAt=%v", session.Token[:16], session.ExpiresAt)
+	slog.Debug("google callback: session created", "token_prefix", session.Token[:16], "expires_at", session.ExpiresAt)
 
 	// One-time code relay: redirect through the Vite proxy so the session cookie
 	// is set on the frontend's origin (localhost:4321), not the backend's (localhost:8080).
 	oneTimeCode := generateRandomString()
 	storeOneTimeCode(oneTimeCode, session.Token)
 	redirectURL := h.frontendURL + "/api/auth/finalize?code=" + oneTimeCode
-	log.Printf("[AUTH] GoogleCallback: SUCCESS — redirecting via code relay to %s", redirectURL)
+	slog.Info("google oauth login success")
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
@@ -272,11 +271,11 @@ type githubUserInfo struct {
 
 // GitHubCallback は OAuth コールバックを処理する（GET /api/auth/github/callback）
 func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[AUTH] GitHubCallback: START — url=%s", r.URL.String())
+	slog.Debug("github callback start", "url", r.URL.String())
 
 	queryState := r.URL.Query().Get("state")
 	if !verifyAndDeleteOAuthState(queryState) {
-		log.Printf("[AUTH] GitHubCallback: FAIL — state verification failed")
+		slog.Warn("github callback: state verification failed")
 		http.Redirect(w, r, h.frontendURL+"/?error=invalid_state", http.StatusFound)
 		return
 	}
@@ -361,14 +360,14 @@ func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) FinalizeLogin(w http.ResponseWriter, r *http.Request) {
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		log.Printf("[AUTH] FinalizeLogin: FAIL — missing code")
+		slog.Warn("finalize login: missing code")
 		http.Redirect(w, r, h.frontendURL+"/?error=missing_code", http.StatusFound)
 		return
 	}
 
 	sessionToken, ok := lookupOneTimeCode(code)
 	if !ok {
-		log.Printf("[AUTH] FinalizeLogin: FAIL — invalid or expired code")
+		slog.Warn("finalize login: invalid or expired code")
 		http.Redirect(w, r, h.frontendURL+"/?error=invalid_code", http.StatusFound)
 		return
 	}
@@ -383,8 +382,7 @@ func (h *AuthHandler) FinalizeLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   os.Getenv("ENV") == "production",
 	}
 	http.SetCookie(w, cookie)
-	log.Printf("[AUTH] FinalizeLogin: SUCCESS — Set-Cookie name=%s, path=%s, maxAge=%d",
-		cookie.Name, cookie.Path, cookie.MaxAge)
+	slog.Info("finalize login success", "cookie_name", cookie.Name, "max_age", cookie.MaxAge)
 
 	http.Redirect(w, r, h.frontendURL+"/", http.StatusFound)
 }

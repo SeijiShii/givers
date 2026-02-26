@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS projects (
     monthly_target     INT NOT NULL DEFAULT 0,
     stripe_account_id  VARCHAR(255),
     cost_items         JSONB,
+    image_url          TEXT NOT NULL DEFAULT '',
     created_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at         TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );

@@ -20,7 +20,7 @@ func NewPgProjectRepository(pool *pgxpool.Pool) *PgProjectRepository {
 	return &PgProjectRepository{pool: pool}
 }
 
-const projectSelectCols = `id, owner_id, name, description, overview, share_message, deadline, status, owner_want_monthly, monthly_target, COALESCE(stripe_account_id, ''), cost_items, created_at, updated_at`
+const projectSelectCols = `id, owner_id, name, description, overview, share_message, deadline, status, owner_want_monthly, monthly_target, COALESCE(stripe_account_id, ''), cost_items, image_url, created_at, updated_at`
 
 func scanProject(row pgx.Row) (*model.Project, error) {
 	var p model.Project
@@ -28,7 +28,7 @@ func scanProject(row pgx.Row) (*model.Project, error) {
 	if err := row.Scan(
 		&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage,
 		&p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget,
-		&p.StripeAccountID, &costItemsJSON, &p.CreatedAt, &p.UpdatedAt,
+		&p.StripeAccountID, &costItemsJSON, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func scanProjects(rows pgx.Rows) ([]*model.Project, error) {
 		if err := rows.Scan(
 			&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage,
 			&p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget,
-			&p.StripeAccountID, &costItemsJSON, &p.CreatedAt, &p.UpdatedAt,
+			&p.StripeAccountID, &costItemsJSON, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -104,12 +104,13 @@ func (r *PgProjectRepository) List(ctx context.Context, sort string, limit int, 
 		if cursor == "" {
 			rows, err = r.pool.Query(ctx,
 				`SELECT `+projectSelectCols+`
-				 FROM projects ORDER BY created_at DESC, id DESC LIMIT $1`, fetchLimit)
+				 FROM projects WHERE status = 'active' ORDER BY created_at DESC, id DESC LIMIT $1`, fetchLimit)
 		} else {
 			rows, err = r.pool.Query(ctx,
 				`SELECT `+projectSelectCols+`
 				 FROM projects
-				 WHERE (created_at, id) < ((SELECT created_at FROM projects WHERE id = $2), $2)
+				 WHERE status = 'active'
+				   AND (created_at, id) < ((SELECT created_at FROM projects WHERE id = $2), $2)
 				 ORDER BY created_at DESC, id DESC
 				 LIMIT $1`, fetchLimit, cursor)
 		}
@@ -185,11 +186,11 @@ func (r *PgProjectRepository) Create(ctx context.Context, project *model.Project
 	project.MonthlyTarget = model.TotalMonthly(project.CostItems)
 
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO projects (owner_id, name, description, overview, share_message, deadline, status, owner_want_monthly, monthly_target, cost_items)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		`INSERT INTO projects (owner_id, name, description, overview, share_message, deadline, status, owner_want_monthly, monthly_target, cost_items, image_url)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		 RETURNING id, created_at, updated_at`,
 		project.OwnerID, project.Name, project.Description, project.Overview, project.ShareMessage, project.Deadline,
-		project.Status, project.OwnerWantMonthly, project.MonthlyTarget, marshalCostItems(project.CostItems),
+		project.Status, project.OwnerWantMonthly, project.MonthlyTarget, marshalCostItems(project.CostItems), project.ImageURL,
 	).Scan(&project.ID, &project.CreatedAt, &project.UpdatedAt)
 	if err != nil {
 		return err
@@ -209,10 +210,10 @@ func (r *PgProjectRepository) Update(ctx context.Context, project *model.Project
 	project.MonthlyTarget = model.TotalMonthly(project.CostItems)
 
 	if _, err := r.pool.Exec(ctx,
-		`UPDATE projects SET name=$1, description=$2, overview=$3, share_message=$4, deadline=$5, status=$6, owner_want_monthly=$7, monthly_target=$8, cost_items=$9, updated_at=NOW()
-		 WHERE id=$10`,
+		`UPDATE projects SET name=$1, description=$2, overview=$3, share_message=$4, deadline=$5, status=$6, owner_want_monthly=$7, monthly_target=$8, cost_items=$9, image_url=$10, updated_at=NOW()
+		 WHERE id=$11`,
 		project.Name, project.Description, project.Overview, project.ShareMessage, project.Deadline, project.Status,
-		project.OwnerWantMonthly, project.MonthlyTarget, marshalCostItems(project.CostItems), project.ID,
+		project.OwnerWantMonthly, project.MonthlyTarget, marshalCostItems(project.CostItems), project.ImageURL, project.ID,
 	); err != nil {
 		return err
 	}
@@ -291,6 +292,21 @@ func (r *PgProjectRepository) GetMonthlyTarget(ctx context.Context, projectID st
 		`SELECT COALESCE(monthly_target, 0) FROM projects WHERE id = $1`, projectID,
 	).Scan(&target)
 	return target, err
+}
+
+// UpdateImageURL はプロジェクトの image_url のみを更新する
+func (r *PgProjectRepository) UpdateImageURL(ctx context.Context, projectID, imageURL string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE projects SET image_url=$1, updated_at=NOW() WHERE id=$2`,
+		imageURL, projectID,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *PgProjectRepository) upsertAlerts(ctx context.Context, a *model.ProjectAlerts) error {

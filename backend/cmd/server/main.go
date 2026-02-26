@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/givers/backend/internal/handler"
+	"github.com/givers/backend/internal/logging"
 	"github.com/givers/backend/internal/repository"
 	"github.com/givers/backend/internal/service"
+	"github.com/givers/backend/internal/storage"
 	"github.com/givers/backend/pkg/auth"
 	pkgstripe "github.com/givers/backend/pkg/stripe"
 	"github.com/joho/godotenv"
@@ -20,6 +22,7 @@ import (
 func main() {
 	_ = godotenv.Load()    // backend/.env or CWD
 	_ = godotenv.Load("../.env") // project root
+	logging.Setup()
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -33,7 +36,7 @@ func main() {
 
 	pool, err := repository.NewPool(context.Background(), dbURL)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %v", err)
+		logging.Fatal("failed to connect to database", "error", err)
 	}
 	defer pool.Close()
 
@@ -109,6 +112,13 @@ func main() {
 	chartHandler := handler.NewChartHandler(projectService, donationRepo)
 	costPresetHandler := handler.NewCostPresetHandler(costPresetService)
 
+	uploadsDir := os.Getenv("UPLOADS_DIR")
+	if uploadsDir == "" {
+		uploadsDir = "./uploads"
+	}
+	imageStorage := storage.NewLocalStorage(uploadsDir, "/uploads")
+	imageHandler := handler.NewImageHandler(imageStorage, projectService, projectRepo)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", h.Health)
 	mux.HandleFunc("GET /api/auth/providers", providersHandler.Providers)
@@ -145,6 +155,8 @@ func main() {
 	mux.Handle("PUT /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Update)))
 	mux.Handle("DELETE /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Delete)))
 	mux.Handle("PATCH /api/projects/{id}/status", wrapAuth(http.HandlerFunc(projectHandler.PatchStatus)))
+	mux.Handle("POST /api/projects/{id}/image", wrapAuth(http.HandlerFunc(imageHandler.Upload)))
+	mux.Handle("DELETE /api/projects/{id}/image", wrapAuth(http.HandlerFunc(imageHandler.Delete)))
 
 	// プロジェクト更新 API
 	mux.Handle("GET /api/projects/{id}/updates", http.HandlerFunc(updateHandler.List))
@@ -193,19 +205,22 @@ func main() {
 	mux.Handle("POST /api/donations/checkout", checkoutRL.Middleware(http.HandlerFunc(stripeHandler.Checkout)))
 	mux.HandleFunc("POST /api/webhooks/stripe", stripeHandler.Webhook)
 
-	// Middleware chain: SecurityHeaders → CORS → mux
+	// 画像ファイルの静的配信
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadsDir))))
+
+	// Middleware chain: RequestLogger → SecurityHeaders → CORS → mux
 	server := &http.Server{
 		Addr:         ":8080",
-		Handler:      handler.SecurityHeaders(h.CORS(mux)),
+		Handler:      handler.RequestLogger(handler.SecurityHeaders(h.CORS(mux))),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 
 	go func() {
-		log.Printf("server listening on %s", server.Addr)
+		slog.Info("server listening", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server error: %v", err)
+			logging.Fatal("server error", "error", err)
 		}
 	}()
 
@@ -216,6 +231,6 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("shutdown error: %v", err)
+		slog.Error("shutdown error", "error", err)
 	}
 }

@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -108,7 +108,7 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 			if err := json.NewEncoder(w).Encode(map[string]string{
 				"error": "rate limit exceeded",
 			}); err != nil {
-				log.Printf("[RateLimiter] failed to write response: %v", err)
+				slog.Error("rate limiter: failed to write response", "error", err, "ip", ip)
 			}
 			return
 		}

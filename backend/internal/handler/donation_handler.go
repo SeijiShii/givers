@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/givers/backend/internal/model"
@@ -34,6 +35,7 @@ func (h *DonationHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	donations, err := h.svc.ListByUser(r.Context(), userID, 50, 0)
 	if err != nil {
+		slog.Error("donation list failed", "error", err, "user_id", userID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "list_failed"})
 		return
@@ -82,6 +84,7 @@ func (h *DonationHandler) Patch(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 			return
 		}
+		slog.Error("donation patch failed", "error", err, "donation_id", id)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "patch_failed"})
 		return
@@ -114,6 +117,7 @@ func (h *DonationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 			return
 		}
+		slog.Error("donation delete failed", "error", err, "donation_id", id)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "delete_failed"})
 		return

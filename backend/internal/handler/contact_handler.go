@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -71,6 +72,7 @@ func (h *ContactHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.contactService.Submit(r.Context(), msg); err != nil {
+		slog.Error("contact submit failed", "error", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "submit_failed"})
@@ -126,6 +128,7 @@ func (h *ContactHandler) AdminList(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := h.contactService.List(r.Context(), opts)
 	if err != nil {
+		slog.Error("contact list failed", "error", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "list_failed"})
@@ -184,6 +187,7 @@ func (h *ContactHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 			return
 		}
+		slog.Error("contact status update failed", "error", err, "contact_id", id)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "update_failed"})
 		return

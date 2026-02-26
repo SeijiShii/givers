@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 )
 
@@ -31,11 +31,11 @@ type SessionValidator interface {
 func RequireAuth(sv SessionValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("[AUTH] RequireAuth: %s %s — Cookie header: %q", r.Method, r.URL.Path, r.Header.Get("Cookie"))
+			slog.Debug("auth check", "method", r.Method, "path", r.URL.Path)
 
 			cookie, err := r.Cookie(SessionCookieName())
 			if err != nil {
-				log.Printf("[AUTH] RequireAuth: REJECT — no %s cookie (err=%v)", SessionCookieName(), err)
+				slog.Warn("auth rejected: no session cookie", "cookie_name", SessionCookieName(), "error", err)
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 				return
@@ -45,17 +45,17 @@ func RequireAuth(sv SessionValidator) func(http.Handler) http.Handler {
 			if len(tokenPrefix) > 16 {
 				tokenPrefix = tokenPrefix[:16]
 			}
-			log.Printf("[AUTH] RequireAuth: cookie found — token=%s... (length=%d)", tokenPrefix, len(cookie.Value))
+			slog.Debug("auth cookie found", "token_prefix", tokenPrefix, "token_length", len(cookie.Value))
 
 			userID, err := sv.ValidateSession(r.Context(), cookie.Value)
 			if err != nil {
-				log.Printf("[AUTH] RequireAuth: REJECT — validation failed: %v", err)
+				slog.Warn("auth rejected: validation failed", "error", err)
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_session"})
 				return
 			}
 
-			log.Printf("[AUTH] RequireAuth: PASS — userID=%s, path=%s", userID, r.URL.Path)
+			slog.Debug("auth passed", "user_id", userID, "path", r.URL.Path)
 			ctx := WithUserID(r.Context(), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

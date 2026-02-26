@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -32,6 +33,7 @@ func (h *ActivityHandler) GlobalFeed(w http.ResponseWriter, r *http.Request) {
 
 	items, err := h.svc.ListGlobal(r.Context(), limit)
 	if err != nil {
+		slog.Error("activity global feed failed", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "activity_failed"})
 		return
@@ -51,6 +53,7 @@ func (h *ActivityHandler) ProjectFeed(w http.ResponseWriter, r *http.Request) {
 
 	items, err := h.svc.ListByProject(r.Context(), projectID, 20)
 	if err != nil {
+		slog.Error("activity project feed failed", "error", err, "project_id", projectID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "activity_failed"})
 		return

@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/givers/backend/internal/model"
@@ -34,6 +35,7 @@ func (h *CostPresetHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	presets, err := h.svc.List(r.Context(), userID)
 	if err != nil {
+		slog.Error("cost preset list failed", "error", err, "user_id", userID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "list_failed"})
 		return
@@ -148,6 +150,7 @@ func (h *CostPresetHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 			return
 		}
+		slog.Error("cost preset delete failed", "error", err, "preset_id", id)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "delete_failed"})
 		return
@@ -182,6 +185,7 @@ func (h *CostPresetHandler) Reorder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.Reorder(r.Context(), userID, req.IDs); err != nil {
+		slog.Error("cost preset reorder failed", "error", err, "user_id", userID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "reorder_failed"})
 		return

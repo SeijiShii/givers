@@ -15,5 +15,8 @@ Thumbs.db
 
 .claude
 
+# アップロードファイル
+backend/uploads/
+
 # 開発メモ
 note.txt

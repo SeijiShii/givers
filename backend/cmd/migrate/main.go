@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/givers/backend/internal/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -26,6 +27,7 @@ Commands:
 func main() {
 	_ = godotenv.Load()
 	_ = godotenv.Load("../.env")
+	logging.Setup()
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -35,7 +37,7 @@ func main() {
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dbURL)
 	if err != nil {
-		log.Fatalf("connect: %v", err)
+		logging.Fatal("connect failed", "error", err)
 	}
 	defer pool.Close()
 
@@ -72,7 +74,7 @@ func findMigrationDir() string {
 func collectUpFiles(dir string) []string {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		log.Fatalf("read migrations dir: %v", err)
+		logging.Fatal("read migrations dir failed", "error", err)
 	}
 	var files []string
 	for _, e := range entries {
@@ -110,22 +112,22 @@ func runIncremental(ctx context.Context, pool *pgxpool.Pool, dir string) {
 
 		sql, err := os.ReadFile(filepath.Join(dir, filename))
 		if err != nil {
-			log.Fatalf("read migration %s: %v", name, err)
+			logging.Fatal("read migration failed", "migration", name, "error", err)
 		}
 		if _, err := pool.Exec(ctx, string(sql)); err != nil {
-			log.Fatalf("migrate %s: %v", name, err)
+			logging.Fatal("migration failed", "migration", name, "error", err)
 		}
 		if _, err := pool.Exec(ctx, "INSERT INTO schema_migrations (name) VALUES ($1)", name); err != nil {
-			log.Fatalf("record migration %s: %v", name, err)
+			logging.Fatal("record migration failed", "migration", name, "error", err)
 		}
 		applied++
-		log.Printf("migration %d: %s completed", i+1, name)
+		slog.Info("migration completed", "number", i+1, "migration", name)
 	}
 
 	if applied == 0 {
-		log.Println("all migrations already applied")
+		slog.Info("all migrations already applied")
 	} else {
-		log.Printf("%d migrations completed", applied)
+		slog.Info("migrations completed", "count", applied)
 	}
 }
 
@@ -133,28 +135,28 @@ func runIncremental(ctx context.Context, pool *pgxpool.Pool, dir string) {
 // 全テーブル DROP
 // ---------------------------------------------------------------------------
 func runDropAll(ctx context.Context, pool *pgxpool.Pool, dir string) {
-	log.Println("dropping all tables...")
+	slog.Info("dropping all tables")
 	sql, err := os.ReadFile(filepath.Join(dir, "000_drop_all.sql"))
 	if err != nil {
-		log.Fatalf("read 000_drop_all.sql: %v", err)
+		logging.Fatal("read 000_drop_all.sql failed", "error", err)
 	}
 	if _, err := pool.Exec(ctx, string(sql)); err != nil {
-		log.Fatalf("drop all: %v", err)
+		logging.Fatal("drop all failed", "error", err)
 	}
-	log.Println("all tables dropped")
+	slog.Info("all tables dropped")
 }
 
 // ---------------------------------------------------------------------------
 // 集約スキーマで再作成
 // ---------------------------------------------------------------------------
 func runConsolidated(ctx context.Context, pool *pgxpool.Pool, dir string) {
-	log.Println("applying consolidated schema...")
+	slog.Info("applying consolidated schema")
 	sql, err := os.ReadFile(filepath.Join(dir, "000_consolidated.sql"))
 	if err != nil {
-		log.Fatalf("read 000_consolidated.sql: %v", err)
+		logging.Fatal("read 000_consolidated.sql failed", "error", err)
 	}
 	if _, err := pool.Exec(ctx, string(sql)); err != nil {
-		log.Fatalf("consolidated: %v", err)
+		logging.Fatal("consolidated apply failed", "error", err)
 	}
 
 	// 全マイグレーションを適用済みとして記録
@@ -164,5 +166,5 @@ func runConsolidated(ctx context.Context, pool *pgxpool.Pool, dir string) {
 		name := strings.TrimSuffix(filename, ".up.sql")
 		_, _ = pool.Exec(ctx, "INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT DO NOTHING", name)
 	}
-	log.Printf("consolidated schema applied (%d migrations marked)", len(upFiles))
+	slog.Info("consolidated schema applied", "migrations_marked", len(upFiles))
 }

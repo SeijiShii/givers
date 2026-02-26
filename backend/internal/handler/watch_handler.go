@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/givers/backend/internal/model"
@@ -36,6 +37,7 @@ func (h *WatchHandler) Watch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.watchService.Watch(r.Context(), userID, projectID); err != nil {
+		slog.Error("watch failed", "error", err, "project_id", projectID, "user_id", userID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal_error"})
 		return
@@ -62,6 +64,7 @@ func (h *WatchHandler) Unwatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.watchService.Unwatch(r.Context(), userID, projectID); err != nil {
+		slog.Error("unwatch failed", "error", err, "project_id", projectID, "user_id", userID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal_error"})
 		return
@@ -82,6 +85,7 @@ func (h *WatchHandler) ListWatches(w http.ResponseWriter, r *http.Request) {
 
 	projects, err := h.watchService.ListWatchedProjects(r.Context(), userID)
 	if err != nil {
+		slog.Error("list watches failed", "error", err, "user_id", userID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal_error"})
 		return

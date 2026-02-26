@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/givers/backend/internal/model"
@@ -40,6 +41,7 @@ func (h *ChartHandler) Chart(w http.ResponseWriter, r *http.Request) {
 
 	sums, err := h.donationSvc.MonthlySumByProject(r.Context(), projectID)
 	if err != nil {
+		slog.Error("chart data failed", "error", err, "project_id", projectID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "chart_failed"})
 		return

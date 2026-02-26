@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -68,6 +69,7 @@ func (h *AdminUserHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	users, err := h.adminSvc.ListUsers(r.Context(), limit, offset)
 	if err != nil {
+		slog.Error("admin list users failed", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "list_failed"})
 		return
@@ -114,6 +116,7 @@ func (h *AdminUserHandler) Suspend(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 			return
 		}
+		slog.Error("admin suspend user failed", "error", err, "target_user_id", id)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "suspend_failed"})
 		return
@@ -148,6 +151,7 @@ func (h *AdminUserHandler) DisclosureExport(w http.ResponseWriter, r *http.Reque
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 				return
 			}
+			slog.Error("disclosure export user failed", "error", err, "user_id", id)
 			w.WriteHeader(http.StatusInternalServerError)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "export_failed"})
 			return
@@ -162,6 +166,7 @@ func (h *AdminUserHandler) DisclosureExport(w http.ResponseWriter, r *http.Reque
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 				return
 			}
+			slog.Error("disclosure export project failed", "error", err, "project_id", id)
 			w.WriteHeader(http.StatusInternalServerError)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "export_failed"})
 			return
@@ -182,12 +187,14 @@ func (h *AdminUserHandler) DisclosureExport(w http.ResponseWriter, r *http.Reque
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 				return
 			}
+			slog.Error("disclosure export donation project failed", "error", err, "project_id", id)
 			w.WriteHeader(http.StatusInternalServerError)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "export_failed"})
 			return
 		}
 		donations, err := h.donationLister.ListByProject(r.Context(), id, 10000, 0)
 		if err != nil {
+			slog.Error("disclosure export donation list failed", "error", err, "project_id", id)
 			w.WriteHeader(http.StatusInternalServerError)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "export_failed"})
 			return

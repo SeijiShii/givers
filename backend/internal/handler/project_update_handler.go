@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/givers/backend/internal/model"
@@ -40,6 +41,7 @@ func (h *ProjectUpdateHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	updates, err := h.svc.ListByProjectID(r.Context(), projectID, includeHidden)
 	if err != nil {
+		slog.Error("project updates list failed", "error", err, "project_id", projectID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal_error"})
 		return
@@ -99,6 +101,7 @@ func (h *ProjectUpdateHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Body:      req.Body,
 	}
 	if err := h.svc.Create(r.Context(), update); err != nil {
+		slog.Error("project update create failed", "error", err, "project_id", projectID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "create_failed"})
 		return
@@ -162,6 +165,7 @@ func (h *ProjectUpdateHandler) UpdateUpdate(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := h.svc.Update(r.Context(), existing); err != nil {
+		slog.Error("project update edit failed", "error", err, "update_id", uid)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "update_failed"})
 		return
@@ -214,6 +218,7 @@ func (h *ProjectUpdateHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.svc.Delete(r.Context(), uid); err != nil {
+		slog.Error("project update delete failed", "error", err, "update_id", uid)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "delete_failed"})
 		return

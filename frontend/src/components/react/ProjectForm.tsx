@@ -1,12 +1,20 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import type {
   Project,
   CostItem,
   ProjectAlerts,
   AmountInputType,
 } from "../../lib/api";
-import { createProject, updateProject } from "../../lib/api";
+import {
+  createProject,
+  updateProject,
+  uploadProjectImage,
+  deleteProjectImage,
+} from "../../lib/api";
 import { t, type Locale } from "../../lib/i18n";
+
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 interface Props {
   locale: Locale;
@@ -83,6 +91,16 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     project?.share_message ?? "",
   );
 
+  // 画像アップロード
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState(
+    project?.image_url ?? null,
+  );
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,6 +118,30 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
       const next = prev.filter((_, i) => i !== idx);
       return next.length === 0 ? [emptyCostItem()] : next;
     });
+  };
+
+  const handleImageSelect = (file: File) => {
+    setImageError(null);
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setImageError(t(locale, "projects.imageTypeError"));
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      setImageError(t(locale, "projects.imageSizeError"));
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setImageRemoved(false);
+  };
+
+  const handleImageRemove = () => {
+    setImageFile(null);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(null);
+    setImageRemoved(true);
+    setImageError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const doSubmit = async (e: React.FormEvent) => {
@@ -132,9 +174,18 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
       };
       if (isEdit) {
         await updateProject(project!.id, payload);
+        if (imageRemoved && existingImageUrl) {
+          await deleteProjectImage(project!.id);
+        }
+        if (imageFile) {
+          await uploadProjectImage(project!.id, imageFile);
+        }
         window.location.href = redirectPath;
       } else {
         const created = await createProject(payload);
+        if (imageFile) {
+          await uploadProjectImage(created.id, imageFile);
+        }
         if (created.stripe_connect_url) {
           window.location.href = created.stripe_connect_url;
         } else {
@@ -154,6 +205,122 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
       className="card"
       style={{ maxWidth: "32rem", marginTop: "1.5rem" }}
     >
+      {/* ヒーロー画像 */}
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.25rem" }}>
+          {t(locale, "projects.imageLabel")}
+        </label>
+        <div
+          style={{
+            border: "2px dashed var(--color-border)",
+            borderRadius: "8px",
+            padding: "1rem",
+            textAlign: "center",
+            cursor: "pointer",
+            position: "relative",
+            aspectRatio: "2 / 1",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+            background: "var(--color-bg-muted, #f5f5f5)",
+          }}
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const file = e.dataTransfer.files?.[0];
+            if (file) handleImageSelect(file);
+          }}
+        >
+          {imagePreview || (!imageRemoved && existingImageUrl) ? (
+            <img
+              src={imagePreview ?? existingImageUrl!}
+              alt="Preview"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                position: "absolute",
+                top: 0,
+                left: 0,
+              }}
+            />
+          ) : (
+            <div>
+              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📷</div>
+              <div style={{ fontSize: "0.9rem" }}>
+                {t(locale, "projects.imageSelect")}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.8rem",
+                  color: "var(--color-text-muted)",
+                  marginTop: "0.25rem",
+                }}
+              >
+                {t(locale, "projects.imageDrop")}
+              </div>
+            </div>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImageSelect(file);
+            }}
+          />
+        </div>
+        {(imagePreview || (!imageRemoved && existingImageUrl)) && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleImageRemove();
+            }}
+            style={{
+              marginTop: "0.5rem",
+              padding: "0.25rem 0.75rem",
+              background: "none",
+              border: "1px solid var(--color-border)",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+              color: "var(--color-danger, #c00)",
+            }}
+          >
+            {t(locale, "projects.imageRemove")}
+          </button>
+        )}
+        {imageError && (
+          <p
+            style={{
+              color: "var(--color-danger)",
+              fontSize: "0.85rem",
+              marginTop: "0.25rem",
+            }}
+          >
+            {imageError}
+          </p>
+        )}
+        <small
+          style={{
+            display: "block",
+            color: "var(--color-text-muted)",
+            marginTop: "0.25rem",
+          }}
+        >
+          {t(locale, "projects.imageHint")}
+        </small>
+      </div>
+
       {/* プロジェクト名 */}
       <div style={{ marginBottom: "1rem" }}>
         <label

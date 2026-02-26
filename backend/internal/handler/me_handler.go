@@ -2,7 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -40,30 +40,29 @@ type meResponse struct {
 
 // Me は GET /api/me を処理する
 func (h *MeHandler) Me(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[AUTH] Me: request from %s, Origin=%s", r.RemoteAddr, r.Header.Get("Origin"))
-	log.Printf("[AUTH] Me: all cookies: %v", r.Header.Get("Cookie"))
+	slog.Debug("me: request", "remote_addr", r.RemoteAddr, "origin", r.Header.Get("Origin"))
 
 	cookie, err := r.Cookie(auth.SessionCookieName())
 	if err != nil {
-		log.Printf("[AUTH] Me: FAIL — no %s cookie found (err=%v)", auth.SessionCookieName(), err)
+		slog.Warn("me: no session cookie", "cookie_name", auth.SessionCookieName(), "error", err)
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
 		return
 	}
-	log.Printf("[AUTH] Me: cookie found — token=%s... (length=%d)", cookie.Value[:min(16, len(cookie.Value))], len(cookie.Value))
+	slog.Debug("me: cookie found", "token_prefix", cookie.Value[:min(16, len(cookie.Value))], "token_length", len(cookie.Value))
 
 	userID, err := h.sv.ValidateSession(r.Context(), cookie.Value)
 	if err != nil {
-		log.Printf("[AUTH] Me: FAIL — session validation error: %v", err)
+		slog.Warn("me: session validation failed", "error", err)
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_session"})
 		return
 	}
-	log.Printf("[AUTH] Me: session valid — userID=%s", userID)
+	slog.Debug("me: session valid", "user_id", userID)
 
 	user, err := h.userRepo.FindByID(r.Context(), userID)
 	if err != nil {
-		log.Printf("[AUTH] Me: FAIL — user not found: userID=%s, err=%v", userID, err)
+		slog.Warn("me: user not found", "user_id", userID, "error", err)
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "user_not_found"})
 		return
@@ -82,7 +81,7 @@ func (h *MeHandler) Me(w http.ResponseWriter, r *http.Request) {
 		resp.Role = "host"
 	}
 
-	log.Printf("[AUTH] Me: SUCCESS — user=%s, email=%s, name=%s, role=%s", user.ID, user.Email, user.Name, resp.Role)
+	slog.Debug("me: success", "user_id", user.ID, "email", user.Email, "role", resp.Role)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
 }

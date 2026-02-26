@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/givers/backend/internal/model"
@@ -26,7 +26,7 @@ func NewSessionService(repo repository.SessionRepository) *SessionService {
 func (s *SessionService) CreateSession(ctx context.Context, userID string) (*model.Session, error) {
 	token, err := auth.GenerateSessionToken()
 	if err != nil {
-		log.Printf("[SESSION] CreateSession: FAIL — token generation error: %v", err)
+		slog.Error("session create: token generation failed", "error", err)
 		return nil, err
 	}
 	now := time.Now()
@@ -37,10 +37,10 @@ func (s *SessionService) CreateSession(ctx context.Context, userID string) (*mod
 		ExpiresAt: now.Add(auth.SessionDuration),
 	}
 	if err := s.repo.Create(ctx, session); err != nil {
-		log.Printf("[SESSION] CreateSession: FAIL — DB insert error: %v", err)
+		slog.Error("session create: db insert failed", "error", err, "user_id", userID)
 		return nil, err
 	}
-	log.Printf("[SESSION] CreateSession: OK — userID=%s, token=%s..., expiresAt=%v", userID, token[:16], session.ExpiresAt)
+	slog.Debug("session created", "user_id", userID, "token_prefix", token[:16], "expires_at", session.ExpiresAt)
 	return session, nil
 }
 
@@ -51,21 +51,21 @@ func (s *SessionService) ValidateSession(ctx context.Context, token string) (str
 	if len(tokenPrefix) > 16 {
 		tokenPrefix = tokenPrefix[:16]
 	}
-	log.Printf("[SESSION] ValidateSession: looking up token=%s... (length=%d)", tokenPrefix, len(token))
+	slog.Debug("session validate: lookup", "token_prefix", tokenPrefix, "token_length", len(token))
 
 	session, err := s.repo.FindByToken(ctx, token)
 	if err != nil {
-		log.Printf("[SESSION] ValidateSession: FAIL — token not found in DB: %v", err)
+		slog.Debug("session validate: token not found", "error", err)
 		return "", errors.New("invalid_session")
 	}
-	log.Printf("[SESSION] ValidateSession: found — userID=%s, expiresAt=%v, now=%v", session.UserID, session.ExpiresAt, time.Now())
+	slog.Debug("session validate: found", "user_id", session.UserID, "expires_at", session.ExpiresAt)
 
 	if time.Now().After(session.ExpiresAt) {
-		log.Printf("[SESSION] ValidateSession: FAIL — session expired")
+		slog.Debug("session validate: expired", "user_id", session.UserID, "expired_at", session.ExpiresAt)
 		_ = s.repo.DeleteByToken(ctx, token)
 		return "", errors.New("session_expired")
 	}
-	log.Printf("[SESSION] ValidateSession: OK — userID=%s", session.UserID)
+	slog.Debug("session validate: ok", "user_id", session.UserID)
 	return session.UserID, nil
 }
 

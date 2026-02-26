@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -157,6 +158,7 @@ func (h *StripeHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "signature_verification_failed"})
 			return
 		}
+		slog.Error("stripe webhook processing failed", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "webhook_processing_failed"})
 		return

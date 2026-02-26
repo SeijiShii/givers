@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/givers/backend/internal/service"
@@ -32,6 +33,7 @@ func (h *HostHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	health, err := h.svc.Get(r.Context())
 	if err != nil {
+		slog.Error("platform health get failed", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal_error"})
 		return

@@ -14,6 +14,7 @@ type Project struct {
 	OwnerWantMonthly *int       `json:"owner_want_monthly,omitempty"` // オーナーの「〇〇円欲しい」表明（月額）
 	MonthlyTarget    int        `json:"monthly_target"`
 	StripeAccountID  string     `json:"stripe_account_id,omitempty"` // Stripe Connect で取得した acct_...
+	ImageURL         string     `json:"image_url,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 

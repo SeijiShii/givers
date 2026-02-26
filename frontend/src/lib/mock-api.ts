@@ -669,4 +669,21 @@ export const mockApi = {
       content: `# ${labels[type] ?? type}\n\nこれはモックの${labels[type] ?? type}です。\n\n実際のコンテンツはサーバー上の Markdown ファイルから読み込まれます。`,
     };
   },
+
+  async uploadProjectImage(
+    projectId: string,
+    _file: File,
+  ): Promise<{ image_url: string }> {
+    await delay(MOCK_DELAY);
+    const url = `https://placehold.co/800x400/4a7c59/ffffff?text=Uploaded`;
+    const p = MOCK_PROJECTS.find((x) => x.id === projectId);
+    if (p) (p as Record<string, unknown>)._mockImageUrl = url;
+    return { image_url: url };
+  },
+
+  async deleteProjectImage(projectId: string): Promise<void> {
+    await delay(MOCK_DELAY);
+    const p = MOCK_PROJECTS.find((x) => x.id === projectId);
+    if (p) (p as Record<string, unknown>)._mockImageUrl = null;
+  },
 };

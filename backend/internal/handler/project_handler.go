@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -84,6 +84,7 @@ func (h *ProjectHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.projectService.List(r.Context(), sort, limit, cursor)
 	if err != nil {
+		slog.Error("project list failed", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal_error"})
 		return
@@ -124,6 +125,7 @@ func (h *ProjectHandler) MyProjects(w http.ResponseWriter, r *http.Request) {
 
 	projects, err := h.projectService.ListByOwnerID(r.Context(), userID)
 	if err != nil {
+		slog.Error("my projects list failed", "error", err, "user_id", userID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "internal_error"})
 		return
@@ -197,7 +199,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.projectService.Create(r.Context(), project); err != nil {
-		log.Printf("[ERROR] project create failed: %v", err)
+		slog.Error("project create failed", "error", err, "user_id", userID)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "create_failed"})
 		return
@@ -215,7 +217,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if h.connectAccountFunc != nil && !isHost {
 		onboardingURL, err := h.connectAccountFunc(r.Context(), project.ID)
 		if err != nil {
-			log.Printf("stripe: failed to create account for project %s: %v", project.ID, err)
+			slog.Warn("stripe account creation failed", "project_id", project.ID, "error", err)
 		} else {
 			project.StripeConnectURL = onboardingURL
 		}
@@ -318,6 +320,7 @@ func (h *ProjectHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.projectService.Update(r.Context(), existing); err != nil {
+		slog.Error("project update failed", "error", err, "project_id", id)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "update_failed"})
 		return
@@ -381,6 +384,7 @@ func (h *ProjectHandler) PatchStatus(w http.ResponseWriter, r *http.Request) {
 
 	existing.Status = req.Status
 	if err := h.projectService.Update(r.Context(), existing); err != nil {
+		slog.Error("project status update failed", "error", err, "project_id", id)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "update_failed"})
 		return
@@ -421,6 +425,7 @@ func (h *ProjectHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
 			return
 		}
+		slog.Error("project delete failed", "error", err, "project_id", id)
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "delete_failed"})
 		return
