@@ -153,6 +153,7 @@
     "costUpdateBody": "Monthly estimate: ¥{old} → ¥{new}",
     "imageLabel": "Hero Image",
     "imageHint": "JPEG, PNG, WebP (max 2MB)",
+    "imageUpdate": "Update image",
     "imageSelect": "Select image",
     "imageDrop": "or drag and drop",
     "imageRemove": "Remove image",
@@ -294,7 +295,7 @@
     "cancel": "Cancel",
     "formLabel": "Share message",
     "formHint": "Default message shown when sharing on social media",
-    "copy": "Copy",
-    "copied": "Copied!"
+    "copyLink": "Copy link",
+    "linkCopied": "Copied!"
   }
 }

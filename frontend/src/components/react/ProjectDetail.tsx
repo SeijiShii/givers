@@ -186,6 +186,7 @@ export default function ProjectDetail({
   const [savingCostItems, setSavingCostItems] = useState(false);
 
   // Image upload state (owner-only)
+  const [showImageDropZone, setShowImageDropZone] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -447,6 +448,7 @@ export default function ProjectDetail({
       setImageFile(null);
       setImagePreview(null);
       setImageError(null);
+      setShowImageDropZone(false);
     } catch (e) {
       setImageError(e instanceof Error ? e.message : "Upload failed");
     } finally {
@@ -510,7 +512,8 @@ export default function ProjectDetail({
             style={{
               width: "100%",
               height: "100%",
-              objectFit: "cover",
+              objectFit: "contain",
+              objectPosition: "center",
               display: "block",
             }}
           />
@@ -534,107 +537,129 @@ export default function ProjectDetail({
       {/* オーナー専用: 画像アップロード */}
       {isOwner && (
         <div style={{ marginBottom: "1rem" }}>
-          <div
-            style={{
-              border: "2px dashed var(--color-border, #ccc)",
-              borderRadius: "8px",
-              padding: "0.75rem",
-              textAlign: "center",
-              cursor: "pointer",
-              background: "var(--color-bg-muted, #f5f5f5)",
-            }}
-            onClick={() => imageFileInputRef.current?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleImageSelect(file);
-            }}
-          >
-            {imagePreview ? (
-              <img
-                src={imagePreview}
-                alt="Preview"
-                style={{ maxHeight: "120px", borderRadius: "4px" }}
-              />
-            ) : (
-              <span
+          {!showImageDropZone ? (
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setShowImageDropZone(true)}
+              >
+                {t(locale, "projects.imageUpdate")}
+              </button>
+              {project.image_url && (
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ color: "var(--color-danger)" }}
+                  onClick={handleImageDelete}
+                  disabled={uploadingImage}
+                >
+                  {t(locale, "projects.imageRemove")}
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div
                 style={{
-                  fontSize: "0.85rem",
+                  border: "2px dashed var(--color-border, #ccc)",
+                  borderRadius: "8px",
+                  padding: "0.75rem",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  background: "var(--color-bg-muted, #f5f5f5)",
+                }}
+                onClick={() => imageFileInputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) handleImageSelect(file);
+                }}
+              >
+                {imagePreview ? (
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    style={{ maxHeight: "120px", borderRadius: "4px" }}
+                  />
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "var(--color-text-muted)",
+                    }}
+                  >
+                    {t(locale, "projects.imageSelect")} /{" "}
+                    {t(locale, "projects.imageDrop")}
+                  </span>
+                )}
+                <input
+                  ref={imageFileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImageSelect(f);
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  marginTop: "0.5rem",
+                  display: "flex",
+                  gap: "0.5rem",
+                }}
+              >
+                {imageFile && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleImageUpload}
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage ? "..." : saveLabel}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setShowImageDropZone(false);
+                    setImageFile(null);
+                    setImagePreview(null);
+                    setImageError(null);
+                  }}
+                >
+                  {cancelLabel}
+                </button>
+              </div>
+              {imageError && (
+                <p
+                  style={{
+                    color: "var(--color-danger)",
+                    fontSize: "0.85rem",
+                    marginTop: "0.25rem",
+                  }}
+                >
+                  {imageError}
+                </p>
+              )}
+              <small
+                style={{
                   color: "var(--color-text-muted)",
+                  fontSize: "0.8rem",
                 }}
               >
-                {t(locale, "projects.imageSelect")} /{" "}
-                {t(locale, "projects.imageDrop")}
-              </span>
-            )}
-            <input
-              ref={imageFileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              style={{ display: "none" }}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handleImageSelect(f);
-              }}
-            />
-          </div>
-          <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem" }}>
-            {imageFile && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={handleImageUpload}
-                disabled={uploadingImage}
-              >
-                {uploadingImage ? "..." : saveLabel}
-              </button>
-            )}
-            {project.image_url && !imageFile && (
-              <button
-                type="button"
-                className="btn"
-                style={{ color: "var(--color-danger)" }}
-                onClick={handleImageDelete}
-                disabled={uploadingImage}
-              >
-                {t(locale, "projects.imageRemove")}
-              </button>
-            )}
-            {imageFile && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setImageFile(null);
-                  setImagePreview(null);
-                  setImageError(null);
-                }}
-              >
-                {cancelLabel}
-              </button>
-            )}
-          </div>
-          {imageError && (
-            <p
-              style={{
-                color: "var(--color-danger)",
-                fontSize: "0.85rem",
-                marginTop: "0.25rem",
-              }}
-            >
-              {imageError}
-            </p>
+                {t(locale, "projects.imageHint")}
+              </small>
+            </>
           )}
-          <small
-            style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}
-          >
-            {t(locale, "projects.imageHint")}
-          </small>
         </div>
       )}
 

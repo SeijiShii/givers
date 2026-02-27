@@ -158,7 +158,7 @@ export default function ShareButtons({
   ];
 
   const dialogTitle = copyMode
-    ? t(locale, "share.copy")
+    ? t(locale, "share.copyLink")
     : selectedPlatform
       ? t(locale, `share.${selectedPlatform.toLowerCase()}`)
       : "";
@@ -182,12 +182,12 @@ export default function ShareButtons({
       <button
         type="button"
         onClick={handleCopyClick}
-        aria-label={t(locale, "share.copy")}
+        aria-label={t(locale, "share.copyLink")}
         className="share-btn"
         style={{ backgroundColor: "#6b7280" }}
       >
         <CopyIcon />
-        {t(locale, "share.copy")}
+        {t(locale, "share.copyLink")}
       </button>
 
       {dialogOpen && (
@@ -219,9 +219,9 @@ export default function ShareButtons({
                 disabled={copied}
               >
                 {copied
-                  ? t(locale, "share.copied")
+                  ? t(locale, "share.linkCopied")
                   : copyMode
-                    ? t(locale, "share.copy")
+                    ? t(locale, "share.copyLink")
                     : t(locale, "share.post")}
               </button>
             </div>
