@@ -14,6 +14,7 @@ GIVErS プラットフォームで使用する全環境変数の一覧、意味�
   - [AUTH_REQUIRED](#auth_required)
   - [GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET](#google_client_id--google_client_secret)
   - [GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET](#github_client_id--github_client_secret)
+  - [DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET](#discord_client_id--discord_client_secret)
   - [STRIPE_SECRET_KEY](#stripe_secret_key)
   - [STRIPE_WEBHOOK_SECRET](#stripe_webhook_secret)
   - ~~STRIPE_CONNECT_CLIENT_ID~~ (v2 API 移行により廃止)
@@ -165,6 +166,31 @@ openssl rand -base64 32
 > **注意**: GitHub OAuth App は 1つの App に 1つのコールバック URL しか設定できない。ローカル用と本番用で別の App を作成する。
 
 > 詳細手順: [oauth2-setup.md](oauth2-setup.md) の「2. GitHub OAuth2」セクション
+
+---
+
+### DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET
+
+| 項目 | 内容 |
+|------|------|
+| **必須** | いいえ（オプション。未設定時は Discord ログインボタンが非表示） |
+| **形式** | `DISCORD_CLIENT_ID`: 数字列（18〜20桁） / `DISCORD_CLIENT_SECRET`: 32文字の英数字 |
+| **用途** | Discord OAuth2 によるユーザーログイン |
+
+**入手方法:**
+
+1. [Discord Developer Portal](https://discord.com/developers/applications) → **New Application**
+2. アプリ名（例: `GIVErS`）を入力 → **Create**
+3. 左メニュー **「OAuth2」→「General」**
+4. **Client ID** をコピー
+5. **「Reset Secret」** → 表示される **Client Secret** をコピー（**表示は一度きり**）
+6. **「Redirects」** に追加:
+   - ローカル: `http://localhost:8080/api/auth/discord/callback`
+   - 本番: `https://your-domain/api/auth/discord/callback`
+
+> **注意**: Discord はメールアドレスを非公開にできます。取得できない場合は `username@discord.invalid` をフォールバックとして使用します。
+
+> 詳細手順: [oauth2-setup.md](oauth2-setup.md) の「3. Discord OAuth2」セクション
 
 ---
 
@@ -385,6 +411,8 @@ GOOGLE_CLIENT_ID=xxxxxxxxxxxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxxxx
 GITHUB_CLIENT_ID=Iv1.xxxxxxxxxxxxxxxx
 GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+DISCORD_CLIENT_ID=xxxxxxxxxxxxxxxxxxxx
+DISCORD_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
@@ -407,6 +435,6 @@ PUBLIC_GITHUB_REPO=https://github.com/example/givers
 
 ## 関連ドキュメント
 
-- [oauth2-setup.md](oauth2-setup.md) — Google / GitHub OAuth の詳細設定手順
+- [oauth2-setup.md](oauth2-setup.md) — Google / GitHub / Discord OAuth の詳細設定手順
 - [stripe-connect-setup.md](stripe-connect-setup.md) — Stripe Connect の詳細設定手順
 - [launch-setup-order.md](launch-setup-order.md) — 本番リリース前の外部サービス設定順序

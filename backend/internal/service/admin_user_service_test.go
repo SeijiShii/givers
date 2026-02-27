@@ -77,6 +77,15 @@ func (m *mockAdminUserRepository) FindByGitHubID(ctx context.Context, githubID s
 	}
 	return nil, nil
 }
+func (m *mockAdminUserRepository) FindByDiscordID(context.Context, string) (*model.User, error) {
+	return nil, nil
+}
+func (m *mockAdminUserRepository) FindByEmail(context.Context, string) (*model.User, error) {
+	return nil, nil
+}
+func (m *mockAdminUserRepository) UpdateProviderID(context.Context, string, string, string) error {
+	return nil
+}
 func (m *mockAdminUserRepository) Create(ctx context.Context, user *model.User) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, user)

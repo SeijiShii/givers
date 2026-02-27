@@ -80,18 +80,22 @@ func main() {
 
 	h := handler.New(pool, frontendURL)
 	authHandler := handler.NewAuthHandler(authService, handler.AuthConfig{
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
-		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
-		GoogleRedirectPath: "/api/auth/google/callback",
-		GitHubRedirectPath: "/api/auth/github/callback",
-		FrontendURL:        frontendURL,
+		GoogleClientID:      os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:  os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GitHubClientID:      os.Getenv("GITHUB_CLIENT_ID"),
+		GitHubClientSecret:  os.Getenv("GITHUB_CLIENT_SECRET"),
+		DiscordClientID:     os.Getenv("DISCORD_CLIENT_ID"),
+		DiscordClientSecret: os.Getenv("DISCORD_CLIENT_SECRET"),
+		GoogleRedirectPath:  "/api/auth/google/callback",
+		GitHubRedirectPath:  "/api/auth/github/callback",
+		DiscordRedirectPath: "/api/auth/discord/callback",
+		FrontendURL:         frontendURL,
 	}, sessionSvc)
 	providersHandler := handler.NewProvidersHandler(handler.ProvidersConfig{
-		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),
-		AppleClientID:  os.Getenv("APPLE_CLIENT_ID"),
-		EnableEmail:    os.Getenv("ENABLE_EMAIL_LOGIN") == "true",
+		GitHubClientID:  os.Getenv("GITHUB_CLIENT_ID"),
+		DiscordClientID: os.Getenv("DISCORD_CLIENT_ID"),
+		AppleClientID:   os.Getenv("APPLE_CLIENT_ID"),
+		EnableEmail:     os.Getenv("ENABLE_EMAIL_LOGIN") == "true",
 	})
 	meHandler := handler.NewMeHandler(userRepo, sessionSvc, hostEmails)
 	// Stripe が設定されている場合のみ v2 API でアカウント作成+オンボーディングを行う
@@ -126,6 +130,8 @@ func main() {
 	mux.HandleFunc("GET /api/auth/google/callback", authHandler.GoogleCallback)
 	mux.HandleFunc("GET /api/auth/github/login", authHandler.GitHubLoginURL)
 	mux.HandleFunc("GET /api/auth/github/callback", authHandler.GitHubCallback)
+	mux.HandleFunc("GET /api/auth/discord/login", authHandler.DiscordLoginURL)
+	mux.HandleFunc("GET /api/auth/discord/callback", authHandler.DiscordCallback)
 	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
 	mux.HandleFunc("GET /api/auth/finalize", authHandler.FinalizeLogin)
 	mux.HandleFunc("GET /api/me", meHandler.Me)

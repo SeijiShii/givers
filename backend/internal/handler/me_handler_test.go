@@ -28,7 +28,16 @@ func (m *mockUserRepository) FindByGoogleID(context.Context, string) (*model.Use
 func (m *mockUserRepository) FindByGitHubID(context.Context, string) (*model.User, error) {
 	return nil, errors.New("not found")
 }
+func (m *mockUserRepository) FindByDiscordID(context.Context, string) (*model.User, error) {
+	return nil, errors.New("not found")
+}
+func (m *mockUserRepository) FindByEmail(context.Context, string) (*model.User, error) {
+	return nil, errors.New("not found")
+}
 func (m *mockUserRepository) Create(context.Context, *model.User) error { return nil }
+func (m *mockUserRepository) UpdateProviderID(context.Context, string, string, string) error {
+	return nil
+}
 func (m *mockUserRepository) List(context.Context, int, int) ([]*model.User, error) {
 	return nil, nil
 }

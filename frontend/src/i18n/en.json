@@ -148,6 +148,9 @@
     "costItemSubtotal": "Subtotal/mo",
     "costItemAddRow": "+ Add item",
     "costTotal": "Total",
+    "editCostItems": "Edit estimates",
+    "costUpdateTitle": "Estimated costs updated",
+    "costUpdateBody": "Monthly estimate: ¥{old} → ¥{new}",
     "imageLabel": "Hero Image",
     "imageHint": "JPEG, PNG, WebP (max 2MB)",
     "imageSelect": "Select image",
@@ -290,6 +293,8 @@
     "post": "Post",
     "cancel": "Cancel",
     "formLabel": "Share message",
-    "formHint": "Default message shown when sharing on social media"
+    "formHint": "Default message shown when sharing on social media",
+    "copy": "Copy",
+    "copied": "Copied!"
   }
 }

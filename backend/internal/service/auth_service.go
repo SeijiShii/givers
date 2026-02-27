@@ -21,8 +21,16 @@ type GitHubUserInfo struct {
 	Name  string
 }
 
+// DiscordUserInfo は Discord OAuth から取得するユーザー情報
+type DiscordUserInfo struct {
+	ID       string
+	Username string
+	Email    string
+}
+
 // AuthService は認証に関するビジネスロジックのインターフェース
 type AuthService interface {
 	GetOrCreateUserFromGoogle(ctx context.Context, info *GoogleUserInfo) (*model.User, error)
 	GetOrCreateUserFromGitHub(ctx context.Context, info *GitHubUserInfo) (*model.User, error)
+	GetOrCreateUserFromDiscord(ctx context.Context, info *DiscordUserInfo) (*model.User, error)
 }

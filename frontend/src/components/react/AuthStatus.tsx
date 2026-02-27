@@ -4,6 +4,7 @@ import {
   getAuthProviders,
   getGoogleLoginUrl,
   getGitHubLoginUrl,
+  getDiscordLoginUrl,
   getAppleLoginUrl,
   logout,
   migrateFromToken,
@@ -36,8 +37,14 @@ export default function AuthStatus({ locale = "ja" }: Props) {
 
   const fetchUser = () => {
     getMe()
-      .then(setUser)
-      .catch(() => setUser(null))
+      .then((u) => {
+        console.log("[AuthStatus] fetchUser: logged in as", u?.email);
+        setUser(u);
+      })
+      .catch((err) => {
+        console.log("[AuthStatus] fetchUser: not logged in", err?.message);
+        setUser(null);
+      })
       .finally(() => setLoading(false));
   };
 
@@ -70,12 +77,26 @@ export default function AuthStatus({ locale = "ja" }: Props) {
   };
 
   const handleGoogleLogin = async () => {
-    const { url } = await getGoogleLoginUrl();
-    window.location.href = url;
+    try {
+      console.log("[AuthStatus] Google login: requesting URL...");
+      const { url } = await getGoogleLoginUrl();
+      console.log(
+        "[AuthStatus] Google login: redirecting to",
+        url?.substring(0, 80),
+      );
+      window.location.href = url;
+    } catch (err) {
+      console.error("[AuthStatus] Google login failed:", err);
+    }
   };
 
   const handleGitHubLogin = async () => {
     const { url } = await getGitHubLoginUrl();
+    window.location.href = url;
+  };
+
+  const handleDiscordLogin = async () => {
+    const { url } = await getDiscordLoginUrl();
     window.location.href = url;
   };
 
@@ -373,6 +394,15 @@ export default function AuthStatus({ locale = "ja" }: Props) {
             onClick={handleGitHubLogin}
           >
             GitHub
+          </button>
+        )}
+        {providers.includes("discord") && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleDiscordLogin}
+          >
+            Discord
           </button>
         )}
         {providers.includes("apple") && (

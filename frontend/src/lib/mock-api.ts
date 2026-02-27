@@ -185,6 +185,11 @@ export const mockApi = {
     return { url: "#" };
   },
 
+  async getDiscordLoginUrl(): Promise<{ url: string }> {
+    await delay(MOCK_DELAY);
+    return { url: "#" };
+  },
+
   async getEmailLoginUrl(): Promise<{ url: string }> {
     await delay(MOCK_DELAY);
     return { url: "#" };
@@ -601,7 +606,7 @@ export const mockApi = {
   /** 認証プロバイダー一覧（モックでは google + github を返す） */
   async getAuthProviders(): Promise<AuthProviders> {
     await delay(MOCK_DELAY);
-    return { providers: ["google", "github"] };
+    return { providers: ["google", "github", "discord"] };
   },
 
   /** お問い合わせ送信（モックでは常に成功） */
@@ -685,5 +690,30 @@ export const mockApi = {
     await delay(MOCK_DELAY);
     const p = MOCK_PROJECTS.find((x) => x.id === projectId);
     if (p) (p as Record<string, unknown>)._mockImageUrl = null;
+  },
+
+  async getHostHealth(): Promise<{
+    monthly_cost: number;
+    current_monthly: number;
+    warning_threshold: number;
+    critical_threshold: number;
+    rate: number;
+    signal: "green" | "yellow" | "red";
+  }> {
+    await delay(MOCK_DELAY);
+    const p = MOCK_PROJECTS.find((x) => x.id === "mock-4");
+    const target = p?.owner_want_monthly ?? 0;
+    const current = p?._mockCurrentMonthly ?? 0;
+    const rate = target > 0 ? Math.round((current / target) * 100) : 0;
+    const signal: "green" | "yellow" | "red" =
+      rate >= 60 ? "green" : rate >= 30 ? "yellow" : "red";
+    return {
+      monthly_cost: target,
+      current_monthly: current,
+      warning_threshold: 60,
+      critical_threshold: 30,
+      rate,
+      signal,
+    };
   },
 };

@@ -10,8 +10,9 @@ GIVErS バックエンドで各 OAuth2 プロバイダーを有効化するた�
 - [コールバック URL 一覧](#コールバック-url-一覧)
 - [1. Google OAuth2（必須）](#1-google-oauth2必須)
 - [2. GitHub OAuth2（オプション）](#2-github-oauth2オプション)
-- [3. Apple Sign In（オプション・将来実装）](#3-apple-sign-inオプション将来実装)
-- [4. メールログイン（オプション・将来実装）](#4-メールログインオプション将来実装)
+- [3. Discord OAuth2（オプション）](#3-discord-oauth2オプション)
+- [4. Apple Sign In（オプション・将来実装）](#4-apple-sign-inオプション将来実装)
+- [5. メールログイン（オプション・将来実装）](#5-メールログインオプション将来実装)
 - [ローカル開発の設定例](#ローカル開発の設定例)
 - [動作確認](#動作確認)
 - [トラブルシューティング](#トラブルシューティング)
@@ -37,6 +38,10 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxx
 GITHUB_CLIENT_ID=Iv1.xxxxxxxxxxxxxxxx
 GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+# ---- Discord（オプション: 設定しなければ Discord ボタン非表示） ----
+DISCORD_CLIENT_ID=xxxxxxxxxxxxxxxxxxxx
+DISCORD_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 # ---- Apple（オプション・将来実装） ----
 APPLE_CLIENT_ID=com.example.givers.web
 APPLE_TEAM_ID=XXXXXXXXXX
@@ -55,6 +60,7 @@ ENABLE_EMAIL_LOGIN=true
 |---|---|---|
 | Google | `https://api.example.com/api/auth/google/callback` | `http://localhost:8080/api/auth/google/callback` |
 | GitHub | `https://api.example.com/api/auth/github/callback` | `http://localhost:8080/api/auth/github/callback` |
+| Discord | `https://api.example.com/api/auth/discord/callback` | `http://localhost:8080/api/auth/discord/callback` |
 | Apple | `https://api.example.com/api/auth/apple/callback` | ※ Apple は HTTPS 必須。ローカルテスト不可 |
 
 ---
@@ -186,7 +192,40 @@ GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ---
 
-## 3. Apple Sign In（オプション・将来実装）
+## 3. Discord OAuth2（オプション）
+
+設定しない場合、`GET /api/auth/providers` レスポンスに `discord` が含まれず、フロントエンドの Discord ボタンも表示されません。
+
+### 3-1. Discord Application を作成する
+
+1. [Discord Developer Portal](https://discord.com/developers/applications) を開く
+2. **「New Application」** をクリック
+3. アプリ名（例: `GIVErS`）を入力 → **「Create」**
+
+### 3-2. OAuth2 を設定する
+
+1. 左メニュー **「OAuth2」→「General」** を開く
+2. **Client ID** をコピー（`DISCORD_CLIENT_ID` に使用）
+3. **「Reset Secret」** をクリックし、表示される **Client Secret** をコピー（`DISCORD_CLIENT_SECRET` に使用。**表示は一度きり**）
+4. **「Redirects」** に以下を追加：
+   - ローカル: `http://localhost:8080/api/auth/discord/callback`
+   - 本番: `https://api.example.com/api/auth/discord/callback`
+5. **「Save Changes」** をクリック
+
+### 3-3. .env に設定する
+
+```env
+DISCORD_CLIENT_ID=xxxxxxxxxxxxxxxxxxxx
+DISCORD_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+> **スコープ:** バックエンドは `identify` と `email` をリクエストします。Discord はメールアドレスを非公開にできるため、取得できない場合は `username@discord.invalid` をフォールバックとして使用します。
+
+> **メールによるアカウントリンク:** Discord のメールアドレスと一致する既存ユーザーがいる場合、そのユーザーに `discord_id` がリンクされます（GitHub と同じ方式）。
+
+---
+
+## 4. Apple Sign In（オプション・将来実装）
 
 現時点ではバックエンドの実装が未完了のため、設定しても有効になりません。将来実装時のための手順メモです。
 
@@ -196,7 +235,7 @@ GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - Web のみの Sign In with Apple は iOS アプリなしで設定可能
 - **コールバック URL は HTTPS 必須**（ローカル開発での直接テストは不可）
 
-### 3-1. App ID を作成する
+### 4-1. App ID を作成する
 
 1. [Apple Developer](https://developer.apple.com/account/) → **「Certificates, Identifiers & Profiles」**
 2. 左メニュー **「Identifiers」** → 右上 **「+」**
@@ -208,7 +247,7 @@ GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 6. Capabilities リストから **「Sign In with Apple」** にチェック
 7. **「Continue」→「Register」**
 
-### 3-2. Services ID を作成する（Web 用 Client ID）
+### 4-2. Services ID を作成する（Web 用 Client ID）
 
 1. **「Identifiers」** → **「+」**
 2. 種類：**「Services IDs」** → Continue
@@ -223,7 +262,7 @@ GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
    - **Return URLs**: `https://api.example.com/api/auth/apple/callback`
 7. **「Next」→「Done」→「Continue」→「Save」**
 
-### 3-3. Key（秘密鍵）を作成する
+### 4-3. Key（秘密鍵）を作成する
 
 1. 左メニュー **「Keys」** → **「+」**
 2. Key Name: `GIVErS Sign In with Apple`
@@ -233,11 +272,11 @@ GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 5. **「Download」** をクリックして `.p8` ファイルをダウンロード（**一度しかダウンロードできません**）
 6. **Key ID**（10文字の英数字）をメモ
 
-### 3-4. Team ID を確認する
+### 4-4. Team ID を確認する
 
 [Apple Developer メンバーシップ](https://developer.apple.com/account/#/membership/) を開くと **Team ID**（10文字の英数字）が表示されます。
 
-### 3-5. Client Secret（JWT）を生成する
+### 4-5. Client Secret（JWT）を生成する
 
 Apple の OAuth2 では Client Secret は固定の文字列ではなく、`.p8` 秘密鍵で署名した **JWT** を都度生成して使用します。有効期限は最大 **6ヶ月**。
 
@@ -271,7 +310,7 @@ pip install PyJWT cryptography
 python generate_apple_secret.py
 ```
 
-### 3-6. .env に設定する
+### 4-6. .env に設定する
 
 ```env
 APPLE_CLIENT_ID=com.example.givers.web
@@ -283,7 +322,7 @@ APPLE_CLIENT_SECRET=eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLiJ9...
 
 ---
 
-## 4. メールログイン（オプション・将来実装）
+## 5. メールログイン（オプション・将来実装）
 
 マジックリンク方式（メールアドレス入力 → リンクをメール送信 → クリックでログイン）です。現時点ではバックエンド未実装です。
 
@@ -312,6 +351,10 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxxxx
 # GitHub（オプション）
 # GITHUB_CLIENT_ID=Iv1.xxxxxxxxxxxxxxxx
 # GITHUB_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Discord（オプション）
+# DISCORD_CLIENT_ID=xxxxxxxxxxxxxxxxxxxx
+# DISCORD_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ---
@@ -324,6 +367,7 @@ GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxxxx
 curl http://localhost:8080/api/auth/providers
 # Google のみの場合: {"providers":["google"]}
 # GitHub も有効の場合: {"providers":["google","github"]}
+# Discord も有効の場合: {"providers":["google","github","discord"]}
 ```
 
 フロントエンドはこのレスポンスに基づいてログインボタンを動的に表示します。

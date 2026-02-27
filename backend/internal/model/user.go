@@ -7,6 +7,7 @@ type User struct {
 	Email       string     `json:"email"`
 	GoogleID    string     `json:"-"`
 	GitHubID    string     `json:"-"`
+	DiscordID   string     `json:"-"`
 	Name        string     `json:"name"`
 	SuspendedAt *time.Time `json:"suspended_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`

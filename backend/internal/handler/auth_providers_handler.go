@@ -10,6 +10,8 @@ import (
 type ProvidersConfig struct {
 	// GitHubClientID: include "github" when non-empty (GITHUB_CLIENT_ID env var)
 	GitHubClientID string
+	// DiscordClientID: include "discord" when non-empty (DISCORD_CLIENT_ID env var)
+	DiscordClientID string
 	// AppleClientID: include "apple" when non-empty (APPLE_CLIENT_ID env var)
 	AppleClientID string
 	// EnableEmail: include "email" when true (ENABLE_EMAIL_LOGIN=true env var)
@@ -40,6 +42,9 @@ func (h *ProvidersHandler) Providers(w http.ResponseWriter, r *http.Request) {
 
 	if h.cfg.GitHubClientID != "" {
 		providers = append(providers, "github")
+	}
+	if h.cfg.DiscordClientID != "" {
+		providers = append(providers, "discord")
 	}
 	if h.cfg.AppleClientID != "" {
 		providers = append(providers, "apple")

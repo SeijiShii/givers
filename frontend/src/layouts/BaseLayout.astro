@@ -57,6 +57,13 @@ const resolvedOgType = ogType || 'website';
           <img src="/givers-logo.png" alt="GIVErS" width="32" height="32" class="logo-img" />
           {t(locale, 'nav.home')}
         </a>
+        <a href={`${basePath}/host`} class="nav-health-header">
+          {t(locale, 'nav.host')}
+          <NavFinancialHealthMark client:load locale={locale} />
+        </a>
+        <span class="auth-status-header">
+          <AuthStatus client:load locale={locale} />
+        </span>
         <button type="button" class="nav-toggle" aria-label={locale === 'ja' ? 'メニュー' : 'Menu'} aria-expanded="false" data-nav-toggle>
           <span class="nav-toggle-bar"></span>
           <span class="nav-toggle-bar"></span>
@@ -65,10 +72,6 @@ const resolvedOgType = ogType || 'website';
         <div class="nav-menu" data-nav-menu>
           <a href={`${basePath}/projects`}>{t(locale, 'nav.projects')}</a>
           <a href={`${basePath}/me`}>{t(locale, 'nav.me')}</a>
-          <a href={`${basePath}/host`} class="nav-host-link">
-            {t(locale, 'nav.host')}
-            <NavFinancialHealthMark client:load locale={locale} />
-          </a>
           <NavAdminLink client:load locale={locale} basePath={basePath} />
           <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
           <a href={`${basePath}/faq`}>{t(locale, 'nav.faq')}</a>
@@ -79,9 +82,6 @@ const resolvedOgType = ogType || 'website';
             ) : (
               <a href={Astro.url.pathname.replace(/^\/en/, '') || '/'} aria-label="日本語に切り替え">{t(locale, 'locale.ja')}</a>
             )}
-          </span>
-          <span class="auth-status-wrapper">
-            <AuthStatus client:load locale={locale} />
           </span>
         </div>
       </nav>

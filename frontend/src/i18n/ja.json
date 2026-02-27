@@ -148,6 +148,9 @@
     "costItemSubtotal": "小計/月",
     "costItemAddRow": "＋ 項目を追加",
     "costTotal": "見積合計",
+    "editCostItems": "見積を編集",
+    "costUpdateTitle": "見積金額を更新しました",
+    "costUpdateBody": "月額見積: ¥{old} → ¥{new}",
     "imageLabel": "ヒーロー画像",
     "imageHint": "JPEG, PNG, WebP（最大 2MB）",
     "imageSelect": "画像を選択",
@@ -290,6 +293,8 @@
     "post": "投稿する",
     "cancel": "キャンセル",
     "formLabel": "シェアメッセージ",
-    "formHint": "SNSシェア時に表示されるデフォルトメッセージです"
+    "formHint": "SNSシェア時に表示されるデフォルトメッセージです",
+    "copy": "コピー",
+    "copied": "コピーしました"
   }
 }

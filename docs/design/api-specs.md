@@ -24,7 +24,7 @@
 | Method | Path | 認証 | 説明 |
 |--------|------|------|------|
 | GET | `/api/auth/providers` | 不要 | 有効な認証プロバイダ一覧（環境変数の有無で動的に返す） |
-| GET | `/api/auth/{provider}/login` | 不要 | OAuth 開始（provider = google \| github \| apple）。対応する認可 URL にリダイレクト |
+| GET | `/api/auth/{provider}/login` | 不要 | OAuth 開始（provider = google \| github \| discord \| apple）。対応する認可 URL にリダイレクト |
 | GET | `/api/auth/{provider}/callback` | 不要 | OAuth コールバック。`code` を受け取り、ユーザー取得・セッション確立 |
 | POST | `/api/auth/logout` | 必須 | ログアウト。sessions テーブルから該当行を削除、Cookie クリア |
 
@@ -355,12 +355,13 @@
 **ルール**
 - `google` は常時含まれる（必須プロバイダ。`GOOGLE_CLIENT_ID` 未設定の場合はサーバー起動時にエラー）
 - `github` は `GITHUB_CLIENT_ID` が設定されている場合のみ含まれる
+- `discord` は `DISCORD_CLIENT_ID` が設定されている場合のみ含まれる
 - `apple` は `APPLE_CLIENT_ID` が設定されている場合のみ含まれる（将来実装）
 - `email` は `ENABLE_EMAIL_LOGIN=true` が設定されている場合のみ含まれる（将来実装）
 
 **レスポンス (200)**
 ```json
-{ "providers": ["google", "github"] }
+{ "providers": ["google", "github", "discord"] }
 ```
 
 ---
@@ -421,6 +422,7 @@
 | `DATABASE_URL` | PostgreSQL 接続文字列 |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth（**必須**。未設定の場合はサーバー起動を拒否） |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth（オプション。未設定なら GitHub ログイン無効） |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discord OAuth（オプション。未設定なら Discord ログイン無効） |
 | `APPLE_CLIENT_ID` / `APPLE_CLIENT_SECRET` / `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Apple Sign In（オプション。将来実装。未設定なら Apple ログイン無効） |
 | `ENABLE_EMAIL_LOGIN` | `true` でメールログイン（マジックリンク）を有効化（オプション。将来実装） |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe（v2 API で連結アカウント作成にも使用） |

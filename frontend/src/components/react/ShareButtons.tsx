@@ -46,6 +46,23 @@ const LineIcon = () => (
   </svg>
 );
 
+const CopyIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+  </svg>
+);
+
 type PlatformKey = "X" | "Facebook" | "LINE";
 
 function buildShareUrl(
@@ -77,6 +94,8 @@ export default function ShareButtons({
   const [selectedPlatform, setSelectedPlatform] = useState<PlatformKey | null>(
     null,
   );
+  const [copyMode, setCopyMode] = useState(false);
+  const [copied, setCopied] = useState(false);
   // Priority: localStorage > DB share_message > project title
   const [message, setMessage] = useState(defaultMessage || title);
 
@@ -91,16 +110,42 @@ export default function ShareButtons({
 
   const handleShareClick = (platform: PlatformKey) => {
     setSelectedPlatform(platform);
+    setCopyMode(false);
+    setCopied(false);
+    setDialogOpen(true);
+  };
+
+  const handleCopyClick = () => {
+    setSelectedPlatform(null);
+    setCopyMode(true);
+    setCopied(false);
     setDialogOpen(true);
   };
 
   const handleConfirm = () => {
-    if (!selectedPlatform) return;
     try {
       localStorage.setItem(storageKey, message);
     } catch {
       /* ignore */
     }
+
+    if (copyMode) {
+      navigator.clipboard
+        .writeText(message + "\n" + url)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => {
+            setCopied(false);
+            setDialogOpen(false);
+          }, 1500);
+        })
+        .catch(() => {
+          setDialogOpen(false);
+        });
+      return;
+    }
+
+    if (!selectedPlatform) return;
     const shareUrl = buildShareUrl(selectedPlatform, url, message);
     window.open(shareUrl, "_blank", "noopener,noreferrer");
     setDialogOpen(false);
@@ -111,6 +156,12 @@ export default function ShareButtons({
     { name: "Facebook", icon: <FacebookIcon />, color: "#1877F2" },
     { name: "LINE", icon: <LineIcon />, color: "#06C755" },
   ];
+
+  const dialogTitle = copyMode
+    ? t(locale, "share.copy")
+    : selectedPlatform
+      ? t(locale, `share.${selectedPlatform.toLowerCase()}`)
+      : "";
 
   return (
     <div className="share-buttons">
@@ -128,16 +179,24 @@ export default function ShareButtons({
           {p.name}
         </button>
       ))}
+      <button
+        type="button"
+        onClick={handleCopyClick}
+        aria-label={t(locale, "share.copy")}
+        className="share-btn"
+        style={{ backgroundColor: "#6b7280" }}
+      >
+        <CopyIcon />
+        {t(locale, "share.copy")}
+      </button>
 
-      {dialogOpen && selectedPlatform && (
+      {dialogOpen && (
         <div
           className="share-dialog-overlay"
           onClick={() => setDialogOpen(false)}
         >
           <div className="share-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3 className="share-dialog-title">
-              {t(locale, `share.${selectedPlatform.toLowerCase()}`)}
-            </h3>
+            <h3 className="share-dialog-title">{dialogTitle}</h3>
             <textarea
               className="share-dialog-textarea"
               value={message}
@@ -157,8 +216,13 @@ export default function ShareButtons({
                 type="button"
                 className="btn btn-primary"
                 onClick={handleConfirm}
+                disabled={copied}
               >
-                {t(locale, "share.post")}
+                {copied
+                  ? t(locale, "share.copied")
+                  : copyMode
+                    ? t(locale, "share.copy")
+                    : t(locale, "share.post")}
               </button>
             </div>
           </div>

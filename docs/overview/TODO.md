@@ -1,6 +1,6 @@
 # TODO — GIVErS プラットフォーム
 
-最終更新: 2026-02-24
+最終更新: 2026-02-27
 
 ---
 
@@ -161,3 +161,43 @@ UI がサーバー費/開発費/その他の固定3項目のまま。API に合�
 - [x] **Stripe Connect 接続タイプ** — Standard（無料プラン）に決定
 - [x] **セッション管理方式** — DB session テーブル管理に決定（強制ログアウト対応）
 - [x] **シェアメッセージ保存** — projects テーブルに `share_message` カラム追加（オーナーが設定、全ユーザーに初期値表示）
+
+
+### 14. PJ詳細画面から画像アップロード
+- [x] **フロント — ProjectDetail**: オーナー専用の画像アップロード/削除 UI を追加
+  - ファイル選択 + D&D ゾーン、プレビュー、アップロード/削除/キャンセルボタン
+  - 型・サイズバリデーション（JPEG/PNG/WebP、2MB以下）
+  - `uploadProjectImage()` / `deleteProjectImage()` API 呼び出し
+  - バックエンド API (`POST/DELETE /api/projects/:id/image`) は実装済み
+
+### 15. PJ詳細画面で見積金額を更新 + アップデート自動投稿
+- [x] **フロント — ProjectDetail**: オーナー専用のコスト内訳インライン編集 UI を追加
+  - 動的行エディタ（label / unit_price / quantity + 追加/削除 + 合計表示）
+  - 保存時に `updateProject(id, { cost_items })` で更新
+  - **保存成功後に `createProjectUpdate()` でアップデートを自動投稿**（旧→新の月額見積差分を本文に記載）
+  - i18n キー追加: `projects.editCostItems`, `projects.costUpdateTitle`, `projects.costUpdateBody`
+  - バックエンド（`PUT /api/projects/:id` で `cost_items` 更新 + `monthly_target` 自動再計算）は実装済み
+
+### 16. Discord OAuth ログイン
+- [x] **DB マイグレーション (023)**: `ALTER TABLE users ADD COLUMN discord_id VARCHAR(255) UNIQUE` + index
+- [x] **バックエンド**: model / repository / service / handler / providers / routes 全て実装
+  - Google/GitHub パターン準拠: FindByDiscordID → FindByEmail → Create
+  - メール非公開時は `username@discord.invalid` をフォールバック
+  - 環境変数: `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
+  - エンドポイント: `GET /api/auth/discord/login`, `GET /api/auth/discord/callback`
+  - `GET /api/auth/providers` に `discord` を条件付き追加
+- [x] **フロント**: `getDiscordLoginUrl()` + AuthStatus に Discord ボタン追加 + モック対応
+
+### 17. アプリバー健全性表示 — 3色（緑/黄/赤）
+- [x] **フロント — NavFinancialHealthMark**: `getHostHealth()` API で 3状態判定に変更
+  - 旧: `getProject(PLATFORM_PROJECT_ID)` → 2状態（reached / not-reached）
+  - 新: `GET /api/host` の `signal` フィールドで 3状態（green / yellow / red）
+  - 色: 緑 `#2ecc71`（healthy）、黄 `#f1c40f`（warning）、赤 `#e74c3c`（critical）
+  - CSS クラスを `--reached/--not-reached` → `--green/--yellow/--red` に変更
+  - バックエンド (`GET /api/host` が `signal` を返却) は実装済み
+
+### 18. シェア機能 — クリップボードコピーボタン
+- [x] **フロント — ShareButtons**: X / Facebook / LINE ボタンの隣にクリップボードコピーボタンを追加
+  - メッセージ編集ダイアログ → 「コピー」ボタンで `navigator.clipboard.writeText()` 実行
+  - コピー後に「コピーしました」フィードバック表示（1.5秒）
+  - i18n キー追加: `share.copy`, `share.copied`

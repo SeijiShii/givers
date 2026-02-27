@@ -14,7 +14,7 @@
 | フロントエンド | Astro + React (Islands) / TypeScript |
 | DB | PostgreSQL |
 | 決済 | Stripe Connect |
-| 認証 | Google OAuth（**必須**）+ 環境変数で選択可能なオプションプロバイダ（GitHub / Apple Sign In / Email マジックリンク）。有効プロバイダは `GET /api/auth/providers` で取得しフロントが動的に表示 |
+| 認証 | Google OAuth（**必須**）+ 環境変数で選択可能なオプションプロバイダ（GitHub / Discord / Apple Sign In / Email マジックリンク）。有効プロバイダは `GET /api/auth/providers` で取得しフロントが動的に表示 |
 
 ## プロジェクト構成
 
@@ -59,7 +59,7 @@ giving_platform/
 
 ## データモデル（主要）
 
-- **users**: id, email, name, google_id, github_id, apple_id, password_hash（いずれも NULL 可のプロバイダ別 ID / パスワードハッシュ）, created_at, updated_at。同一ユーザーは email でリンク（idea.md・phase2-plan 参照）。
+- **users**: id, email, name, google_id, github_id, discord_id, apple_id, password_hash（いずれも NULL 可のプロバイダ別 ID / パスワードハッシュ）, created_at, updated_at。同一ユーザーは email でリンク（idea.md・phase2-plan 参照）。
 - **sessions**: id（UUID）, user_id（FK → users）, expires_at, created_at。**DB sessions テーブル方式**。Cookie は `session_id=<UUID>`（HttpOnly, Secure, SameSite=Lax）。ログアウト時は行を削除して確実に無効化。
 - **projects**: id, owner_id, name, ~~description~~→**overview**（Markdown。旧 description と統合）, share_message（シェアメッセージ）, deadline, monthly_target, **status**（`draft` \| `active` \| `frozen` \| `deleted`）, stripe_account_id, ...
   ※ **`draft` ステータスを追加**。プロジェクト作成フォーム送信時に draft で保存 → Stripe Connect 完了後に active に変更。Stripe 未接続のままプロジェクト公開は不可。

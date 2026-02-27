@@ -10,8 +10,10 @@ import (
 
 // mockUserRepository は UserRepository のモック
 type mockUserRepository struct {
-	findByGoogleIDFunc func(ctx context.Context, googleID string) (*model.User, error)
-	createFunc         func(ctx context.Context, user *model.User) error
+	findByGoogleIDFunc  func(ctx context.Context, googleID string) (*model.User, error)
+	findByEmailFunc     func(ctx context.Context, email string) (*model.User, error)
+	createFunc          func(ctx context.Context, user *model.User) error
+	updateProviderIDErr error
 }
 
 func (m *mockUserRepository) FindByID(ctx context.Context, id string) (*model.User, error) {
@@ -22,9 +24,20 @@ func (m *mockUserRepository) FindByGitHubID(ctx context.Context, githubID string
 	return nil, errors.New("not found")
 }
 
+func (m *mockUserRepository) FindByDiscordID(ctx context.Context, discordID string) (*model.User, error) {
+	return nil, errors.New("not found")
+}
+
 func (m *mockUserRepository) FindByGoogleID(ctx context.Context, googleID string) (*model.User, error) {
 	if m.findByGoogleIDFunc != nil {
 		return m.findByGoogleIDFunc(ctx, googleID)
+	}
+	return nil, errors.New("not found")
+}
+
+func (m *mockUserRepository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
+	if m.findByEmailFunc != nil {
+		return m.findByEmailFunc(ctx, email)
 	}
 	return nil, errors.New("not found")
 }
@@ -34,6 +47,10 @@ func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error
 		return m.createFunc(ctx, user)
 	}
 	return nil
+}
+
+func (m *mockUserRepository) UpdateProviderID(ctx context.Context, userID, column, value string) error {
+	return m.updateProviderIDErr
 }
 
 func (m *mockUserRepository) List(ctx context.Context, limit, offset int) ([]*model.User, error) {

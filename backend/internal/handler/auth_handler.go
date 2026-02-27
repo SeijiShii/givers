@@ -93,6 +93,11 @@ var githubEndpoint = oauth2.Endpoint{
 	TokenURL: "https://github.com/login/oauth/access_token",
 }
 
+var discordEndpoint = oauth2.Endpoint{
+	AuthURL:  "https://discord.com/api/oauth2/authorize",
+	TokenURL: "https://discord.com/api/oauth2/token",
+}
+
 // SessionCreatorDeleter はセッションの作成・削除を行うインターフェース
 type SessionCreatorDeleter interface {
 	CreateSession(ctx context.Context, userID string) (*model.Session, error)
@@ -101,22 +106,26 @@ type SessionCreatorDeleter interface {
 
 // AuthHandler は認証関連の HTTP ハンドラ
 type AuthHandler struct {
-	authService  service.AuthService
-	googleConfig *oauth2.Config
-	githubConfig *oauth2.Config
-	sessionSvc   SessionCreatorDeleter
-	frontendURL  string
+	authService   service.AuthService
+	googleConfig  *oauth2.Config
+	githubConfig  *oauth2.Config
+	discordConfig *oauth2.Config
+	sessionSvc    SessionCreatorDeleter
+	frontendURL   string
 }
 
 // AuthConfig は AuthHandler の設定
 type AuthConfig struct {
-	GoogleClientID     string
-	GoogleClientSecret string
-	GitHubClientID     string
-	GitHubClientSecret string
-	GoogleRedirectPath string
-	GitHubRedirectPath string
-	FrontendURL        string
+	GoogleClientID      string
+	GoogleClientSecret  string
+	GitHubClientID      string
+	GitHubClientSecret  string
+	DiscordClientID     string
+	DiscordClientSecret string
+	GoogleRedirectPath  string
+	GitHubRedirectPath  string
+	DiscordRedirectPath string
+	FrontendURL         string
 }
 
 // NewAuthHandler は AuthHandler を生成する（DI: AuthService を注入）
@@ -142,12 +151,24 @@ func NewAuthHandler(authService service.AuthService, cfg AuthConfig, sessionSvc 
 		Endpoint:     githubEndpoint,
 	}
 
+	var discordConfig *oauth2.Config
+	if cfg.DiscordClientID != "" {
+		discordConfig = &oauth2.Config{
+			ClientID:     cfg.DiscordClientID,
+			ClientSecret: cfg.DiscordClientSecret,
+			RedirectURL:  redirectBase + cfg.DiscordRedirectPath,
+			Scopes:       []string{"identify", "email"},
+			Endpoint:     discordEndpoint,
+		}
+	}
+
 	return &AuthHandler{
-		authService:  authService,
-		googleConfig: googleConfig,
-		githubConfig: githubConfig,
-		sessionSvc:   sessionSvc,
-		frontendURL:  cfg.FrontendURL,
+		authService:   authService,
+		googleConfig:  googleConfig,
+		githubConfig:  githubConfig,
+		discordConfig: discordConfig,
+		sessionSvc:    sessionSvc,
+		frontendURL:   cfg.FrontendURL,
 	}
 }
 
@@ -349,6 +370,91 @@ func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	// One-time code relay (same as Google)
 	oneTimeCode := generateRandomString()
 	storeOneTimeCode(oneTimeCode, session.Token)
+	http.Redirect(w, r, h.frontendURL+"/api/auth/finalize?code="+oneTimeCode, http.StatusFound)
+}
+
+// ── Discord OAuth ────────────────────────────────────────────────────────
+
+// discordUserInfo は Discord API のレスポンス
+type discordUserInfo struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+// DiscordLoginURL は Discord OAuth の認証 URL を返す（GET /api/auth/discord/login）
+func (h *AuthHandler) DiscordLoginURL(w http.ResponseWriter, r *http.Request) {
+	if h.discordConfig == nil {
+		http.Error(w, "Discord login not configured", http.StatusNotFound)
+		return
+	}
+	state := generateRandomString()
+	storeOAuthState(state)
+	url := h.discordConfig.AuthCodeURL(state)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"url": url})
+}
+
+// DiscordCallback は OAuth コールバックを処理する（GET /api/auth/discord/callback）
+func (h *AuthHandler) DiscordCallback(w http.ResponseWriter, r *http.Request) {
+	if h.discordConfig == nil {
+		http.Redirect(w, r, h.frontendURL+"/?error=discord_not_configured", http.StatusFound)
+		return
+	}
+
+	queryState := r.URL.Query().Get("state")
+	if !verifyAndDeleteOAuthState(queryState) {
+		http.Redirect(w, r, h.frontendURL+"/?error=invalid_state", http.StatusFound)
+		return
+	}
+
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Redirect(w, r, h.frontendURL+"/?error=no_code", http.StatusFound)
+		return
+	}
+
+	token, err := h.discordConfig.Exchange(r.Context(), code)
+	if err != nil {
+		slog.Warn("discord callback: token exchange failed", "error", err)
+		http.Redirect(w, r, h.frontendURL+"/?error=exchange_failed", http.StatusFound)
+		return
+	}
+
+	client := h.discordConfig.Client(r.Context(), token)
+	resp, err := client.Get("https://discord.com/api/users/@me")
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/?error=userinfo_failed", http.StatusFound)
+		return
+	}
+	defer resp.Body.Close()
+
+	var info discordUserInfo
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		http.Redirect(w, r, h.frontendURL+"/?error=decode_failed", http.StatusFound)
+		return
+	}
+
+	user, err := h.authService.GetOrCreateUserFromDiscord(r.Context(), &service.DiscordUserInfo{
+		ID:       info.ID,
+		Username: info.Username,
+		Email:    info.Email,
+	})
+	if err != nil {
+		slog.Error("discord callback: get or create user failed", "error", err)
+		http.Redirect(w, r, h.frontendURL+"/?error=create_user_failed", http.StatusFound)
+		return
+	}
+
+	session, err := h.sessionSvc.CreateSession(r.Context(), user.ID)
+	if err != nil {
+		http.Redirect(w, r, h.frontendURL+"/?error=session_failed", http.StatusFound)
+		return
+	}
+
+	oneTimeCode := generateRandomString()
+	storeOneTimeCode(oneTimeCode, session.Token)
+	slog.Info("discord oauth login success")
 	http.Redirect(w, r, h.frontendURL+"/api/auth/finalize?code="+oneTimeCode, http.StatusFound)
 }
 

@@ -192,6 +192,12 @@ export async function getAppleLoginUrl(): Promise<{ url: string }> {
   return fetchApi("/api/auth/apple/login");
 }
 
+export async function getDiscordLoginUrl(): Promise<{ url: string }> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getDiscordLoginUrl();
+  return fetchApi("/api/auth/discord/login");
+}
+
 export async function getEmailLoginUrl(): Promise<{ url: string }> {
   if (MOCK_MODE) return (await import("./mock-api")).mockApi.getEmailLoginUrl();
   return fetchApi("/api/auth/email/login");
@@ -783,4 +789,20 @@ export async function deleteProjectImage(projectId: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.deleteProjectImage(projectId);
   await fetchApi(`/api/projects/${projectId}/image`, { method: "DELETE" });
+}
+
+// --- Platform Health ---
+
+export interface PlatformHealthData {
+  monthly_cost: number;
+  current_monthly: number;
+  warning_threshold: number;
+  critical_threshold: number;
+  rate: number;
+  signal: "green" | "yellow" | "red";
+}
+
+export async function getHostHealth(): Promise<PlatformHealthData> {
+  if (MOCK_MODE) return (await import("./mock-api")).mockApi.getHostHealth();
+  return fetchApi<PlatformHealthData>("/api/host");
 }
