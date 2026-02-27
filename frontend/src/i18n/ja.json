@@ -149,6 +149,8 @@
     "costItemAddRow": "＋ 項目を追加",
     "costTotal": "見積合計",
     "editCostItems": "見積を編集",
+    "editOwnerWant": "最低希望額を編集",
+    "refresh": "↻ 更新",
     "costUpdateTitle": "見積金額を更新しました",
     "costUpdateBody": "月額見積: ¥{old} → ¥{new}",
     "imageLabel": "ヒーロー画像",

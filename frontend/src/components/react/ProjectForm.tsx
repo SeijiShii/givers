@@ -1,10 +1,5 @@
 import { useState, useRef } from "react";
-import type {
-  Project,
-  CostItem,
-  ProjectAlerts,
-  AmountInputType,
-} from "../../lib/api";
+import type { Project, CostItem, ProjectAlerts } from "../../lib/api";
 import {
   createProject,
   updateProject,
@@ -45,23 +40,8 @@ function initCostItems(project?: Project | null): CostItem[] {
   return [emptyCostItem()];
 }
 
-function hasCostItems(items: CostItem[]): boolean {
-  return items.some((ci) => ci.unit_price > 0);
-}
-
 export default function ProjectForm({ locale, project, redirectPath }: Props) {
   const isEdit = !!project;
-
-  const [amountType, setAmountType] = useState<AmountInputType>(() => {
-    if (!project) return "want";
-    const hasWant =
-      project.owner_want_monthly != null && project.owner_want_monthly > 0;
-    const hasCost =
-      (project.monthly_target ?? 0) > 0 || hasCostItems(initCostItems(project));
-    if (hasWant && hasCost) return "both";
-    if (hasCost) return "cost";
-    return "want";
-  });
 
   const [name, setName] = useState(project?.name ?? "");
   const [overview, setOverview] = useState(
@@ -150,12 +130,9 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     setSubmitting(true);
     try {
       // cost_items: ラベルか金額が入っている行のみ送信
-      const validItems =
-        amountType === "cost" || amountType === "both"
-          ? costItems.filter(
-              (ci) => ci.label.trim() !== "" || ci.unit_price > 0,
-            )
-          : null;
+      const validItems = costItems.filter(
+        (ci) => ci.label.trim() !== "" || ci.unit_price > 0,
+      );
 
       const payload = {
         name,
@@ -163,13 +140,8 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         share_message: shareMessage,
         deadline:
           deadlineType === "date" && deadlineValue ? deadlineValue : null,
-        owner_want_monthly:
-          amountType === "want" || amountType === "both"
-            ? ownerWant > 0
-              ? ownerWant
-              : null
-            : null,
-        cost_items: validItems && validItems.length > 0 ? validItems : null,
+        owner_want_monthly: ownerWant > 0 ? ownerWant : null,
+        cost_items: validItems.length > 0 ? validItems : null,
         alerts: alertsEnabled ? alerts : null,
       };
       if (isEdit) {
@@ -419,244 +391,199 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         )}
       </fieldset>
 
-      {/* 金額タイプ */}
-      <fieldset
+      {/* 最低希望額 */}
+      <div style={{ marginBottom: "1rem" }}>
+        <label
+          htmlFor="ownerWant"
+          style={{ display: "block", marginBottom: "0.25rem" }}
+        >
+          {t(locale, "projects.ownerWant")} (¥)
+        </label>
+        <input
+          id="ownerWant"
+          type="number"
+          min={0}
+          value={ownerWant || ""}
+          onChange={(e) => setOwnerWant(parseInt(e.target.value, 10) || 0)}
+          style={{ width: "100%", padding: "0.5rem" }}
+        />
+      </div>
+
+      {/* 見積詳細（単価×数量） */}
+      <div
         style={{
           marginBottom: "1rem",
-          border: "1px solid var(--color-border)",
           padding: "1rem",
+          border: "1px solid var(--color-border)",
           borderRadius: "4px",
         }}
       >
-        <legend>{t(locale, "projects.amountType")}</legend>
-        <label style={{ display: "block", marginBottom: "0.5rem" }}>
-          <input
-            type="radio"
-            name="amountType"
-            checked={amountType === "want"}
-            onChange={() => setAmountType("want")}
-          />{" "}
-          {t(locale, "projects.amountTypeWant")}
-        </label>
-        <label style={{ display: "block", marginBottom: "0.5rem" }}>
-          <input
-            type="radio"
-            name="amountType"
-            checked={amountType === "cost"}
-            onChange={() => setAmountType("cost")}
-          />{" "}
-          {t(locale, "projects.amountTypeCost")}
-        </label>
-        <label style={{ display: "block" }}>
-          <input
-            type="radio"
-            name="amountType"
-            checked={amountType === "both"}
-            onChange={() => setAmountType("both")}
-          />{" "}
-          {t(locale, "projects.amountTypeBoth")}
-        </label>
-      </fieldset>
-
-      {/* 最低希望額 */}
-      {(amountType === "want" || amountType === "both") && (
-        <div style={{ marginBottom: "1rem" }}>
-          <label
-            htmlFor="ownerWant"
-            style={{ display: "block", marginBottom: "0.25rem" }}
-          >
-            {t(locale, "projects.ownerWant")} (¥)
-          </label>
-          <input
-            id="ownerWant"
-            type="number"
-            min={0}
-            value={ownerWant || ""}
-            onChange={(e) => setOwnerWant(parseInt(e.target.value, 10) || 0)}
-            style={{ width: "100%", padding: "0.5rem" }}
-          />
-        </div>
-      )}
-
-      {/* 見積詳細（単価×数量） */}
-      {(amountType === "cost" || amountType === "both") && (
-        <div
-          style={{
-            marginBottom: "1rem",
-            padding: "1rem",
-            border: "1px solid var(--color-border)",
-            borderRadius: "4px",
-          }}
-        >
-          <h3 style={{ marginTop: 0 }}>
-            {t(locale, "projects.costBreakdown")}
-          </h3>
-          {costItems.map((ci, idx) => {
-            const subtotal = (ci.unit_price || 0) * (ci.quantity || 0);
-            return (
+        <h3 style={{ marginTop: 0 }}>{t(locale, "projects.costBreakdown")}</h3>
+        {costItems.map((ci, idx) => {
+          const subtotal = (ci.unit_price || 0) * (ci.quantity || 0);
+          return (
+            <div
+              key={idx}
+              style={{
+                display: "flex",
+                gap: "0.5rem",
+                alignItems: "flex-end",
+                marginBottom: "0.5rem",
+              }}
+            >
+              <div style={{ flex: 2 }}>
+                {idx === 0 && (
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {t(locale, "projects.costItemLabel")}
+                  </label>
+                )}
+                <input
+                  type="text"
+                  value={ci.label}
+                  onChange={(e) =>
+                    updateCostItem(idx, { label: e.target.value })
+                  }
+                  placeholder={t(locale, "projects.costItemLabelPlaceholder")}
+                  style={{ width: "100%", padding: "0.5rem" }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                {idx === 0 && (
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {t(locale, "projects.costItemUnitPrice")}
+                  </label>
+                )}
+                <input
+                  type="number"
+                  min={0}
+                  value={ci.unit_price || ""}
+                  onChange={(e) =>
+                    updateCostItem(idx, {
+                      unit_price: parseInt(e.target.value, 10) || 0,
+                    })
+                  }
+                  style={{ width: "100%", padding: "0.5rem" }}
+                />
+              </div>
+              <div style={{ width: "4.5rem" }}>
+                {idx === 0 && (
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {t(locale, "projects.costItemQuantity")}
+                  </label>
+                )}
+                <input
+                  type="number"
+                  min={1}
+                  value={ci.quantity || ""}
+                  onChange={(e) =>
+                    updateCostItem(idx, {
+                      quantity: parseInt(e.target.value, 10) || 1,
+                    })
+                  }
+                  style={{ width: "100%", padding: "0.5rem" }}
+                />
+              </div>
               <div
-                key={idx}
                 style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  alignItems: "flex-end",
-                  marginBottom: "0.5rem",
+                  width: "5.5rem",
+                  textAlign: "right",
+                  paddingBottom: "0.5rem",
+                  fontSize: "0.9rem",
+                  color: "var(--color-text-muted)",
                 }}
               >
-                <div style={{ flex: 2 }}>
-                  {idx === 0 && (
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.25rem",
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      {t(locale, "projects.costItemLabel")}
-                    </label>
-                  )}
-                  <input
-                    type="text"
-                    value={ci.label}
-                    onChange={(e) =>
-                      updateCostItem(idx, { label: e.target.value })
-                    }
-                    placeholder={t(locale, "projects.costItemLabelPlaceholder")}
-                    style={{ width: "100%", padding: "0.5rem" }}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  {idx === 0 && (
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.25rem",
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      {t(locale, "projects.costItemUnitPrice")}
-                    </label>
-                  )}
-                  <input
-                    type="number"
-                    min={0}
-                    value={ci.unit_price || ""}
-                    onChange={(e) =>
-                      updateCostItem(idx, {
-                        unit_price: parseInt(e.target.value, 10) || 0,
-                      })
-                    }
-                    style={{ width: "100%", padding: "0.5rem" }}
-                  />
-                </div>
-                <div style={{ width: "4.5rem" }}>
-                  {idx === 0 && (
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.25rem",
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      {t(locale, "projects.costItemQuantity")}
-                    </label>
-                  )}
-                  <input
-                    type="number"
-                    min={1}
-                    value={ci.quantity || ""}
-                    onChange={(e) =>
-                      updateCostItem(idx, {
-                        quantity: parseInt(e.target.value, 10) || 1,
-                      })
-                    }
-                    style={{ width: "100%", padding: "0.5rem" }}
-                  />
-                </div>
-                <div
-                  style={{
-                    width: "5.5rem",
-                    textAlign: "right",
-                    paddingBottom: "0.5rem",
-                    fontSize: "0.9rem",
-                    color: "var(--color-text-muted)",
-                  }}
-                >
-                  {idx === 0 && (
-                    <label
-                      style={{
-                        display: "block",
-                        marginBottom: "0.25rem",
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      {t(locale, "projects.costItemSubtotal")}
-                    </label>
-                  )}
-                  ¥{subtotal.toLocaleString()}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeCostItem(idx)}
-                  style={{
-                    padding: "0.5rem",
-                    background: "none",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    lineHeight: 1,
-                  }}
-                  title="削除"
-                >
-                  ✕
-                </button>
+                {idx === 0 && (
+                  <label
+                    style={{
+                      display: "block",
+                      marginBottom: "0.25rem",
+                      fontSize: "0.85rem",
+                    }}
+                  >
+                    {t(locale, "projects.costItemSubtotal")}
+                  </label>
+                )}
+                ¥{subtotal.toLocaleString()}
               </div>
-            );
-          })}
-          <button
-            type="button"
-            onClick={addCostItem}
-            style={{
-              marginTop: "0.25rem",
-              padding: "0.4rem 0.75rem",
-              background: "none",
-              border: "1px dashed var(--color-border)",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontSize: "0.9rem",
-            }}
-          >
-            {t(locale, "projects.costItemAddRow")}
-          </button>
-          {/* 見積合計 */}
-          <div
-            style={{
-              marginTop: "0.75rem",
-              paddingTop: "0.75rem",
-              borderTop: "1px solid var(--color-border)",
-              display: "flex",
-              justifyContent: "flex-end",
-              alignItems: "center",
-              gap: "0.5rem",
-              fontWeight: "bold",
-            }}
-          >
-            <span>{t(locale, "projects.costTotal")}</span>
-            <span style={{ fontSize: "1.1rem" }}>
-              ¥
-              {costItems
-                .reduce(
-                  (sum, ci) => sum + (ci.unit_price || 0) * (ci.quantity || 0),
-                  0,
-                )
-                .toLocaleString()}
-              <span style={{ fontWeight: "normal", fontSize: "0.85rem" }}>
-                /月
-              </span>
+              <button
+                type="button"
+                onClick={() => removeCostItem(idx)}
+                style={{
+                  padding: "0.5rem",
+                  background: "none",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  lineHeight: 1,
+                }}
+                title="削除"
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          onClick={addCostItem}
+          style={{
+            marginTop: "0.25rem",
+            padding: "0.4rem 0.75rem",
+            background: "none",
+            border: "1px dashed var(--color-border)",
+            borderRadius: "4px",
+            cursor: "pointer",
+            fontSize: "0.9rem",
+          }}
+        >
+          {t(locale, "projects.costItemAddRow")}
+        </button>
+        {/* 見積合計 */}
+        <div
+          style={{
+            marginTop: "0.75rem",
+            paddingTop: "0.75rem",
+            borderTop: "1px solid var(--color-border)",
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: "0.5rem",
+            fontWeight: "bold",
+          }}
+        >
+          <span>{t(locale, "projects.costTotal")}</span>
+          <span style={{ fontSize: "1.1rem" }}>
+            ¥
+            {costItems
+              .reduce(
+                (sum, ci) => sum + (ci.unit_price || 0) * (ci.quantity || 0),
+                0,
+              )
+              .toLocaleString()}
+            <span style={{ fontWeight: "normal", fontSize: "0.85rem" }}>
+              /月
             </span>
-          </div>
+          </span>
         </div>
-      )}
+      </div>
 
       {/* アラート閾値 */}
       <fieldset

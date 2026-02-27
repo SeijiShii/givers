@@ -303,16 +303,28 @@ func (c *RealClient) CreateCheckoutSession(ctx context.Context, params CheckoutP
 	if params.Locale != "" {
 		data.Set("locale", params.Locale)
 	}
-	if params.Message != "" {
-		data.Set("metadata[message]", params.Message)
-	}
-	data.Set("metadata[project_id]", params.ProjectID)
-	if params.DonorType != "" {
-		data.Set("metadata[donor_type]", params.DonorType)
-		data.Set("metadata[donor_id]", params.DonorID)
-	}
+
+	// metadata を PaymentIntent / Subscription に伝播させる
+	// （Checkout Session の metadata はイベントオブジェクトにコピーされない）
 	if params.IsRecurring {
-		data.Set("metadata[is_recurring]", "true")
+		data.Set("subscription_data[metadata][project_id]", params.ProjectID)
+		data.Set("subscription_data[metadata][is_recurring]", "true")
+		if params.DonorType != "" {
+			data.Set("subscription_data[metadata][donor_type]", params.DonorType)
+			data.Set("subscription_data[metadata][donor_id]", params.DonorID)
+		}
+		if params.Message != "" {
+			data.Set("subscription_data[metadata][message]", params.Message)
+		}
+	} else {
+		data.Set("payment_intent_data[metadata][project_id]", params.ProjectID)
+		if params.DonorType != "" {
+			data.Set("payment_intent_data[metadata][donor_type]", params.DonorType)
+			data.Set("payment_intent_data[metadata][donor_id]", params.DonorID)
+		}
+		if params.Message != "" {
+			data.Set("payment_intent_data[metadata][message]", params.Message)
+		}
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,

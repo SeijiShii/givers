@@ -20,7 +20,7 @@ func NewPgProjectRepository(pool *pgxpool.Pool) *PgProjectRepository {
 	return &PgProjectRepository{pool: pool}
 }
 
-const projectSelectCols = `id, owner_id, name, description, overview, share_message, deadline, status, owner_want_monthly, monthly_target, COALESCE(stripe_account_id, ''), cost_items, image_url, created_at, updated_at`
+const projectSelectCols = `p.id, p.owner_id, p.name, p.description, p.overview, p.share_message, p.deadline, p.status, p.owner_want_monthly, p.monthly_target, COALESCE(p.stripe_account_id, ''), p.cost_items, p.image_url, p.created_at, p.updated_at, COALESCE((SELECT SUM(amount) FROM donations WHERE project_id = p.id AND created_at >= DATE_TRUNC('month', NOW())), 0)::int`
 
 func scanProject(row pgx.Row) (*model.Project, error) {
 	var p model.Project
@@ -29,6 +29,7 @@ func scanProject(row pgx.Row) (*model.Project, error) {
 		&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage,
 		&p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget,
 		&p.StripeAccountID, &costItemsJSON, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
+		&p.CurrentMonthlyDonations,
 	); err != nil {
 		return nil, err
 	}
@@ -47,6 +48,7 @@ func scanProjects(rows pgx.Rows) ([]*model.Project, error) {
 			&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage,
 			&p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget,
 			&p.StripeAccountID, &costItemsJSON, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
+			&p.CurrentMonthlyDonations,
 		); err != nil {
 			return nil, err
 		}
@@ -104,14 +106,14 @@ func (r *PgProjectRepository) List(ctx context.Context, sort string, limit int, 
 		if cursor == "" {
 			rows, err = r.pool.Query(ctx,
 				`SELECT `+projectSelectCols+`
-				 FROM projects WHERE status = 'active' ORDER BY created_at DESC, id DESC LIMIT $1`, fetchLimit)
+				 FROM projects p WHERE p.status = 'active' ORDER BY p.created_at DESC, p.id DESC LIMIT $1`, fetchLimit)
 		} else {
 			rows, err = r.pool.Query(ctx,
 				`SELECT `+projectSelectCols+`
-				 FROM projects
-				 WHERE status = 'active'
-				   AND (created_at, id) < ((SELECT created_at FROM projects WHERE id = $2), $2)
-				 ORDER BY created_at DESC, id DESC
+				 FROM projects p
+				 WHERE p.status = 'active'
+				   AND (p.created_at, p.id) < ((SELECT created_at FROM projects WHERE id = $2), $2)
+				 ORDER BY p.created_at DESC, p.id DESC
 				 LIMIT $1`, fetchLimit, cursor)
 		}
 	}
@@ -138,7 +140,7 @@ func (r *PgProjectRepository) List(ctx context.Context, sort string, limit int, 
 // GetByID は ID でプロジェクトを取得する（コスト項目・アラートも含む）
 func (r *PgProjectRepository) GetByID(ctx context.Context, id string) (*model.Project, error) {
 	p, err := scanProject(r.pool.QueryRow(ctx,
-		`SELECT `+projectSelectCols+` FROM projects WHERE id = $1`, id,
+		`SELECT `+projectSelectCols+` FROM projects p WHERE p.id = $1`, id,
 	))
 	if err != nil {
 		return nil, err
@@ -163,7 +165,7 @@ func (r *PgProjectRepository) GetByID(ctx context.Context, id string) (*model.Pr
 func (r *PgProjectRepository) ListByOwnerID(ctx context.Context, ownerID string) ([]*model.Project, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT `+projectSelectCols+`
-		 FROM projects WHERE owner_id = $1 ORDER BY created_at DESC`,
+		 FROM projects p WHERE p.owner_id = $1 ORDER BY p.created_at DESC`,
 		ownerID,
 	)
 	if err != nil {

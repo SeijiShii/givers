@@ -606,13 +606,34 @@ STRIPE_WEBHOOK_SECRET=whsec_...          # 本番 Webhook 用
 
 ### 寄付が記録されない
 
-1. Stripe ダッシュボード → **イベントとログ** で Webhook の送信状態を確認
-2. サーバーログで `payment_intent.succeeded` の処理結果を確認
-3. metadata に `project_id` が含まれているか確認
-4. `donations` テーブルを直接確認:
+1. `STRIPE_WEBHOOK_SECRET` が `.env` に設定されているか確認（コメントアウトされていないか）
+2. Stripe ダッシュボード → **イベントとログ** で Webhook の送信状態を確認
+3. サーバーログで `payment_intent.succeeded` の処理結果を確認
+4. metadata に `project_id` が含まれているか確認
+5. `donations` テーブルを直接確認:
    ```sql
    SELECT * FROM donations ORDER BY created_at DESC LIMIT 5;
    ```
+
+> **注意: Checkout Session の metadata は PaymentIntent / Subscription にコピーされない**
+>
+> Stripe Checkout Session 作成時に `metadata[key]` で設定した値は Checkout Session オブジェクトにのみ保存される。
+> Webhook で受信する `payment_intent.succeeded` の PaymentIntent や `customer.subscription.created` の Subscription には **自動的にコピーされない**。
+>
+> 正しい設定方法:
+> - 一回寄付: `payment_intent_data[metadata][key]` を使用
+> - 定期寄付: `subscription_data[metadata][key]` を使用
+>
+> ```go
+> // NG: Checkout Session にのみ保存される
+> data.Set("metadata[project_id]", projectID)
+>
+> // OK: PaymentIntent に伝播される
+> data.Set("payment_intent_data[metadata][project_id]", projectID)
+>
+> // OK: Subscription に伝播される
+> data.Set("subscription_data[metadata][project_id]", projectID)
+> ```
 
 ### Connected Account に入金されない
 

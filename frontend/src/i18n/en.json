@@ -149,6 +149,8 @@
     "costItemAddRow": "+ Add item",
     "costTotal": "Total",
     "editCostItems": "Edit estimates",
+    "editOwnerWant": "Edit minimum amount",
+    "refresh": "↻ Refresh",
     "costUpdateTitle": "Estimated costs updated",
     "costUpdateBody": "Monthly estimate: ¥{old} → ¥{new}",
     "imageLabel": "Hero Image",

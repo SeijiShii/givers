@@ -344,9 +344,6 @@ export interface ProjectUpdate {
   visible?: boolean;
 }
 
-/** 金額表示タイプ: 希望額 / 必要額 / 両方 */
-export type AmountInputType = "want" | "cost" | "both";
-
 /** プロジェクト一覧レスポンス（カーソルページネーション対応） */
 export interface ProjectListResult {
   projects: Project[];

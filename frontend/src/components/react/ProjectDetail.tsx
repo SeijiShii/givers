@@ -185,6 +185,14 @@ export default function ProjectDetail({
   const [costItemsDraft, setCostItemsDraft] = useState<CostItem[]>([]);
   const [savingCostItems, setSavingCostItems] = useState(false);
 
+  // Owner want monthly editing state (owner-only)
+  const [editingOwnerWant, setEditingOwnerWant] = useState(false);
+  const [ownerWantDraft, setOwnerWantDraft] = useState(0);
+  const [savingOwnerWant, setSavingOwnerWant] = useState(false);
+
+  // Refresh key for chart re-fetch
+  const [refreshKey, setRefreshKey] = useState(0);
+
   // Image upload state (owner-only)
   const [showImageDropZone, setShowImageDropZone] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -192,6 +200,7 @@ export default function ProjectDetail({
   const [imageError, setImageError] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const donationSectionRef = useRef<HTMLDivElement>(null);
 
   const isOwner = me && project && project.owner_id === me.id;
 
@@ -207,6 +216,26 @@ export default function ProjectDetail({
       .then((u) => setMe(u ?? null))
       .catch(() => setMe(null));
   }, []);
+
+  // Auto-refresh after returning from Stripe checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("donated") || params.has("session_id")) {
+      const timer = setTimeout(() => {
+        getProject(id)
+          .then((p) => {
+            setProject(p);
+            setRefreshKey((k) => k + 1);
+          })
+          .catch(() => {});
+      }, 1000);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("donated");
+      url.searchParams.delete("session_id");
+      window.history.replaceState({}, "", url.toString());
+      return () => clearTimeout(timer);
+    }
+  }, [id]);
 
   useEffect(() => {
     if (id) {
@@ -269,6 +298,42 @@ export default function ProjectDetail({
       setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setSavingOverview(false);
+    }
+  };
+
+  const handleSaveOwnerWant = async () => {
+    if (!project) return;
+    setSavingOwnerWant(true);
+    try {
+      const updated = await updateProject(project.id, {
+        owner_want_monthly: ownerWantDraft > 0 ? ownerWantDraft : null,
+      });
+      setProject(updated);
+      setEditingOwnerWant(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSavingOwnerWant(false);
+    }
+  };
+
+  const handleScrollToDonate = () => {
+    setActiveTab("support");
+    setTimeout(() => {
+      donationSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 100);
+  };
+
+  const refreshProject = async () => {
+    try {
+      const updated = await getProject(id);
+      setProject(updated);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      // silently fail
     }
   };
 
@@ -735,10 +800,91 @@ export default function ProjectDetail({
         />
       )}
 
-      {project.owner_want_monthly != null && project.owner_want_monthly > 0 && (
-        <p style={{ marginTop: "1rem", fontWeight: 600 }}>
-          最低希望額: 月額 ¥{project.owner_want_monthly.toLocaleString()}
-        </p>
+      <button
+        type="button"
+        className="btn btn-accent"
+        onClick={handleScrollToDonate}
+        style={{
+          marginTop: "1rem",
+          padding: "0.75rem 2rem",
+          fontSize: "1.1rem",
+          fontWeight: 600,
+        }}
+      >
+        {donateLabel}
+      </button>
+
+      {/* 最低希望額: インライン編集 (owner) or 読み取り専用 */}
+      {isOwner && editingOwnerWant ? (
+        <div
+          style={{
+            marginTop: "1rem",
+            padding: "0.75rem",
+            border: "1px solid var(--color-border, #ccc)",
+            borderRadius: "4px",
+          }}
+        >
+          <label
+            htmlFor="ownerWantEdit"
+            style={{
+              display: "block",
+              marginBottom: "0.25rem",
+              fontWeight: 600,
+            }}
+          >
+            {t(locale, "projects.ownerWant")} (¥)
+          </label>
+          <input
+            id="ownerWantEdit"
+            type="number"
+            min={0}
+            value={ownerWantDraft || ""}
+            onChange={(e) =>
+              setOwnerWantDraft(parseInt(e.target.value, 10) || 0)
+            }
+            style={{ width: "100%", padding: "0.5rem", marginBottom: "0.5rem" }}
+          />
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSaveOwnerWant}
+              disabled={savingOwnerWant}
+            >
+              {savingOwnerWant ? "..." : saveLabel}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setEditingOwnerWant(false)}
+              disabled={savingOwnerWant}
+            >
+              {cancelLabel}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {project.owner_want_monthly != null &&
+            project.owner_want_monthly > 0 && (
+              <p style={{ marginTop: "1rem", fontWeight: 600 }}>
+                最低希望額: 月額 ¥{project.owner_want_monthly.toLocaleString()}
+              </p>
+            )}
+          {isOwner && (
+            <button
+              type="button"
+              className="btn"
+              style={{ marginTop: "0.25rem" }}
+              onClick={() => {
+                setOwnerWantDraft(project.owner_want_monthly ?? 0);
+                setEditingOwnerWant(true);
+              }}
+            >
+              {t(locale, "projects.editOwnerWant")}
+            </button>
+          )}
+        </>
       )}
       {/* コスト内訳: インライン編集 (owner) or 読み取り専用 */}
       {isOwner && editingCostItems ? (
@@ -1207,7 +1353,26 @@ export default function ProjectDetail({
         {activeTab === "support" && (
           <>
             <div className="card" style={{ marginBottom: "1.5rem" }}>
-              <h2 style={{ marginTop: 0 }}>{supportStatus}</h2>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <h2 style={{ marginTop: 0 }}>{supportStatus}</h2>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={refreshProject}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  {t(locale, "projects.refresh")}
+                </button>
+              </div>
               <div className="achievement-bar" style={{ margin: "1rem 0" }}>
                 <div
                   className="achievement-fill"
@@ -1227,6 +1392,7 @@ export default function ProjectDetail({
                 targetAmountLabel={chartTargetAmountLabel}
                 actualAmountLabel={chartActualAmountLabel}
                 noDataLabel={chartNoDataLabel}
+                refreshKey={refreshKey}
               />
             </div>
 
@@ -1252,7 +1418,7 @@ export default function ProjectDetail({
                 </div>
               )}
 
-            <div className="card accent-line">
+            <div ref={donationSectionRef} className="card accent-line">
               <h2 style={{ marginTop: 0 }}>{supportTitle}</h2>
               <DonateForm
                 locale={locale}

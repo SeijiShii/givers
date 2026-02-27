@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -8,8 +8,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-} from 'recharts';
-import { getProjectChart, type ChartDataPoint } from '../../../lib/api';
+} from "recharts";
+import { getProjectChart, type ChartDataPoint } from "../../../lib/api";
 
 interface Props {
   projectId: string;
@@ -17,12 +17,13 @@ interface Props {
   targetAmountLabel: string;
   actualAmountLabel: string;
   noDataLabel: string;
+  refreshKey?: number;
 }
 
 const COLORS = {
-  min: '#d9534f', // 赤に近いオレンジ
-  target: '#4a7bc8', // 青系
-  actual: 'var(--color-primary-light)', // 緑のまま
+  min: "#d9534f", // 赤に近いオレンジ
+  target: "#4a7bc8", // 青系
+  actual: "var(--color-primary-light)", // 緑のまま
 };
 
 function formatYAxis(value: number): string {
@@ -40,62 +41,75 @@ export default function ProjectChart({
   targetAmountLabel,
   actualAmountLabel,
   noDataLabel,
+  refreshKey,
 }: Props) {
   const [data, setData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     getProjectChart(projectId)
       .then(setData)
       .catch(() => setData([]))
       .finally(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, refreshKey]);
 
   if (loading) {
-    return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>読み込み中...</p>;
+    return (
+      <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem" }}>
+        読み込み中...
+      </p>
+    );
   }
 
   if (data.length === 0) {
-    return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>{noDataLabel}</p>;
+    return (
+      <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem" }}>
+        {noDataLabel}
+      </p>
+    );
   }
 
   return (
-    <div style={{ width: '100%', height: 280, marginTop: '1rem' }}>
+    <div style={{ width: "100%", height: 280, marginTop: "1rem" }}>
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+        >
           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
           <XAxis
             dataKey="month"
-            tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
-            tickFormatter={(v: string) => v.replace('-', '/')}
+            tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+            tickFormatter={(v: string) => v.replace("-", "/")}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: 'var(--color-text-muted)' }}
+            tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
             tickFormatter={formatYAxis}
           />
           <Tooltip
             formatter={(value: unknown, name: string) => {
               const label =
-                name === 'minAmount'
+                name === "minAmount"
                   ? minAmountLabel
-                  : name === 'targetAmount'
+                  : name === "targetAmount"
                     ? targetAmountLabel
                     : actualAmountLabel;
               return [formatTooltip(Number(value)), label];
             }}
-            labelFormatter={(label: string) => label.replace('-', '/')}
+            labelFormatter={(label: string) => label.replace("-", "/")}
             contentStyle={{
-              backgroundColor: 'var(--color-bg-card)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '6px',
+              backgroundColor: "var(--color-bg-card)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "6px",
             }}
           />
           <Legend
-            wrapperStyle={{ fontSize: '0.85rem' }}
+            wrapperStyle={{ fontSize: "0.85rem" }}
             formatter={(value) => {
-              if (value === 'minAmount') return minAmountLabel;
-              if (value === 'targetAmount') return targetAmountLabel;
-              if (value === 'actualAmount') return actualAmountLabel;
+              if (value === "minAmount") return minAmountLabel;
+              if (value === "targetAmount") return targetAmountLabel;
+              if (value === "actualAmount") return actualAmountLabel;
               return value;
             }}
           />

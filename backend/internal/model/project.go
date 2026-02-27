@@ -21,8 +21,9 @@ type Project struct {
 	CostItems []CostItem `json:"cost_items,omitempty"`
 	Alerts    *ProjectAlerts     `json:"alerts,omitempty"`
 
-	// Transient: not stored in DB, set by handlers
-	StripeConnectURL string `json:"stripe_connect_url,omitempty"`
+	// Transient: not stored in DB, set by handlers/queries
+	CurrentMonthlyDonations int    `json:"current_monthly_donations"`
+	StripeConnectURL        string `json:"stripe_connect_url,omitempty"`
 }
 
 // ProjectListResult はカーソルベースページネーション付きのプロジェクト一覧
