@@ -30,6 +30,8 @@ services:
       # GOOGLE_CLIENT_SECRET: (要設定)
       # GITHUB_CLIENT_ID: (要設定)
       # GITHUB_CLIENT_SECRET: (要設定)
+    volumes:
+      - ./backend/uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -42,6 +44,7 @@ services:
       - "4321:4321"
     environment:
       PUBLIC_API_URL: http://localhost:8080
+      BACKEND_INTERNAL_URL: http://backend:8080
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public

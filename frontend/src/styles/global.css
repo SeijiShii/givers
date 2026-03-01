@@ -271,14 +271,41 @@ header nav a.logo-link .logo-img {
 .auth-status-header .mock-login-switch {
   display: none;
 }
-/* モバイルではログインボタンを1つだけ見せ、他は非表示 */
 @media (max-width: 600px) {
-  .auth-status-header .auth-status .btn.btn-primary:not(:first-of-type) {
-    display: none;
-  }
   .auth-status-header .auth-user {
     max-width: 80px;
   }
+}
+
+/* ログインダイアログ: プロバイダボタン共通 */
+.login-provider-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: var(--color-bg, #fff);
+  color: var(--color-fg, #3c4043);
+  border: 1px solid var(--color-border, #dadce0);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.login-provider-btn:hover {
+  background: color-mix(in srgb, var(--color-bg, #fff) 95%, var(--color-fg, #000));
+}
+
+/* Google ブランドガイドライン準拠ボタン */
+.login-google-btn {
+  background: #fff;
+  color: #3c4043;
+  border-color: #dadce0;
+}
+.login-google-btn:hover {
+  background: #f7f8f8;
 }
 
 /* メインコンテンツ */

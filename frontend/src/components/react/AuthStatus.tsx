@@ -1,16 +1,12 @@
 import { useState, useEffect } from "react";
 import {
   getMe,
-  getAuthProviders,
-  getGoogleLoginUrl,
-  getGitHubLoginUrl,
-  getDiscordLoginUrl,
-  getAppleLoginUrl,
   logout,
   migrateFromToken,
   MOCK_LOGIN_MODE_KEY,
   type User,
 } from "../../lib/api";
+import LoginDialog from "./LoginDialog";
 
 const MOCK_MODE = import.meta.env.PUBLIC_MOCK_MODE === "true";
 const MIGRATION_DISMISSED_KEY = "givers_migration_dismissed";
@@ -22,9 +18,7 @@ interface Props {
 export default function AuthStatus({ locale = "ja" }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [emailValue, setEmailValue] = useState("");
-  const [emailSubmitted, setEmailSubmitted] = useState(false);
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
   const [migrationDismissedId, setMigrationDismissedId] = useState<
     string | null
   >(() =>
@@ -33,7 +27,6 @@ export default function AuthStatus({ locale = "ja" }: Props) {
       : null,
   );
   const [migrating, setMigrating] = useState(false);
-  const [providers, setProviders] = useState<string[]>(["google"]);
 
   const fetchUser = () => {
     getMe()
@@ -50,9 +43,6 @@ export default function AuthStatus({ locale = "ja" }: Props) {
 
   useEffect(() => {
     fetchUser();
-    getAuthProviders()
-      .then((data) => setProviders(data.providers))
-      .catch(() => setProviders(["google"]));
   }, []);
 
   const handleMockModeSwitch = (mode: "host" | "donor" | "project_owner") => {
@@ -74,54 +64,6 @@ export default function AuthStatus({ locale = "ja" }: Props) {
     }
     await logout();
     setUser(null);
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      console.log("[AuthStatus] Google login: requesting URL...");
-      const { url } = await getGoogleLoginUrl();
-      console.log(
-        "[AuthStatus] Google login: redirecting to",
-        url?.substring(0, 80),
-      );
-      window.location.href = url;
-    } catch (err) {
-      console.error("[AuthStatus] Google login failed:", err);
-    }
-  };
-
-  const handleGitHubLogin = async () => {
-    const { url } = await getGitHubLoginUrl();
-    window.location.href = url;
-  };
-
-  const handleDiscordLogin = async () => {
-    const { url } = await getDiscordLoginUrl();
-    window.location.href = url;
-  };
-
-  const handleAppleLogin = async () => {
-    const { url } = await getAppleLoginUrl();
-    window.location.href = url;
-  };
-
-  const handleEmailLogin = () => {
-    setEmailValue("");
-    setEmailSubmitted(false);
-    setShowEmailModal(true);
-  };
-
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailValue.trim()) return;
-    // モックでは送信 API なし。本番では POST /api/auth/magic-link 等を呼ぶ想定。
-    setEmailSubmitted(true);
-  };
-
-  const closeEmailModal = () => {
-    setShowEmailModal(false);
-    setEmailValue("");
-    setEmailSubmitted(false);
   };
 
   const handleMigrationConfirm = async () => {
@@ -357,169 +299,19 @@ export default function AuthStatus({ locale = "ja" }: Props) {
   return (
     <>
       <div className="auth-status">
-        {MOCK_MODE && (
-          <button
-            type="button"
-            onClick={() => {
-              if (typeof window !== "undefined" && window.localStorage) {
-                window.localStorage.setItem(MOCK_LOGIN_MODE_KEY, "host");
-                setLoading(true);
-                getMe()
-                  .then(setUser)
-                  .catch(() => setUser(null))
-                  .finally(() => setLoading(false));
-                window.dispatchEvent(
-                  new CustomEvent("givers-mock-login-changed"),
-                );
-              }
-            }}
-            className="btn btn-primary"
-            style={{ fontSize: "0.85rem", padding: "0.3rem 0.6rem" }}
-          >
-            {locale === "ja" ? "モック: ログイン" : "Mock: Login"}
-          </button>
-        )}
-        {/* Google は必須 */}
         <button
           type="button"
           className="btn btn-primary"
-          onClick={handleGoogleLogin}
+          onClick={() => setShowLoginDialog(true)}
         >
-          Google
+          {locale === "ja" ? "ログイン" : "Login"}
         </button>
-        {providers.includes("github") && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleGitHubLogin}
-          >
-            GitHub
-          </button>
-        )}
-        {providers.includes("discord") && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleDiscordLogin}
-          >
-            Discord
-          </button>
-        )}
-        {providers.includes("apple") && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleAppleLogin}
-          >
-            Apple
-          </button>
-        )}
-        {providers.includes("email") && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleEmailLogin}
-          >
-            Email
-          </button>
-        )}
       </div>
-      {showEmailModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="email-login-title"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.5)",
-          }}
-          onClick={(e) => e.target === e.currentTarget && closeEmailModal()}
-        >
-          <div
-            style={{
-              background: "var(--color-bg, #fff)",
-              color: "var(--color-fg, #111)",
-              padding: "1.5rem",
-              borderRadius: "8px",
-              minWidth: "280px",
-              maxWidth: "90vw",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2
-              id="email-login-title"
-              style={{ margin: "0 0 1rem", fontSize: "1.1rem" }}
-            >
-              {locale === "ja" ? "Email でログイン" : "Log in with Email"}
-            </h2>
-            {!emailSubmitted ? (
-              <form onSubmit={handleEmailSubmit}>
-                <input
-                  type="email"
-                  value={emailValue}
-                  onChange={(e) => setEmailValue(e.target.value)}
-                  placeholder={
-                    locale === "ja" ? "メールアドレス" : "Email address"
-                  }
-                  required
-                  autoFocus
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.75rem",
-                    marginBottom: "1rem",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    boxSizing: "border-box",
-                  }}
-                />
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "0.5rem",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={closeEmailModal}
-                  >
-                    {locale === "ja" ? "閉じる" : "Close"}
-                  </button>
-                  <button type="submit" className="btn btn-primary">
-                    {locale === "ja" ? "リンクを送信" : "Send link"}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <>
-                <p style={{ margin: "0 0 1rem" }}>
-                  {MOCK_MODE
-                    ? locale === "ja"
-                      ? "送信しました。（モックのため実際のメールは送信されません）"
-                      : "Sent. (No email is sent in mock mode.)"
-                    : locale === "ja"
-                      ? "送信しました。メールをご確認ください。"
-                      : "Sent. Please check your email."}
-                </p>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={closeEmailModal}
-                >
-                  {locale === "ja" ? "閉じる" : "Close"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <LoginDialog
+        open={showLoginDialog}
+        locale={locale}
+        onClose={() => setShowLoginDialog(false)}
+      />
     </>
   );
 }

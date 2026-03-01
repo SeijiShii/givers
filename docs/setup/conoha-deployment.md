@@ -1,131 +1,258 @@
-# ConoHa サーバーでの GIVErS 運用設定
+# ConoHa VPS — GIVErS 本番デプロイ手順
 
-ConoHa VPS 上で GIVErS を本番運用するときの設定の考え方と手順。**最終更新**: 2025-02
-
----
-
-## 1. 前提
-
-- **ConoHa VPS** を 1 台用意（例: 1GB メモリ〜。DB・アプリ・リバースプロキシを同居させる想定）。
-- ドメインは ConoHa のドメインサービスまたは他社で取得し、VPS のグローバル IP を A レコードで向ける。
-- 本番では **Docker Compose** で backend / db を起動し、フロントは **ビルド済み静的ファイル** を nginx 等で配信する想定。
+**サーバー**: ConoHa VPS v3 (Ubuntu 24, 1GB/2Core)
+**ドメイン**: givers.work
+**IP**: 163.44.111.156
+**最終更新**: 2026-03-01
 
 ---
 
-## 2. サーバー初期設定
+## 1. サーバー初期設定（済）
 
-### 2.1 OS・ユーザー
-
-- **OS**: Ubuntu 22.04 LTS を推奨（ConoHa のテンプレートから選択）。
-- **root ログイン無効化** し、sudo 可能な一般ユーザー（例: `deploy`）を作成。
-- **SSH 鍵認証** にし、パスワードログインは無効化。
-
-### 2.2 ファイアウォール（ufw）
+### SSH 接続
 
 ```bash
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 80/tcp    # HTTP（リダイレクト用）
-sudo ufw allow 443/tcp   # HTTPS
-sudo ufw enable
+ssh givers-conoha-root
 ```
 
-### 2.3 Docker / Docker Compose
+- SSH鍵認証: `~/.ssh/givers_conoha_root_key` (ed25519)
+- パスワード認証: 無効化済み
 
-- Docker 公式手順で Docker Engine と Docker Compose（v2）をインストール。
-- 運用ユーザーを `docker` グループに追加し、sudo なしで `docker compose` を実行可能にする。
+### ConoHa セキュリティグループ
 
----
+VPSに以下のセキュリティグループを割り当て:
+- `default`
+- `IPv4v6-SSH` — ポート22（設定済み）
+- `IPv4v6-Web` — ポート80/443（**要追加**）
 
-## 3. アプリケーションの配置
+### UFW（OS ファイアウォール）
 
-### 3.1 リポジトリの取得
+```bash
+ufw allow 22/tcp    # SSH（設定済み）
+ufw allow 80/tcp    # HTTP
+ufw allow 443/tcp   # HTTPS
+ufw enable
+```
 
-- 本番用には **git clone** または CI でビルドした成果物を配置。
-- 配置例: `/home/deploy/givers`（任意）。
+### DNS
 
-### 3.2 本番用 Docker Compose の考え方
+ConoHa DNS で設定済み:
 
-- **開発用** `docker-compose.yml` は frontend が `npm run dev` のため、本番では使わない。
-- 本番用は次のように分ける想定:
-  - **db**: 現状の PostgreSQL イメージのまま。`POSTGRES_PASSWORD` は強力な値に変更。
-  - **backend**: 現状の Dockerfile のまま。環境変数のみ本番用に変更。
-  - **frontend**: 本番では **Astro をビルド**（`npm run build`）し、生成された静的ファイルを **nginx で配信**（下記 4 節）。  
-    または、本番用に「ビルド済み静的ファイルを nginx イメージで配信する」Docker サービスを 1 つ追加する。
-
-### 3.3 本番用環境変数（backend）
-
-| 変数 | 説明 | 例 |
-|------|------|-----|
-| `DATABASE_URL` | PostgreSQL 接続文字列 | `postgres://givers:強力なパスワード@db:5432/givers?sslmode=disable` |
-| `FRONTEND_URL` | フロントの公開 URL（CORS・OAuth リダイレクト用） | `https://your-domain.example.com` |
-| `BACKEND_URL` | バックエンドの公開 URL（OAuth コールバック等） | `https://your-domain.example.com` |
-| `SESSION_SECRET` | セッション署名用（32 バイト以上・推測困難な文字列） | 環境変数やシークレット管理で設定 |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth（使用する場合） | ConoHa 上では .env や ConoHa のメモに保存しないこと。サーバー内の .env ファイルに記載し、権限を制限。 |
-| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub OAuth（使用する場合） | 同上 |
-| `AUTH_REQUIRED` | 認証を有効にするか | `true` |
-
-- 秘密情報は **.env ファイル** に書き、`chmod 600` で所有者以外読めないようにする。ConoHa の「メモ」に貼らない。
-
-### 3.4 フロントの本番ビルド
-
-- フロントは **API の URL** を本番向けに合わせる必要がある。
-- `frontend/.env.production` またはビルド時に `PUBLIC_API_URL=https://your-domain.example.com` を渡す（Astro の `PUBLIC_*` の扱いに合わせる）。
-- サーバー上で `cd frontend && npm ci && npm run build` を実行し、`frontend/dist` を nginx のドキュメントルートに指定する（または nginx 用 Docker イメージにコピーする）。
+| タイプ | 名称 | TTL  | 値               |
+|--------|------|------|------------------|
+| A      | @    | 3600 | 163.44.111.156   |
+| A      | www  | 3600 | 163.44.111.156   |
 
 ---
 
-## 4. リバースプロキシと SSL
+## 2. サーバーに Docker をインストール
 
-- インターネットからは **80/443** のみ開放し、80 は 443 にリダイレクト。
-- **443** で nginx（または Caddy）を動かし、以下を実施:
-  - **SSL 終端**: Let's Encrypt（certbot）で証明書を取得・更新。
-  - **/**: フロント（静的ファイル）を配信。
-  - **/api/** などバックエンド用パス: `http://localhost:8080` などにプロキシ。
-
-### 4.1 nginx 設定例（要約）
-
-- `server_name` にドメインを指定。
-- `root` にフロントの `dist` を指定。`location / { try_files $uri $uri/ /index.html; }` で SPA/SSG ルーティングに対応。
-- `location /api/ { proxy_pass http://127.0.0.1:8080; proxy_http_version 1.1; proxy_set_header Host $host; proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; proxy_set_header X-Forwarded-Proto $scheme; }`
-- SSL は `listen 443 ssl; ssl_certificate /etc/letsencrypt/live/...; ssl_certificate_key ...;` で指定。
-
-### 4.2 Let's Encrypt（certbot）
-
-- `certbot --nginx -d your-domain.example.com` で証明書取得と nginx 設定の自動編集。
-- 自動更新: `certbot renew` を cron で定期実行（例: 毎日）。
+```bash
+ssh givers-conoha-root
+curl -fsSL https://get.docker.com | sh
+systemctl enable docker
+```
 
 ---
 
-## 5. メール送信（マジックリンク用）
+## 3. デプロイ方式
 
-- マジックリンク方式では **サービス側からメールを送る必要**がある（`docs/mock-implementation-status.md` 3.7 参照）。
-- **ConoHa VPS 単体**にはメール送信機能は含まれないため、次のいずれかを利用する想定:
-  - **SendGrid / AWS SES / Mailgun 等**: SMTP または API で送信。環境変数で API キー・SMTP 情報を渡す。
-  - **ConoHa のメールサービス**（ConoHa WING 等）を契約している場合: その SMTP を利用可能。設定は各サービスの案内に従う。
-- バックエンドで「マジックリンク用トークン生成 → メール本文生成 → 送信」を行うレイヤーを実装し、送信先 SMTP/API は環境変数で切り替え可能にすると運用しやすい。
+**ローカルビルド + SCP 方式** を採用。サーバーに Git は不要。
+
+```
+ローカル PC                          ConoHa VPS
+─────────────                       ──────────────
+1. git pull (対象ブランチ)
+2. /tmp にパッケージ作成
+   (node_modules/.git 除外)
+3. rsync/scp で転送 ──────────────→ /opt/givers/
+                                    4. docker compose build
+                                    5. docker compose up -d
+```
+
+### デプロイスクリプト
+
+```bash
+# デフォルト (main ブランチ)
+./scripts/deploy.sh
+
+# ブランチ指定
+./scripts/deploy.sh feature/xxx
+```
+
+スクリプトの処理:
+1. ローカルで指定ブランチを pull
+2. `/tmp/givers-deploy` に必要ファイルをコピー（node_modules, .git, テスト等を除外）
+3. `rsync` でサーバーの `/opt/givers` に転送（`.env` は除外＝サーバー上の設定を保持）
+4. サーバーで `docker compose up -d --build`
+5. DBマイグレーション実行
+
+オプション:
+- `--init` — ファイル転送のみ（初回セットアップ用、ビルド・起動しない）
 
 ---
 
-## 6. 起動と自動起動
+## 4. 初回セットアップ
 
-- アプリ用コンテナは **Docker Compose** で起動: `docker compose -f docker-compose.prod.yml up -d`（本番用ファイル名は任意）。
-- サーバー再起動時にコンテナも起動するようにする:
-  - **systemd**: `docker compose ... up -d` を実行する unit を書き、`multi-user.target` に依存させる。
-  - または Docker の「restart: unless-stopped」と、Docker サービス自体の自動起動に頼る方法もある。
+### 4.1 初回デプロイ（ファイル転送のみ）
+
+```bash
+# ローカルから実行 — --init でファイル転送のみ（ビルド・起動しない）
+./scripts/deploy.sh --init
+```
+
+### 4.2 環境変数の設定
+
+サーバー上で `.env` を作成:
+
+```bash
+ssh givers-conoha-root
+cd /opt/givers
+cp .env.prod.example .env
+nano .env    # 各値を本番用に編集
+chmod 600 .env
+```
+
+**必須の変更項目**:
+- `POSTGRES_PASSWORD` — `openssl rand -base64 24` で生成
+- `DATABASE_URL` — 上記パスワードと一致させる
+- `SESSION_SECRET` — `openssl rand -base64 32` で生成
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` — 本番キー
+- `CERTBOT_EMAIL` — SSL 証明書の通知先メール
+- OAuth の各 Client ID/Secret
+
+### 4.3 SSL 証明書の初回取得
+
+```bash
+ssh givers-conoha-root
+cd /opt/givers
+./scripts/init-ssl.sh
+```
+
+処理内容:
+1. HTTP-only の nginx 設定で起動
+2. certbot で Let's Encrypt 証明書を取得（ACME HTTP-01 チャレンジ）
+3. HTTPS 対応の nginx 設定に切り替え
+4. 全サービスを起動
 
 ---
 
-## 7. 運用上の注意
+## 5. 通常のデプロイ更新
 
-- **DB のバックアップ**: `pg_dump` を cron で定期実行し、別ストレージ（ConoHa オブジェクトストレージや外部）に退避。
-- **ログ**: コンテナの stdout/stderr は `docker compose logs` で確認。長期保存する場合はファイルに落とすかログ収集サービスを検討。
-- **監視**: ConoHa の監視機能や、外部の死活監視（HTTPS の /api/health 等）を利用するとよい。
-- **セキュリティ**: OS と Docker イメージの定期的な更新、秘密情報の取り扱い（.env の権限、漏洩防止）を徹底する。
+ローカルから実行するだけ:
+
+```bash
+./scripts/deploy.sh
+```
 
 ---
 
-## 8. 関連ドキュメント
+## 6. サーバー上での操作
 
-- `docs/implementation-plan.md` - 環境変数一覧、Phase 6 本番用設定
-- `docs/phase2-plan.md` - 認証・セッション（Cookie: Secure 本番）
-- `docs/mock-implementation-status.md` - Email マジックリンク方針
+```bash
+ssh givers-conoha-root
+cd /opt/givers
+
+# 起動
+docker compose -f docker-compose.prod.yml up -d
+
+# 停止
+docker compose -f docker-compose.prod.yml down
+
+# ログ確認
+docker compose -f docker-compose.prod.yml logs -f
+
+# 特定サービスのログ
+docker compose -f docker-compose.prod.yml logs -f backend
+
+# コンテナ状態
+docker compose -f docker-compose.prod.yml ps
+```
+
+---
+
+## 7. SSL 証明書の自動更新
+
+```bash
+ssh givers-conoha-root
+crontab -e
+```
+
+```
+0 3 * * * cd /opt/givers && docker compose -f docker-compose.prod.yml run --rm certbot renew && docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
+```
+
+---
+
+## 8. 構成図
+
+```
+Internet
+  │
+  ├─ :80  ─→ Nginx ──→ 301 redirect to HTTPS
+  └─ :443 ─→ Nginx (SSL)
+               ├─ /api/*     → backend:8080  (Go)
+               ├─ /uploads/* → backend:8080  (Go)
+               └─ /*         → frontend:4321 (Astro SSR)
+                                    │
+                                    └─ db:5432 (PostgreSQL 16)
+```
+
+---
+
+## 9. ファイル構成
+
+```
+docker-compose.prod.yml    # 本番用 Compose
+.env.prod.example          # 環境変数テンプレート
+.env.prod                  # 環境変数（git管理外、サーバー上のみ）
+frontend/Dockerfile.prod   # フロント本番ビルド
+nginx/conf.d/
+  default.conf             # HTTPS nginx 設定
+  default.conf.initial     # 初回 SSL 取得用 HTTP 設定
+scripts/
+  deploy.sh                # ローカル→サーバー デプロイスクリプト
+  init-ssl.sh              # SSL 初期設定スクリプト
+```
+
+---
+
+## 10. 運用チェックリスト
+
+### 初回セットアップ
+- [ ] ConoHa セキュリティグループ `IPv4v6-Web` を追加
+- [ ] UFW で 80/443 を許可
+- [ ] Docker インストール
+- [ ] `./scripts/deploy.sh` で初回デプロイ
+- [ ] サーバーで `.env` を作成・設定
+- [ ] `./scripts/init-ssl.sh` で SSL 証明書取得
+- [ ] `https://givers.work` でアクセス確認
+- [ ] `https://givers.work/api/health` で API 確認
+- [ ] certbot 自動更新 cron 設定
+- [ ] Stripe Webhook URL を `https://givers.work/api/stripe/webhook` に更新
+- [ ] OAuth リダイレクト URL を更新
+
+### 通常デプロイ
+- [ ] `./scripts/deploy.sh` を実行
+- [ ] 動作確認
+
+---
+
+## 11. トラブルシューティング
+
+### SSH 接続できない
+- ConoHa セキュリティグループに `IPv4v6-SSH` が割り当てられているか確認
+- VPS コンソール（ブラウザ）からログインして `ufw status` を確認
+
+### HTTPS がつながらない
+- ConoHa セキュリティグループに `IPv4v6-Web` が必要
+- `ufw allow 80/tcp && ufw allow 443/tcp`
+- `docker compose logs nginx` でエラー確認
+
+### DNS が引けない
+- ConoHa DNS で A レコードが設定されているか確認
+- `dig givers.work A @a.conoha-dns.com` で直接確認
+
+### デプロイが遅い
+- 初回は Docker イメージのビルドに時間がかかる（Go コンパイル + npm ci）
+- 2回目以降は Docker のビルドキャッシュが効く

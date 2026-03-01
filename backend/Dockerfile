@@ -6,10 +6,13 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 go build -o server ./cmd/server
+RUN CGO_ENABLED=0 go build -o migrate ./cmd/migrate
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/server .
+COPY --from=builder /app/migrate .
+COPY migrations/ ./migrations/
 EXPOSE 8080
 CMD ["./server"]

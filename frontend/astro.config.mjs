@@ -1,7 +1,8 @@
-// @ts-check
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import node from '@astrojs/node';
+
+const { BACKEND_INTERNAL_URL = 'http://localhost:8080' } = process.env;
 
 // https://astro.build/config
 export default defineConfig({
@@ -17,11 +18,11 @@ export default defineConfig({
       },
       proxy: {
         '/api': {
-          target: 'http://localhost:8080',
+          target: BACKEND_INTERNAL_URL,
           changeOrigin: true,
         },
         '/uploads': {
-          target: 'http://localhost:8080',
+          target: BACKEND_INTERNAL_URL,
           changeOrigin: true,
         },
       },

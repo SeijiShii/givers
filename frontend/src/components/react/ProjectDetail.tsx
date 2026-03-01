@@ -31,6 +31,7 @@ import ProjectChart from "./charts/ProjectChart";
 import ConfirmDialog from "./ConfirmDialog";
 import LoadingSkeleton from "./LoadingSkeleton";
 import ShareButtons from "./ShareButtons";
+import LoginDialog from "./LoginDialog";
 import { t, type Locale } from "../../lib/i18n";
 
 interface Props {
@@ -199,6 +200,9 @@ export default function ProjectDetail({
   const [messagesDonorFilter, setMessagesDonorFilter] = useState("");
   const [messagesOffset, setMessagesOffset] = useState(0);
   const MESSAGES_LIMIT = 20;
+
+  // Login dialog state
+  const [showLoginDialog, setShowLoginDialog] = useState(false);
 
   // Cost items editing state (owner-only)
   const [editingCostItems, setEditingCostItems] = useState(false);
@@ -1508,6 +1512,7 @@ export default function ProjectDetail({
                   donationTypeLabel={donationTypeLabel}
                   user={me}
                   projectStatus={project.status}
+                  onLoginRequest={() => setShowLoginDialog(true)}
                 />
               )}
             </div>
@@ -1955,6 +1960,11 @@ export default function ProjectDetail({
           </ul>
         </div>
       )}
+      <LoginDialog
+        open={showLoginDialog}
+        locale={locale}
+        onClose={() => setShowLoginDialog(false)}
+      />
     </div>
   );
 }

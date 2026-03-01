@@ -25,6 +25,8 @@ interface Props {
   user?: User | null;
   /** 凍結・削除プロジェクトのときは寄付不可。メッセージを表示する */
   projectStatus?: string;
+  /** 未ログイン時に「ログイン」リンクを押した際のコールバック */
+  onLoginRequest?: () => void;
 }
 
 export default function DonateForm({
@@ -46,6 +48,7 @@ export default function DonateForm({
   donationTypeLabel = "寄付の種類",
   user,
   projectStatus,
+  onLoginRequest,
 }: Props) {
   const isLoggedIn = !!user && !user.suspended;
   const [donationType, setDonationType] = useState<DonationType>("one_time");
@@ -187,6 +190,27 @@ export default function DonateForm({
             }}
           >
             {t(locale, "errors.recurringRequiresLogin")}
+            {onLoginRequest && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  onClick={onLoginRequest}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    color: "var(--color-primary)",
+                    textDecoration: "underline",
+                    cursor: "pointer",
+                    fontSize: "inherit",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {locale === "ja" ? "ログインする" : "Log in"}
+                </button>
+              </>
+            )}
           </p>
         )}
       </div>
