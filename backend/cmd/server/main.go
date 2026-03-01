@@ -115,6 +115,7 @@ func main() {
 	activityHandler := handler.NewActivityHandler(activityService)
 	chartHandler := handler.NewChartHandler(projectService, donationRepo)
 	costPresetHandler := handler.NewCostPresetHandler(costPresetService)
+	messageHandler := handler.NewMessageHandler(donationService, projectService)
 
 	uploadsDir := os.Getenv("UPLOADS_DIR")
 	if uploadsDir == "" {
@@ -189,6 +190,9 @@ func main() {
 	mux.HandleFunc("GET /api/activity", activityHandler.GlobalFeed)
 	mux.HandleFunc("GET /api/projects/{id}/activity", activityHandler.ProjectFeed)
 	mux.HandleFunc("GET /api/projects/{id}/chart", chartHandler.Chart)
+
+	// Project messages (owner or host auth required)
+	mux.Handle("GET /api/projects/{id}/messages", wrapAuth(http.HandlerFunc(messageHandler.List)))
 
 	// Donation routes (auth required)
 	mux.Handle("GET /api/me/donations", wrapAuth(http.HandlerFunc(donationHandler.List)))

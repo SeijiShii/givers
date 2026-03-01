@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   getMe,
   getMyDonations,
@@ -15,10 +15,10 @@ import {
   type Donation,
   type RecurringDonation,
   type Project,
-} from '../../lib/api';
-import ConfirmDialog from './ConfirmDialog';
-import LoadingSkeleton from './LoadingSkeleton';
-import type { Locale } from '../../lib/i18n';
+} from "../../lib/api";
+import ConfirmDialog from "./ConfirmDialog";
+import LoadingSkeleton from "./LoadingSkeleton";
+import type { Locale } from "../../lib/i18n";
 
 interface Props {
   locale: Locale;
@@ -60,15 +60,23 @@ interface Props {
   watchListLabel: string;
   unwatchLabel: string;
   noWatchesLabel: string;
+  nextBillingMessageLabel?: string;
+  nextBillingMessagePlaceholder?: string;
 }
 
 function formatDate(iso: string, locale: Locale): string {
   const d = new Date(iso);
-  const loc = locale === 'ja' ? 'ja-JP' : 'en-US';
-  return d.toLocaleDateString(loc, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const loc = locale === "ja" ? "ja-JP" : "en-US";
+  return d.toLocaleDateString(loc, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-type TabId = 'donations' | 'projects' | 'watches';
+type TabId = "donations" | "projects" | "watches";
 
 export default function MePage({
   locale,
@@ -110,22 +118,33 @@ export default function MePage({
   watchListLabel,
   unwatchLabel,
   noWatchesLabel,
+  nextBillingMessageLabel,
+  nextBillingMessagePlaceholder,
 }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabId>('donations');
+  const [activeTab, setActiveTab] = useState<TabId>("donations");
   const [donations, setDonations] = useState<Donation[]>([]);
   const [recurring, setRecurring] = useState<RecurringDonation[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [watchedProjects, setWatchedProjects] = useState<Project[]>([]);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
-  const [editingRecurringId, setEditingRecurringId] = useState<string | null>(null);
+  const [editingRecurringId, setEditingRecurringId] = useState<string | null>(
+    null,
+  );
   const [editRecurringAmount, setEditRecurringAmount] = useState(0);
-  const [editRecurringInterval, setEditRecurringInterval] = useState<'monthly' | 'yearly'>('monthly');
-  const [savingRecurringId, setSavingRecurringId] = useState<string | null>(null);
-  const [deleteConfirmRecurringId, setDeleteConfirmRecurringId] = useState<string | null>(null);
+  const [editRecurringInterval, setEditRecurringInterval] = useState<
+    "monthly" | "yearly"
+  >("monthly");
+  const [editRecurringNextMsg, setEditRecurringNextMsg] = useState("");
+  const [savingRecurringId, setSavingRecurringId] = useState<string | null>(
+    null,
+  );
+  const [deleteConfirmRecurringId, setDeleteConfirmRecurringId] = useState<
+    string | null
+  >(null);
 
-  const basePath = locale === 'en' ? '/en' : '';
+  const basePath = locale === "en" ? "/en" : "";
 
   const fetchData = async () => {
     const me = await getMe();
@@ -153,35 +172,47 @@ export default function MePage({
 
   // モック時: ホスト/メンバー切り替えで再取得（AuthStatus が発火するカスタムイベント）
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     const handler = () => {
       setLoading(true);
       fetchData();
     };
-    window.addEventListener('givers-mock-login-changed', handler);
-    return () => window.removeEventListener('givers-mock-login-changed', handler);
+    window.addEventListener("givers-mock-login-changed", handler);
+    return () =>
+      window.removeEventListener("givers-mock-login-changed", handler);
   }, []);
 
   // ウォッチ変更時（プロジェクト詳細でウォッチ/解除したとき）にウォッチ一覧を再取得
   useEffect(() => {
-    if (typeof window === 'undefined' || !user) return;
+    if (typeof window === "undefined" || !user) return;
     const handler = () => {
-      getWatchedProjects().then(setWatchedProjects).catch(() => setWatchedProjects([]));
+      getWatchedProjects()
+        .then(setWatchedProjects)
+        .catch(() => setWatchedProjects([]));
     };
-    window.addEventListener('givers-watch-changed', handler);
-    return () => window.removeEventListener('givers-watch-changed', handler);
+    window.addEventListener("givers-watch-changed", handler);
+    return () => window.removeEventListener("givers-watch-changed", handler);
   }, [user?.id]);
 
   const handleStartEditRecurring = (r: RecurringDonation) => {
     setEditingRecurringId(r.id);
     setEditRecurringAmount(r.amount);
-    setEditRecurringInterval(r.interval ?? 'monthly');
+    setEditRecurringInterval(r.interval ?? "monthly");
+    setEditRecurringNextMsg(r.next_billing_message ?? "");
   };
 
   const handleSaveRecurring = async (id: string) => {
     setSavingRecurringId(id);
     try {
-      await updateRecurringDonation(id, { amount: editRecurringAmount, interval: editRecurringInterval });
+      const current = recurring.find((r) => r.id === id);
+      await updateRecurringDonation(id, {
+        amount: editRecurringAmount,
+        interval: editRecurringInterval,
+        next_billing_message:
+          editRecurringNextMsg !== (current?.next_billing_message ?? "")
+            ? editRecurringNextMsg
+            : undefined,
+      });
       setRecurring(await getMyRecurringDonations());
       setEditingRecurringId(null);
     } finally {
@@ -191,7 +222,7 @@ export default function MePage({
 
   const handlePauseResumeRecurring = async (r: RecurringDonation) => {
     try {
-      if (r.status === 'paused') {
+      if (r.status === "paused") {
         await resumeRecurringDonation(r.id);
       } else {
         await pauseRecurringDonation(r.id);
@@ -231,20 +262,20 @@ export default function MePage({
 
   if (!user) {
     return (
-      <div className="card" style={{ maxWidth: '28rem', marginTop: '1.5rem' }}>
+      <div className="card" style={{ maxWidth: "28rem", marginTop: "1.5rem" }}>
         <p>{loginPromptLabel}</p>
       </div>
     );
   }
 
   const formatRecurringAmount = (r: RecurringDonation) => {
-    const interval = r.interval ?? 'monthly';
-    const suffix = interval === 'yearly' ? '/年' : '/月';
+    const interval = r.interval ?? "monthly";
+    const suffix = interval === "yearly" ? "/年" : "/月";
     return `¥${r.amount.toLocaleString()}${suffix}`;
   };
 
   return (
-    <div style={{ marginTop: '1.5rem' }}>
+    <div style={{ marginTop: "1.5rem" }}>
       <ConfirmDialog
         open={deleteConfirmRecurringId !== null}
         title={deleteRecurringConfirmTitle}
@@ -258,65 +289,119 @@ export default function MePage({
       {/* タブ */}
       <div
         style={{
-          borderBottom: '2px solid var(--color-border)',
-          display: 'flex',
-          gap: '0.5rem',
+          borderBottom: "2px solid var(--color-border)",
+          display: "flex",
+          gap: "0.5rem",
         }}
       >
-        {(['donations', 'projects', 'watches'] as TabId[]).map((tabId) => (
+        {(["donations", "projects", "watches"] as TabId[]).map((tabId) => (
           <button
             key={tabId}
             type="button"
             onClick={() => setActiveTab(tabId)}
             style={{
-              padding: '0.75rem 1.25rem',
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              fontSize: '1rem',
+              padding: "0.75rem 1.25rem",
+              border: "none",
+              background: "none",
+              cursor: "pointer",
+              fontSize: "1rem",
               fontWeight: activeTab === tabId ? 600 : 500,
-              color: activeTab === tabId ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              borderBottom: activeTab === tabId ? '2px solid var(--color-primary)' : '2px solid transparent',
-              marginBottom: '-2px',
+              color:
+                activeTab === tabId
+                  ? "var(--color-primary)"
+                  : "var(--color-text-muted)",
+              borderBottom:
+                activeTab === tabId
+                  ? "2px solid var(--color-primary)"
+                  : "2px solid transparent",
+              marginBottom: "-2px",
             }}
           >
-            {tabId === 'donations' && tabDonationsLabel}
-            {tabId === 'projects' && tabProjectsLabel}
-            {tabId === 'watches' && tabWatchesLabel}
+            {tabId === "donations" && tabDonationsLabel}
+            {tabId === "projects" && tabProjectsLabel}
+            {tabId === "watches" && tabWatchesLabel}
           </button>
         ))}
       </div>
 
       {/* タブコンテンツ */}
-      <div style={{ marginTop: '1.5rem' }}>
-        {activeTab === 'donations' && (
+      <div style={{ marginTop: "1.5rem" }}>
+        {activeTab === "donations" && (
           <>
-            <section className="card" style={{ marginBottom: '1.5rem' }}>
+            <section className="card" style={{ marginBottom: "1.5rem" }}>
               <h2 style={{ marginTop: 0 }}>{donationHistoryLabel}</h2>
               {donations.length === 0 ? (
-                <p style={{ color: 'var(--color-text-muted)' }}>{noDonationsLabel}</p>
+                <p style={{ color: "var(--color-text-muted)" }}>
+                  {noDonationsLabel}
+                </p>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem' }}>{projectNameLabel}</th>
-                      <th style={{ textAlign: 'right', padding: '0.5rem 0.75rem' }}>{amountLabel}</th>
-                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem' }}>{dateLabel}</th>
-                      <th style={{ textAlign: 'left', padding: '0.5rem 0.75rem' }}>{messageLabel}</th>
+                    <tr
+                      style={{ borderBottom: "1px solid var(--color-border)" }}
+                    >
+                      <th
+                        style={{ textAlign: "left", padding: "0.5rem 0.75rem" }}
+                      >
+                        {projectNameLabel}
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "right",
+                          padding: "0.5rem 0.75rem",
+                        }}
+                      >
+                        {amountLabel}
+                      </th>
+                      <th
+                        style={{ textAlign: "left", padding: "0.5rem 0.75rem" }}
+                      >
+                        {dateLabel}
+                      </th>
+                      <th
+                        style={{ textAlign: "left", padding: "0.5rem 0.75rem" }}
+                      >
+                        {messageLabel}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {donations.map((d) => (
-                      <tr key={d.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                        <td style={{ padding: '0.5rem 0.75rem' }}>
-                          <a href={`${basePath}/projects/${d.project_id}`}>{d.project_name}</a>
+                      <tr
+                        key={d.id}
+                        style={{
+                          borderBottom: "1px solid var(--color-border)",
+                        }}
+                      >
+                        <td style={{ padding: "0.5rem 0.75rem" }}>
+                          <a href={`${basePath}/projects/${d.project_id}`}>
+                            {d.project_name}
+                          </a>
                         </td>
-                        <td style={{ textAlign: 'right', padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>
+                        <td
+                          style={{
+                            textAlign: "right",
+                            padding: "0.5rem 0.75rem",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           ¥{d.amount.toLocaleString()}
                         </td>
-                        <td style={{ padding: '0.5rem 0.75rem', whiteSpace: 'nowrap' }}>{formatDate(d.created_at, locale)}</td>
-                        <td style={{ padding: '0.5rem 0.75rem', color: 'var(--color-text-muted)' }}>
-                          {d.message ?? '—'}
+                        <td
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatDate(d.created_at, locale)}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            color: "var(--color-text-muted)",
+                          }}
+                        >
+                          {d.message ?? "—"}
                         </td>
                       </tr>
                     ))}
@@ -328,76 +413,205 @@ export default function MePage({
             <section className="card">
               <h2 style={{ marginTop: 0 }}>{recurringDonationsLabel}</h2>
               {recurring.length === 0 ? (
-                <p style={{ color: 'var(--color-text-muted)' }}>{noRecurringLabel}</p>
+                <p style={{ color: "var(--color-text-muted)" }}>
+                  {noRecurringLabel}
+                </p>
               ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                   {recurring.map((r) => (
                     <li
                       key={r.id}
                       style={{
-                        padding: '0.75rem 0',
-                        borderBottom: '1px solid var(--color-border)',
+                        padding: "0.75rem 0",
+                        borderBottom: "1px solid var(--color-border)",
                       }}
                     >
                       {editingRecurringId === r.id ? (
-                        <div style={{ marginTop: '0.5rem' }}>
-                          <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem' }}>{editRecurringTitle}</h3>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <div style={{ marginTop: "0.5rem" }}>
+                          <h3
+                            style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}
+                          >
+                            {editRecurringTitle}
+                          </h3>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "0.5rem",
+                              alignItems: "center",
+                              marginBottom: "0.5rem",
+                            }}
+                          >
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.25rem",
+                              }}
+                            >
                               <span>{amountLabel}:</span>
                               <input
                                 type="number"
                                 min={100}
                                 step={100}
                                 value={editRecurringAmount}
-                                onChange={(e) => setEditRecurringAmount(Number(e.target.value) || 0)}
-                                style={{ width: '6rem', padding: '0.25rem 0.5rem' }}
+                                onChange={(e) =>
+                                  setEditRecurringAmount(
+                                    Number(e.target.value) || 0,
+                                  )
+                                }
+                                style={{
+                                  width: "6rem",
+                                  padding: "0.25rem 0.5rem",
+                                }}
                               />
                               <span>円</span>
                             </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.25rem",
+                              }}
+                            >
                               <span>{intervalLabel}:</span>
                               <select
                                 value={editRecurringInterval}
-                                onChange={(e) => setEditRecurringInterval(e.target.value as 'monthly' | 'yearly')}
-                                style={{ padding: '0.25rem 0.5rem' }}
+                                onChange={(e) =>
+                                  setEditRecurringInterval(
+                                    e.target.value as "monthly" | "yearly",
+                                  )
+                                }
+                                style={{ padding: "0.25rem 0.5rem" }}
                               >
-                                <option value="monthly">{intervalMonthlyLabel}</option>
-                                <option value="yearly">{intervalYearlyLabel}</option>
+                                <option value="monthly">
+                                  {intervalMonthlyLabel}
+                                </option>
+                                <option value="yearly">
+                                  {intervalYearlyLabel}
+                                </option>
                               </select>
                             </label>
                           </div>
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button type="button" className="btn btn-primary" onClick={() => handleSaveRecurring(r.id)} disabled={savingRecurringId === r.id}>
-                              {savingRecurringId === r.id ? '...' : saveLabel}
+                          {nextBillingMessageLabel && (
+                            <div style={{ marginBottom: "0.5rem" }}>
+                              <label
+                                style={{
+                                  display: "block",
+                                  fontSize: "0.85rem",
+                                  marginBottom: "0.25rem",
+                                }}
+                              >
+                                {nextBillingMessageLabel}:
+                              </label>
+                              <textarea
+                                value={editRecurringNextMsg}
+                                onChange={(e) =>
+                                  setEditRecurringNextMsg(e.target.value)
+                                }
+                                placeholder={nextBillingMessagePlaceholder}
+                                rows={2}
+                                style={{
+                                  width: "100%",
+                                  padding: "0.25rem 0.5rem",
+                                  border: "1px solid var(--color-border)",
+                                  borderRadius: "4px",
+                                  fontFamily: "inherit",
+                                  fontSize: "0.9rem",
+                                }}
+                              />
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={() => handleSaveRecurring(r.id)}
+                              disabled={savingRecurringId === r.id}
+                            >
+                              {savingRecurringId === r.id ? "..." : saveLabel}
                             </button>
-                            <button type="button" className="btn" onClick={() => setEditingRecurringId(null)} disabled={!!savingRecurringId}>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => setEditingRecurringId(null)}
+                              disabled={!!savingRecurringId}
+                            >
                               {cancelLabel}
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
+                            gap: "0.5rem",
+                          }}
+                        >
                           <span>
-                            <a href={`${basePath}/projects/${r.project_id}`}>{r.project_name}</a>
-                            {' — '}
+                            <a href={`${basePath}/projects/${r.project_id}`}>
+                              {r.project_name}
+                            </a>
+                            {" — "}
                             {formatRecurringAmount(r)}
-                            {r.status === 'cancelled' && (
-                              <span style={{ marginLeft: '0.5rem', color: 'var(--color-danger)' }}>({cancelledLabel})</span>
+                            {r.status === "cancelled" && (
+                              <span
+                                style={{
+                                  marginLeft: "0.5rem",
+                                  color: "var(--color-danger)",
+                                }}
+                              >
+                                ({cancelledLabel})
+                              </span>
                             )}
-                            {r.status === 'paused' && (
-                              <span style={{ marginLeft: '0.5rem', color: 'var(--color-warning-muted)' }}>({pausedLabel})</span>
+                            {r.status === "paused" && (
+                              <span
+                                style={{
+                                  marginLeft: "0.5rem",
+                                  color: "var(--color-warning-muted)",
+                                }}
+                              >
+                                ({pausedLabel})
+                              </span>
                             )}
                           </span>
-                          {r.status !== 'cancelled' && (
-                            <span style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                              <button type="button" className="btn" style={{ fontSize: '0.8rem' }} onClick={() => handleStartEditRecurring(r)}>
+                          {r.status !== "cancelled" && (
+                            <span
+                              style={{
+                                display: "flex",
+                                gap: "0.25rem",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <button
+                                type="button"
+                                className="btn"
+                                style={{ fontSize: "0.8rem" }}
+                                onClick={() => handleStartEditRecurring(r)}
+                              >
                                 {editRecurringLabel}
                               </button>
-                              <button type="button" className="btn" style={{ fontSize: '0.8rem' }} onClick={() => handlePauseResumeRecurring(r)}>
-                                {r.status === 'paused' ? resumeRecurringLabel : pauseRecurringLabel}
+                              <button
+                                type="button"
+                                className="btn"
+                                style={{ fontSize: "0.8rem" }}
+                                onClick={() => handlePauseResumeRecurring(r)}
+                              >
+                                {r.status === "paused"
+                                  ? resumeRecurringLabel
+                                  : pauseRecurringLabel}
                               </button>
-                              <button type="button" className="btn" style={{ fontSize: '0.8rem' }} onClick={() => setDeleteConfirmRecurringId(r.id)}>
+                              <button
+                                type="button"
+                                className="btn"
+                                style={{ fontSize: "0.8rem" }}
+                                onClick={() =>
+                                  setDeleteConfirmRecurringId(r.id)
+                                }
+                              >
                                 {deleteRecurringLabel}
                               </button>
                             </span>
@@ -412,66 +626,101 @@ export default function MePage({
           </>
         )}
 
-        {activeTab === 'projects' && (
+        {activeTab === "projects" && (
           <section className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "1rem",
+              }}
+            >
               <h2 style={{ margin: 0 }}>{tabProjectsLabel}</h2>
               <a href={`${basePath}/projects/new`} className="btn btn-primary">
                 {newProjectLabel}
               </a>
             </div>
             {projects.length === 0 ? (
-              <p style={{ color: 'var(--color-text-muted)' }}>{noProjectsLabel}</p>
+              <p style={{ color: "var(--color-text-muted)" }}>
+                {noProjectsLabel}
+              </p>
             ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {projects.map((p) => (
                   <li
                     key={p.id}
                     style={{
-                      padding: '1rem 0',
-                      borderBottom: '1px solid var(--color-border)',
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      alignItems: 'center',
-                      gap: '1rem',
+                      padding: "1rem 0",
+                      borderBottom: "1px solid var(--color-border)",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: "1rem",
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <a href={`${basePath}/projects/${p.id}`} style={{ fontWeight: 600 }}>
+                      <a
+                        href={`${basePath}/projects/${p.id}`}
+                        style={{ fontWeight: 600 }}
+                      >
                         {p.name}
                       </a>
                       <span
                         style={{
-                          marginLeft: '0.5rem',
-                          fontSize: '0.85rem',
-                          padding: '0.15rem 0.4rem',
-                          borderRadius: '4px',
+                          marginLeft: "0.5rem",
+                          fontSize: "0.85rem",
+                          padding: "0.15rem 0.4rem",
+                          borderRadius: "4px",
                           backgroundColor:
-                            p.status === 'active'
-                              ? 'var(--color-primary-muted)'
-                              : p.status === 'frozen'
-                                ? 'var(--color-warning-muted)'
-                                : 'var(--color-text-muted)',
-                          color: p.status === 'deleted' ? 'white' : 'var(--color-text)',
+                            p.status === "active"
+                              ? "var(--color-primary-muted)"
+                              : p.status === "frozen"
+                                ? "var(--color-warning-muted)"
+                                : "var(--color-text-muted)",
+                          color:
+                            p.status === "deleted"
+                              ? "white"
+                              : "var(--color-text)",
                         }}
                       >
-                        {p.status === 'active' && statusActiveLabel}
-                        {p.status === 'frozen' && statusFrozenLabel}
-                        {p.status === 'deleted' && statusDeletedLabel}
-                        {!['active', 'frozen', 'deleted'].includes(p.status) && p.status}
+                        {p.status === "active" && statusActiveLabel}
+                        {p.status === "frozen" && statusFrozenLabel}
+                        {p.status === "deleted" && statusDeletedLabel}
+                        {!["active", "frozen", "deleted"].includes(p.status) &&
+                          p.status}
                       </span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <a href={`${basePath}/projects/${p.id}/edit`} className="btn" style={{ fontSize: '0.85rem' }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                      }}
+                    >
+                      <a
+                        href={`${basePath}/projects/${p.id}/edit`}
+                        className="btn"
+                        style={{ fontSize: "0.85rem" }}
+                      >
                         {editProjectLabel}
                       </a>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.9rem' }}>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          fontSize: "0.9rem",
+                        }}
+                      >
                         <span>{statusLabel}:</span>
                         <select
                           value={p.status}
-                          onChange={(e) => handleStatusChange(p.id, e.target.value)}
+                          onChange={(e) =>
+                            handleStatusChange(p.id, e.target.value)
+                          }
                           disabled={updatingStatus === p.id}
-                          style={{ padding: '0.25rem 0.5rem' }}
+                          style={{ padding: "0.25rem 0.5rem" }}
                         >
                           <option value="active">{statusActiveLabel}</option>
                           <option value="frozen">{statusFrozenLabel}</option>
@@ -486,35 +735,42 @@ export default function MePage({
           </section>
         )}
 
-        {activeTab === 'watches' && (
+        {activeTab === "watches" && (
           <section className="card">
             <h2 style={{ marginTop: 0 }}>{watchListLabel}</h2>
             {watchedProjects.length === 0 ? (
-              <p style={{ color: 'var(--color-text-muted)' }}>{noWatchesLabel}</p>
+              <p style={{ color: "var(--color-text-muted)" }}>
+                {noWatchesLabel}
+              </p>
             ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {watchedProjects.map((p) => (
                   <li
                     key={p.id}
                     style={{
-                      padding: '0.75rem 0',
-                      borderBottom: '1px solid var(--color-border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '0.75rem',
+                      padding: "0.75rem 0",
+                      borderBottom: "1px solid var(--color-border)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "0.75rem",
                     }}
                   >
-                    <a href={`${basePath}/projects/${p.id}`} style={{ fontWeight: 500 }}>
+                    <a
+                      href={`${basePath}/projects/${p.id}`}
+                      style={{ fontWeight: 500 }}
+                    >
                       {p.name}
                     </a>
                     <button
                       type="button"
                       className="btn"
-                      style={{ fontSize: '0.85rem' }}
+                      style={{ fontSize: "0.85rem" }}
                       onClick={async () => {
                         await unwatchProject(p.id);
-                        setWatchedProjects((prev) => prev.filter((x) => x.id !== p.id));
+                        setWatchedProjects((prev) =>
+                          prev.filter((x) => x.id !== p.id),
+                        );
                       }}
                     >
                       {unwatchLabel}

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/givers/backend/internal/model"
@@ -19,7 +20,8 @@ func NewPgDonationRepository(pool *pgxpool.Pool) DonationRepository {
 
 const donationSelectCols = `id, project_id, donor_type, donor_id, amount, currency,
 	COALESCE(message, ''), is_recurring, COALESCE(stripe_payment_id, ''),
-	COALESCE(stripe_subscription_id, ''), paused, created_at, updated_at`
+	COALESCE(stripe_subscription_id, ''), paused, COALESCE(next_billing_message, ''),
+	created_at, updated_at`
 
 func scanDonation(scan func(...any) error) (*model.Donation, error) {
 	d := &model.Donation{}
@@ -27,7 +29,7 @@ func scanDonation(scan func(...any) error) (*model.Donation, error) {
 		&d.ID, &d.ProjectID, &d.DonorType, &d.DonorID,
 		&d.Amount, &d.Currency, &d.Message,
 		&d.IsRecurring, &d.StripePaymentID, &d.StripeSubscriptionID,
-		&d.Paused, &d.CreatedAt, &d.UpdatedAt,
+		&d.Paused, &d.NextBillingMessage, &d.CreatedAt, &d.UpdatedAt,
 	)
 }
 
@@ -81,39 +83,37 @@ func (r *pgDonationRepository) GetByID(ctx context.Context, id string) (*model.D
 }
 
 func (r *pgDonationRepository) Patch(ctx context.Context, id string, patch model.DonationPatch) error {
-	if patch.Amount == nil && patch.Paused == nil {
+	if patch.Amount == nil && patch.Paused == nil && patch.NextBillingMessage == nil {
 		return nil
 	}
 
-	if patch.Amount != nil && patch.Paused != nil {
-		tag, err := r.pool.Exec(ctx,
-			`UPDATE donations SET amount = $1, paused = $2, updated_at = NOW() WHERE id = $3`,
-			*patch.Amount, *patch.Paused, id)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return ErrNotFound
-		}
-		return nil
-	}
+	setClauses := []string{}
+	args := []any{}
+	argIdx := 1
 
 	if patch.Amount != nil {
-		tag, err := r.pool.Exec(ctx,
-			`UPDATE donations SET amount = $1, updated_at = NOW() WHERE id = $2`,
-			*patch.Amount, id)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return ErrNotFound
-		}
-		return nil
+		setClauses = append(setClauses, fmt.Sprintf("amount = $%d", argIdx))
+		args = append(args, *patch.Amount)
+		argIdx++
+	}
+	if patch.Paused != nil {
+		setClauses = append(setClauses, fmt.Sprintf("paused = $%d", argIdx))
+		args = append(args, *patch.Paused)
+		argIdx++
+	}
+	if patch.NextBillingMessage != nil {
+		setClauses = append(setClauses, fmt.Sprintf("next_billing_message = NULLIF($%d, '')", argIdx))
+		args = append(args, *patch.NextBillingMessage)
+		argIdx++
 	}
 
-	tag, err := r.pool.Exec(ctx,
-		`UPDATE donations SET paused = $1, updated_at = NOW() WHERE id = $2`,
-		*patch.Paused, id)
+	setClauses = append(setClauses, "updated_at = NOW()")
+	args = append(args, id)
+
+	query := fmt.Sprintf("UPDATE donations SET %s WHERE id = $%d",
+		strings.Join(setClauses, ", "), argIdx)
+
+	tag, err := r.pool.Exec(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -132,6 +132,12 @@ func (r *pgDonationRepository) Delete(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (r *pgDonationRepository) GetByStripeSubscriptionID(ctx context.Context, subscriptionID string) (*model.Donation, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT `+donationSelectCols+` FROM donations WHERE stripe_subscription_id = $1`, subscriptionID)
+	return scanDonation(row.Scan)
 }
 
 func (r *pgDonationRepository) DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error {
@@ -173,6 +179,65 @@ func (r *pgDonationRepository) ListByProject(ctx context.Context, projectID stri
 		list = append(list, d)
 	}
 	return list, rows.Err()
+}
+
+func (r *pgDonationRepository) ListMessagesByProject(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
+	// Count total matching messages
+	countQuery := `SELECT COUNT(*) FROM donations d
+		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
+		WHERE d.project_id = $1 AND d.message IS NOT NULL AND d.message != ''`
+	countArgs := []any{projectID}
+	argIdx := 2
+	if donor != "" {
+		countQuery += fmt.Sprintf(` AND COALESCE(u.display_name, 'Anonymous') ILIKE '%%' || $%d || '%%'`, argIdx)
+		countArgs = append(countArgs, donor)
+		argIdx++
+	}
+	var total int
+	if err := r.pool.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	// Fetch messages
+	sortDir := "DESC"
+	if sort == "asc" {
+		sortDir = "ASC"
+	}
+	query := fmt.Sprintf(`SELECT COALESCE(u.display_name, 'Anonymous'), d.amount, d.message, d.created_at, d.is_recurring
+		FROM donations d
+		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
+		WHERE d.project_id = $1 AND d.message IS NOT NULL AND d.message != ''`)
+	args := []any{projectID}
+	argIdx = 2
+	if donor != "" {
+		query += fmt.Sprintf(` AND COALESCE(u.display_name, 'Anonymous') ILIKE '%%' || $%d || '%%'`, argIdx)
+		args = append(args, donor)
+		argIdx++
+	}
+	query += fmt.Sprintf(` ORDER BY d.created_at %s LIMIT $%d OFFSET $%d`, sortDir, argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var msgs []*model.DonationMessage
+	for rows.Next() {
+		m := &model.DonationMessage{}
+		if err := rows.Scan(&m.DonorName, &m.Amount, &m.Message, &m.CreatedAt, &m.IsRecurring); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if msgs == nil {
+		msgs = []*model.DonationMessage{}
+	}
+	return &model.DonationMessageResult{Messages: msgs, Total: total}, nil
 }
 
 // CurrentMonthSumByProject returns the total donation amount for a project in the current month.

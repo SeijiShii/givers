@@ -66,6 +66,7 @@ backend/
 |------|------|--------------|
 | `google` | Google OAuth | google_id |
 | `github` | GitHub OAuth | github_id |
+| `discord` | Discord OAuth | discord_id |
 | `apple` | Apple Sign In | apple_id |
 | `email` | Email（まずマジックリンク。パスワードは将来拡張） | email。マジックリンク時は providerUserID に検証トークン ID を渡す。password_hash は将来用。 |
 
@@ -235,10 +236,16 @@ main
 - User モデル、users テーブル、マイグレーション
 - UserRepository インターフェース（汎用化: FindByProviderID, FindByEmail）、PgUserRepository 実装
 - AuthService インターフェース（GetOrCreateUserFromProvider）、AuthServiceImpl
-- AuthHandler: Google OAuth ログイン/コールバック/ログアウト（他プロバイダは拡張で同様に追加）
+- AuthHandler: Google / GitHub / Discord OAuth ログイン/コールバック/ログアウト
+  - Discord: `discord_id` カラム追加（migration 023）、メール非公開時は `username@discord.invalid` フォールバック
+  - 環境変数: `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`
 - MeHandler: GET /api/me
-- セッション管理: **DB sessions テーブル方式**（`sessions` テーブル + UUID Cookie）
-- フロント: AuthStatus（ログイン/ログアウト UI）、/me ページ
+- セッション管理: **DB sessions テーブル方式**（`sessions` テーブル + crypto/rand 32バイト hex トークン）
+  - SessionRepository + SessionService（TDD: 6テスト）
+  - `SessionValidator` インターフェース導入、`RequireAuth` を DB 検証に変更
+  - Logout: DB からセッション削除 + cookie クリア
+  - AdminUserService: suspend 時にセッション全削除（強制ログアウト）
+- フロント: AuthStatus（ログイン/ログアウト UI、Discord ボタン含む）、/me ページ
 
 ## 手動動作確認（Phase 2）
 

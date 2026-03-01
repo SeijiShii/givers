@@ -20,6 +20,8 @@ type DonationRepository interface {
 	Delete(ctx context.Context, id string) error
 	// DeleteByStripeSubscriptionID removes a donation by its stripe_subscription_id.
 	DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error
+	// GetByStripeSubscriptionID returns a donation by its stripe_subscription_id.
+	GetByStripeSubscriptionID(ctx context.Context, subscriptionID string) (*model.Donation, error)
 	// MigrateToken migrates donations from donor_type='token' to donor_type='user'.
 	// Returns the number of rows updated.
 	MigrateToken(ctx context.Context, token string, userID string) (int, error)
@@ -29,4 +31,7 @@ type DonationRepository interface {
 	MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error)
 	// ListByProject returns donations for a specific project.
 	ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error)
+	// ListMessagesByProject returns donation messages with donor names for a project.
+	// sort must be "asc" or "desc". donor is a partial-match filter on display name.
+	ListMessagesByProject(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
 }

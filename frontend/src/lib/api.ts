@@ -427,6 +427,8 @@ export interface RecurringDonation {
   status: "active" | "paused" | "cancelled";
   /** 寄付タイミング（月額/年額など） */
   interval?: "monthly" | "yearly";
+  /** 次回決済時にアクティビティに記録されるメッセージ */
+  next_billing_message?: string;
 }
 
 /** バックエンドの Donation レスポンス型 */
@@ -440,6 +442,7 @@ interface BackendDonation {
   message?: string;
   is_recurring: boolean;
   paused: boolean;
+  next_billing_message?: string;
   created_at: string;
   updated_at: string;
 }
@@ -479,6 +482,7 @@ export async function getMyRecurringDonations(): Promise<RecurringDonation[]> {
       created_at: d.created_at,
       status: d.paused ? ("paused" as const) : ("active" as const),
       interval: "monthly" as const,
+      next_billing_message: d.next_billing_message,
     }));
 }
 
@@ -488,19 +492,27 @@ export async function cancelRecurringDonation(id: string): Promise<void> {
   await fetchApi(`/api/me/donations/${id}`, { method: "DELETE" });
 }
 
-/** 定期寄付の変更（金額・タイミング） */
+/** 定期寄付の変更（金額・タイミング・次回メッセージ） */
 export async function updateRecurringDonation(
   id: string,
-  input: { amount?: number; interval?: "monthly" | "yearly" },
+  input: {
+    amount?: number;
+    interval?: "monthly" | "yearly";
+    next_billing_message?: string;
+  },
 ): Promise<RecurringDonation> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.updateRecurringDonation(
       id,
       input,
     );
+  const body: Record<string, unknown> = {};
+  if (input.amount != null) body.amount = input.amount;
+  if (input.next_billing_message != null)
+    body.next_billing_message = input.next_billing_message;
   await fetchApi(`/api/me/donations/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ amount: input.amount }),
+    body: JSON.stringify(body),
   });
   const all = await getMyRecurringDonations();
   const updated = all.find((d) => d.id === id);
@@ -526,6 +538,41 @@ export async function resumeRecurringDonation(id: string): Promise<void> {
     method: "PATCH",
     body: JSON.stringify({ paused: false }),
   });
+}
+
+// --- Project Messages (owner-only) ---
+
+export interface DonationMessage {
+  donor_name: string;
+  amount: number;
+  message: string;
+  created_at: string;
+  is_recurring: boolean;
+}
+
+export interface DonationMessageResult {
+  messages: DonationMessage[];
+  total: number;
+}
+
+export async function getProjectMessages(
+  projectId: string,
+  params?: { limit?: number; offset?: number; sort?: string; donor?: string },
+): Promise<DonationMessageResult> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getProjectMessages(
+      projectId,
+      params,
+    );
+  const q = new URLSearchParams();
+  if (params?.limit != null) q.set("limit", String(params.limit));
+  if (params?.offset != null) q.set("offset", String(params.offset));
+  if (params?.sort) q.set("sort", params.sort);
+  if (params?.donor) q.set("donor", params.donor);
+  const qs = q.toString();
+  return fetchApi<DonationMessageResult>(
+    `/api/projects/${projectId}/messages${qs ? "?" + qs : ""}`,
+  );
 }
 
 /** 定期寄付の削除（完全に解除） */

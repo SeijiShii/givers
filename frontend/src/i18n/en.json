@@ -51,7 +51,9 @@
     "watchList": "Watched projects",
     "watch": "Watch",
     "unwatch": "Unwatch",
-    "noWatches": "No watched projects yet."
+    "noWatches": "No watched projects yet.",
+    "nextBillingMessage": "Next billing message",
+    "nextBillingMessagePlaceholder": "Message shown in activity feed on next billing (optional)"
   },
   "home": {
     "title": "GIVErS",
@@ -185,6 +187,14 @@
     "tabSupport": "Support",
     "tabOverview": "Overview",
     "tabUpdates": "Updates",
+    "tabMessages": "Messages",
+    "messagesEmpty": "No messages yet",
+    "messagesFilterDonor": "Filter by donor",
+    "messagesDonorName": "Donor",
+    "messagesAmount": "Amount",
+    "messagesDate": "Date",
+    "messagesRecurring": "Recurring",
+    "messagesOneTime": "One-time",
     "updatesEmpty": "No updates yet",
     "editOverview": "Edit overview",
     "save": "Save",
@@ -215,7 +225,19 @@
     "stripeConnectButton": "Connect Stripe account",
     "stripeConnecting": "Connecting...",
     "stripeConnected": "Connected ✓",
-    "stripeConnectNote": "* Mock: click the button to simulate connection"
+    "stripeConnectNote": "* Mock: click the button to simulate connection",
+    "subscriptionManageTitle": "Managing recurring donation",
+    "subscriptionCurrentAmount": "Current amount",
+    "subscriptionChangeAmount": "Change amount",
+    "subscriptionPause": "Pause",
+    "subscriptionResume": "Resume",
+    "subscriptionCancel": "Cancel recurring donation",
+    "subscriptionCancelConfirmTitle": "Cancel recurring donation",
+    "subscriptionCancelConfirm": "Cancel this recurring donation? No further charges will be made.",
+    "subscriptionPaused": "Paused",
+    "subscriptionNextMessage": "Message for next billing",
+    "subscriptionNextMessagePlaceholder": "Message shown in activity feed on next billing (optional)",
+    "subscriptionNextMessageSaved": "Message saved"
   },
   "admin": {
     "usersTitle": "User Management",
@@ -247,7 +269,8 @@
   "errors": {
     "accountSuspended": "This account has been suspended. Please contact support if you have questions.",
     "projectFrozen": "This project is currently not accepting donations.",
-    "projectDeleted": "This project has ended."
+    "projectDeleted": "This project has ended.",
+    "recurringRequiresLogin": "Login is required for monthly donations"
   },
   "auth": {
     "emailLoginTitle": "Log in with Email",

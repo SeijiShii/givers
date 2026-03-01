@@ -67,6 +67,12 @@ func (m *mockDonationRepository) MonthlySumByProject(ctx context.Context, projec
 func (m *mockDonationRepository) ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error) {
 	return nil, nil
 }
+func (m *mockDonationRepository) GetByStripeSubscriptionID(ctx context.Context, subscriptionID string) (*model.Donation, error) {
+	return nil, nil
+}
+func (m *mockDonationRepository) ListMessagesByProject(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
+	return &model.DonationMessageResult{Messages: []*model.DonationMessage{}, Total: 0}, nil
+}
 
 // ---------------------------------------------------------------------------
 // DonationService.ListByUser tests
@@ -274,9 +280,10 @@ func TestDonationService_MigrateToken_InvalidToken(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 type mockSubscriptionManager struct {
-	pauseFunc  func(ctx context.Context, subID string) error
-	resumeFunc func(ctx context.Context, subID string) error
-	cancelFunc func(ctx context.Context, subID string) error
+	pauseFunc        func(ctx context.Context, subID string) error
+	resumeFunc       func(ctx context.Context, subID string) error
+	cancelFunc       func(ctx context.Context, subID string) error
+	updateAmountFunc func(ctx context.Context, subID string, newAmount int) error
 }
 
 func (m *mockSubscriptionManager) PauseSubscription(ctx context.Context, subID string) error {
@@ -294,6 +301,12 @@ func (m *mockSubscriptionManager) ResumeSubscription(ctx context.Context, subID 
 func (m *mockSubscriptionManager) CancelSubscription(ctx context.Context, subID string) error {
 	if m.cancelFunc != nil {
 		return m.cancelFunc(ctx, subID)
+	}
+	return nil
+}
+func (m *mockSubscriptionManager) UpdateSubscriptionAmount(ctx context.Context, subID string, newAmount int) error {
+	if m.updateAmountFunc != nil {
+		return m.updateAmountFunc(ctx, subID, newAmount)
 	}
 	return nil
 }
@@ -486,5 +499,134 @@ func TestDonationService_Patch_NilSubscriptionManager_SkipsStripe(t *testing.T) 
 	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Paused: &paused})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Stripe subscription amount update tests (#19)
+// ---------------------------------------------------------------------------
+
+func TestDonationService_Patch_UpdatesStripeAmount(t *testing.T) {
+	var capturedSubID string
+	var capturedAmount int
+	newAmount := 3000
+
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				Amount: 1000, IsRecurring: true, StripeSubscriptionID: "sub_amt",
+			}, nil
+		},
+		patchFunc: func(ctx context.Context, id string, patch model.DonationPatch) error {
+			return nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		updateAmountFunc: func(ctx context.Context, subID string, amount int) error {
+			capturedSubID = subID
+			capturedAmount = amount
+			return nil
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Amount: &newAmount})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if capturedSubID != "sub_amt" {
+		t.Errorf("expected UpdateSubscriptionAmount called with sub_amt, got %q", capturedSubID)
+	}
+	if capturedAmount != 3000 {
+		t.Errorf("expected amount=3000, got %d", capturedAmount)
+	}
+}
+
+func TestDonationService_Patch_StripeAmountError_ReturnsError(t *testing.T) {
+	newAmount := 5000
+
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				Amount: 1000, IsRecurring: true, StripeSubscriptionID: "sub_err",
+			}, nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		updateAmountFunc: func(ctx context.Context, subID string, amount int) error {
+			return errors.New("stripe api error")
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Amount: &newAmount})
+	if err == nil {
+		t.Fatal("expected error when Stripe amount update fails")
+	}
+}
+
+func TestDonationService_Patch_SameAmount_SkipsStripeUpdate(t *testing.T) {
+	sameAmount := 1000
+	stripeCalled := false
+
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				Amount: 1000, IsRecurring: true, StripeSubscriptionID: "sub_same",
+			}, nil
+		},
+		patchFunc: func(ctx context.Context, id string, patch model.DonationPatch) error {
+			return nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		updateAmountFunc: func(ctx context.Context, subID string, amount int) error {
+			stripeCalled = true
+			return nil
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Amount: &sameAmount})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stripeCalled {
+		t.Error("expected UpdateSubscriptionAmount NOT to be called when amount unchanged")
+	}
+}
+
+func TestDonationService_Patch_NonRecurring_SkipsStripeAmountUpdate(t *testing.T) {
+	newAmount := 2000
+	stripeCalled := false
+
+	repo := &mockDonationRepository{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Donation, error) {
+			return &model.Donation{
+				ID: id, DonorType: "user", DonorID: "u1",
+				Amount: 1000, IsRecurring: false,
+			}, nil
+		},
+		patchFunc: func(ctx context.Context, id string, patch model.DonationPatch) error {
+			return nil
+		},
+	}
+	sm := &mockSubscriptionManager{
+		updateAmountFunc: func(ctx context.Context, subID string, amount int) error {
+			stripeCalled = true
+			return nil
+		},
+	}
+	svc := NewDonationService(repo, sm)
+
+	err := svc.Patch(context.Background(), "d1", "u1", model.DonationPatch{Amount: &newAmount})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stripeCalled {
+		t.Error("expected UpdateSubscriptionAmount NOT to be called for non-recurring donation")
 	}
 }

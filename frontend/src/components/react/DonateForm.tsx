@@ -47,6 +47,7 @@ export default function DonateForm({
   user,
   projectStatus,
 }: Props) {
+  const isLoggedIn = !!user && !user.suspended;
   const [donationType, setDonationType] = useState<DonationType>("one_time");
   const [selectedAmount, setSelectedAmount] = useState<
     number | "custom" | null
@@ -163,7 +164,8 @@ export default function DonateForm({
               display: "flex",
               alignItems: "center",
               gap: "0.75rem",
-              cursor: "pointer",
+              cursor: isLoggedIn ? "pointer" : "not-allowed",
+              opacity: isLoggedIn ? 1 : 0.5,
             }}
           >
             <input
@@ -171,10 +173,22 @@ export default function DonateForm({
               name="donationType"
               checked={donationType === "monthly"}
               onChange={() => setDonationType("monthly")}
+              disabled={!isLoggedIn}
             />
             <span>{monthlyLabel}</span>
           </label>
         </div>
+        {!isLoggedIn && (
+          <p
+            style={{
+              margin: "0.25rem 0 0",
+              fontSize: "0.85rem",
+              color: "var(--color-text-muted)",
+            }}
+          >
+            {t(locale, "errors.recurringRequiresLogin")}
+          </p>
+        )}
       </div>
       <div style={{ marginBottom: "1rem" }}>
         <p

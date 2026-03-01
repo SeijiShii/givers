@@ -48,8 +48,9 @@ func (h *DonationHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 type donationPatchRequest struct {
-	Amount *int  `json:"amount"`
-	Paused *bool `json:"paused"`
+	Amount             *int    `json:"amount"`
+	Paused             *bool   `json:"paused"`
+	NextBillingMessage *string `json:"next_billing_message"`
 }
 
 // Patch handles PATCH /api/me/donations/:id (auth required).
@@ -72,7 +73,7 @@ func (h *DonationHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	patch := model.DonationPatch{Amount: req.Amount, Paused: req.Paused}
+	patch := model.DonationPatch{Amount: req.Amount, Paused: req.Paused, NextBillingMessage: req.NextBillingMessage}
 	if err := h.svc.Patch(r.Context(), id, userID, patch); err != nil {
 		if errors.Is(err, service.ErrForbidden) {
 			w.WriteHeader(http.StatusForbidden)

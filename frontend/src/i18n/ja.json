@@ -51,7 +51,9 @@
     "watchList": "ウォッチ中のプロジェクト",
     "watch": "ウォッチする",
     "unwatch": "ウォッチ解除",
-    "noWatches": "ウォッチ中のプロジェクトはありません。"
+    "noWatches": "ウォッチ中のプロジェクトはありません。",
+    "nextBillingMessage": "次回決済メッセージ",
+    "nextBillingMessagePlaceholder": "次回決済時にアクティビティに記録されるメッセージ（任意）"
   },
   "home": {
     "title": "GIVErS",
@@ -185,6 +187,14 @@
     "tabSupport": "支援状況",
     "tabOverview": "概要",
     "tabUpdates": "アップデート",
+    "tabMessages": "メッセージ",
+    "messagesEmpty": "メッセージはまだありません",
+    "messagesFilterDonor": "寄付者で絞り込み",
+    "messagesDonorName": "寄付者",
+    "messagesAmount": "金額",
+    "messagesDate": "日時",
+    "messagesRecurring": "定期",
+    "messagesOneTime": "単発",
     "updatesEmpty": "アップデートはまだありません",
     "editOverview": "概要を編集",
     "save": "保存",
@@ -215,7 +225,19 @@
     "stripeConnectButton": "Stripe アカウントを接続する",
     "stripeConnecting": "接続中...",
     "stripeConnected": "接続済み ✓",
-    "stripeConnectNote": "※ モック: ボタンで接続をシミュレートします"
+    "stripeConnectNote": "※ モック: ボタンで接続をシミュレートします",
+    "subscriptionManageTitle": "定期寄付を管理中",
+    "subscriptionCurrentAmount": "現在の金額",
+    "subscriptionChangeAmount": "金額を変更",
+    "subscriptionPause": "一時休止",
+    "subscriptionResume": "再開",
+    "subscriptionCancel": "定期寄付を解除",
+    "subscriptionCancelConfirmTitle": "定期寄付の解除",
+    "subscriptionCancelConfirm": "この定期寄付を解除しますか？次回以降の決済は行われません。",
+    "subscriptionPaused": "休止中",
+    "subscriptionNextMessage": "次回決済時のメッセージ",
+    "subscriptionNextMessagePlaceholder": "次回決済時にアクティビティに表示されるメッセージ（任意）",
+    "subscriptionNextMessageSaved": "メッセージを保存しました"
   },
   "admin": {
     "usersTitle": "ユーザー管理",
@@ -247,7 +269,8 @@
   "errors": {
     "accountSuspended": "このアカウントは利用停止されています。ご不明な点は運営までお問い合わせください。",
     "projectFrozen": "このプロジェクトは現在、寄付の受付を停止しています。",
-    "projectDeleted": "このプロジェクトは終了しています。"
+    "projectDeleted": "このプロジェクトは終了しています。",
+    "recurringRequiresLogin": "月額寄付にはログインが必要です"
   },
   "auth": {
     "emailLoginTitle": "Email でログイン",

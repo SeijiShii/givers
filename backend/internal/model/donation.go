@@ -15,14 +15,16 @@ type Donation struct {
 	StripePaymentID      string    `json:"-"`
 	StripeSubscriptionID string    `json:"-"`
 	Paused               bool      `json:"paused"`
+	NextBillingMessage   string    `json:"next_billing_message,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // DonationPatch holds fields that can be updated on a donation.
 type DonationPatch struct {
-	Amount *int
-	Paused *bool
+	Amount             *int
+	Paused             *bool
+	NextBillingMessage *string
 }
 
 // MonthlySum represents the total donation amount for a single month.
@@ -37,6 +39,21 @@ type ChartDataPoint struct {
 	MinAmount    int    `json:"minAmount"`
 	TargetAmount int    `json:"targetAmount"`
 	ActualAmount int    `json:"actualAmount"`
+}
+
+// DonationMessage represents a donation message for project owner viewing.
+type DonationMessage struct {
+	DonorName   string    `json:"donor_name"`
+	Amount      int       `json:"amount"`
+	Message     string    `json:"message"`
+	CreatedAt   time.Time `json:"created_at"`
+	IsRecurring bool      `json:"is_recurring"`
+}
+
+// DonationMessageResult holds a page of donation messages with total count.
+type DonationMessageResult struct {
+	Messages []*DonationMessage `json:"messages"`
+	Total    int                `json:"total"`
 }
 
 // ActivityItem represents a single entry in the activity feed.

@@ -23,6 +23,7 @@ type SubscriptionManager interface {
 	PauseSubscription(ctx context.Context, subscriptionID string) error
 	ResumeSubscription(ctx context.Context, subscriptionID string) error
 	CancelSubscription(ctx context.Context, subscriptionID string) error
+	UpdateSubscriptionAmount(ctx context.Context, subscriptionID string, newAmount int) error
 }
 
 // DonationService provides business logic for donation management.
@@ -31,6 +32,7 @@ type DonationService interface {
 	Patch(ctx context.Context, id, userID string, patch model.DonationPatch) error
 	Delete(ctx context.Context, id, userID string) error
 	MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error)
+	ListProjectMessages(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
 }
 
 type donationService struct {
@@ -69,6 +71,13 @@ func (s *donationService) Patch(ctx context.Context, id, userID string, patch mo
 		}
 	}
 
+	// Stripe subscription amount update for recurring donations (#19)
+	if patch.Amount != nil && *patch.Amount != d.Amount && d.IsRecurring && d.StripeSubscriptionID != "" && s.sm != nil {
+		if err := s.sm.UpdateSubscriptionAmount(ctx, d.StripeSubscriptionID, *patch.Amount); err != nil {
+			return fmt.Errorf("stripe update amount: %w", err)
+		}
+	}
+
 	return s.repo.Patch(ctx, id, patch)
 }
 
@@ -89,6 +98,10 @@ func (s *donationService) Delete(ctx context.Context, id, userID string) error {
 	}
 
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *donationService) ListProjectMessages(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
+	return s.repo.ListMessagesByProject(ctx, projectID, limit, offset, sort, donor)
 }
 
 func (s *donationService) MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error) {

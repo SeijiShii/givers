@@ -21,10 +21,11 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockDonationService struct {
-	listByUserFunc func(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
-	patchFunc      func(ctx context.Context, id, userID string, patch model.DonationPatch) error
-	deleteFunc     func(ctx context.Context, id, userID string) error
-	migrateFunc    func(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error)
+	listByUserFunc       func(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
+	patchFunc            func(ctx context.Context, id, userID string, patch model.DonationPatch) error
+	deleteFunc           func(ctx context.Context, id, userID string) error
+	migrateFunc          func(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error)
+	listProjectMsgsFunc  func(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
 }
 
 func (m *mockDonationService) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error) {
@@ -50,6 +51,12 @@ func (m *mockDonationService) MigrateToken(ctx context.Context, token, userID st
 		return m.migrateFunc(ctx, token, userID)
 	}
 	return nil, nil
+}
+func (m *mockDonationService) ListProjectMessages(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
+	if m.listProjectMsgsFunc != nil {
+		return m.listProjectMsgsFunc(ctx, projectID, limit, offset, sort, donor)
+	}
+	return &model.DonationMessageResult{Messages: []*model.DonationMessage{}, Total: 0}, nil
 }
 // helper: auth request for regular user
 func userAuthRequest(method, url, body string) *http.Request {
@@ -237,6 +244,34 @@ func TestDonationHandler_Patch_InvalidJSON(t *testing.T) {
 	h.Patch(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestDonationHandler_Patch_NextBillingMessage(t *testing.T) {
+	var capturedPatch model.DonationPatch
+
+	mock := &mockDonationService{
+		patchFunc: func(ctx context.Context, id, userID string, patch model.DonationPatch) error {
+			capturedPatch = patch
+			return nil
+		},
+	}
+	h := NewDonationHandler(mock)
+
+	req := userAuthRequest(http.MethodPatch, "/api/me/donations/d1",
+		`{"next_billing_message":"今月もありがとうございます！"}`)
+	req.SetPathValue("id", "d1")
+	rec := httptest.NewRecorder()
+	h.Patch(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if capturedPatch.NextBillingMessage == nil {
+		t.Fatal("expected NextBillingMessage to be set")
+	}
+	if *capturedPatch.NextBillingMessage != "今月もありがとうございます！" {
+		t.Errorf("expected message='今月もありがとうございます！', got %q", *capturedPatch.NextBillingMessage)
 	}
 }
 

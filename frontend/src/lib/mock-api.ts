@@ -300,6 +300,46 @@ export const mockApi = {
     deletedRecurringIds.add(id);
   },
 
+  async getProjectMessages(
+    _projectId: string,
+    _params?: {
+      limit?: number;
+      offset?: number;
+      sort?: string;
+      donor?: string;
+    },
+  ): Promise<{
+    messages: {
+      donor_name: string;
+      amount: number;
+      message: string;
+      created_at: string;
+      is_recurring: boolean;
+    }[];
+    total: number;
+  }> {
+    await delay(MOCK_DELAY);
+    return {
+      messages: [
+        {
+          donor_name: "Taro",
+          amount: 1000,
+          message: "応援しています！",
+          created_at: new Date().toISOString(),
+          is_recurring: false,
+        },
+        {
+          donor_name: "Anonymous",
+          amount: 500,
+          message: "頑張ってください",
+          created_at: new Date().toISOString(),
+          is_recurring: true,
+        },
+      ],
+      total: 2,
+    };
+  },
+
   async createProject(input: CreateProjectInput): Promise<Project> {
     await delay(MOCK_DELAY);
     const me = await this.getMe();

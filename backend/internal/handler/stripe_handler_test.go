@@ -371,6 +371,95 @@ func TestStripeHandler_Checkout_ExistingDonorToken_PreservedAndSetsCookie(t *tes
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Recurring donation requires login (#21)
+// ---------------------------------------------------------------------------
+
+func TestStripeHandler_Checkout_RecurringRequiresLogin(t *testing.T) {
+	// Anonymous donor (no session cookie) with is_recurring=true → 400
+	serviceCalled := false
+	mock := &mockStripeService{
+		createCheckoutFunc: func(_ context.Context, _ service.CheckoutRequest) (string, error) {
+			serviceCalled = true
+			return "https://checkout.stripe.com/test", nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", nil)
+
+	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":1000,"currency":"jpy","is_recurring":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
+	rec := httptest.NewRecorder()
+	h.Checkout(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for anonymous recurring donation, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if serviceCalled {
+		t.Error("expected service NOT to be called for anonymous recurring donation")
+	}
+	if !strings.Contains(rec.Body.String(), "recurring_requires_login") {
+		t.Errorf("expected error containing 'recurring_requires_login', got: %s", rec.Body.String())
+	}
+}
+
+func TestStripeHandler_Checkout_RecurringAllowedForLoggedInUser(t *testing.T) {
+	// Logged-in user with is_recurring=true → 200
+	sv := &mockStripeSessionValidator{
+		validateFunc: func(_ context.Context, token string) (string, error) {
+			if token == "valid-session" {
+				return "user-1", nil
+			}
+			return "", errors.New("invalid")
+		},
+	}
+	var capturedReq service.CheckoutRequest
+	mock := &mockStripeService{
+		createCheckoutFunc: func(_ context.Context, req service.CheckoutRequest) (string, error) {
+			capturedReq = req
+			return "https://checkout.stripe.com/test", nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", sv)
+
+	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":1000,"currency":"jpy","is_recurring":true}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-session"})
+	rec := httptest.NewRecorder()
+	h.Checkout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for logged-in recurring, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if !capturedReq.IsRecurring {
+		t.Error("expected IsRecurring=true in checkout request")
+	}
+	if capturedReq.DonorType != "user" {
+		t.Errorf("expected DonorType=user, got %q", capturedReq.DonorType)
+	}
+}
+
+func TestStripeHandler_Checkout_OneTimeAllowedForAnonymous(t *testing.T) {
+	// Anonymous with is_recurring=false → 200 (regression: one-time should still work)
+	mock := &mockStripeService{
+		createCheckoutFunc: func(_ context.Context, req service.CheckoutRequest) (string, error) {
+			if req.IsRecurring {
+				t.Error("expected IsRecurring=false")
+			}
+			return "https://checkout.stripe.com/test", nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", nil)
+
+	body := bytes.NewBufferString(`{"project_id":"proj-1","amount":1000,"currency":"jpy","is_recurring":false}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout", body)
+	rec := httptest.NewRecorder()
+	h.Checkout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for anonymous one-time donation, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestStripeHandler_Checkout_InvalidJSON(t *testing.T) {
 	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
 	req := httptest.NewRequest(http.MethodPost, "/api/donations/checkout",

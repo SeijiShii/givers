@@ -45,10 +45,11 @@ type CheckoutParams struct {
 
 // WebhookEventObject は payment_intent や subscription の data.object
 type WebhookEventObject struct {
-	ID       string            `json:"id"`
-	Amount   int               `json:"amount"`
-	Currency string            `json:"currency"`
-	Metadata map[string]string `json:"metadata"`
+	ID           string            `json:"id"`
+	Amount       int               `json:"amount"`
+	Currency     string            `json:"currency"`
+	Metadata     map[string]string `json:"metadata"`
+	Subscription string            `json:"subscription"` // invoice イベントで使用
 	// subscription の場合のみ使用
 	Plan *struct {
 		Amount   int    `json:"amount"`
@@ -85,6 +86,8 @@ type Client interface {
 	ResumeSubscription(ctx context.Context, subscriptionID string) error
 	// CancelSubscription は定期課金をキャンセルする
 	CancelSubscription(ctx context.Context, subscriptionID string) error
+	// UpdateSubscriptionAmount はサブスクリプションの金額を変更する
+	UpdateSubscriptionAmount(ctx context.Context, subscriptionID string, newAmount int) error
 }
 
 // RealClient は Stripe API への raw HTTP クライアント実装
@@ -463,6 +466,64 @@ func (c *RealClient) CancelSubscription(ctx context.Context, subscriptionID stri
 		return fmt.Errorf("stripe cancel subscription: %s", errResp.Error.Message)
 	}
 	return nil
+}
+
+// UpdateSubscriptionAmount はサブスクリプションの既存 price の金額を更新する。
+// Stripe ではインライン price のみ金額変更可能。price_data で新しい price を作り直す。
+func (c *RealClient) UpdateSubscriptionAmount(ctx context.Context, subscriptionID string, newAmount int) error {
+	if c.SecretKey == "" {
+		return ErrNotConfigured
+	}
+	// 現在のサブスクリプションを取得して既存 item ID を得る
+	getEndpoint := fmt.Sprintf("https://api.stripe.com/v1/subscriptions/%s", subscriptionID)
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, getEndpoint, nil)
+	if err != nil {
+		return err
+	}
+	getReq.SetBasicAuth(c.SecretKey, "")
+
+	resp, err := c.httpClient.Do(getReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	var sub struct {
+		Items struct {
+			Data []struct {
+				ID    string `json:"id"`
+				Price struct {
+					Currency  string `json:"currency"`
+					Recurring struct {
+						Interval string `json:"interval"`
+					} `json:"recurring"`
+				} `json:"price"`
+			} `json:"data"`
+		} `json:"items"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&sub); err != nil {
+		return err
+	}
+	if sub.Error != nil {
+		return fmt.Errorf("stripe get subscription: %s", sub.Error.Message)
+	}
+	if len(sub.Items.Data) == 0 {
+		return errors.New("stripe: subscription has no items")
+	}
+
+	item := sub.Items.Data[0]
+	data := url.Values{}
+	data.Set("items[0][id]", item.ID)
+	data.Set("items[0][price_data][currency]", item.Price.Currency)
+	data.Set("items[0][price_data][unit_amount]", strconv.Itoa(newAmount))
+	data.Set("items[0][price_data][recurring][interval]", item.Price.Recurring.Interval)
+	data.Set("items[0][price_data][product_data][name]", "月次サポート")
+	data.Set("proration_behavior", "none")
+
+	return c.updateSubscription(ctx, subscriptionID, data)
 }
 
 func (c *RealClient) updateSubscription(ctx context.Context, subscriptionID string, data url.Values) error {

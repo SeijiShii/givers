@@ -34,6 +34,8 @@ type StripeProjectRepo interface {
 type StripeDonationRepo interface {
 	Create(ctx context.Context, d *model.Donation) error
 	DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error
+	GetByStripeSubscriptionID(ctx context.Context, subscriptionID string) (*model.Donation, error)
+	Patch(ctx context.Context, id string, patch model.DonationPatch) error
 }
 
 // StripeActivityRecorder は寄付確定時にアクティビティを記録するためのミニマムインターフェース
@@ -208,6 +210,8 @@ func (s *StripeServiceImpl) ProcessWebhook(ctx context.Context, payload []byte, 
 		return s.handleSubscriptionCreated(ctx, event)
 	case "customer.subscription.deleted":
 		return s.handleSubscriptionDeleted(ctx, event)
+	case "invoice.payment_succeeded":
+		return s.handleInvoicePaymentSucceeded(ctx, event)
 	}
 	return nil
 }
@@ -321,4 +325,31 @@ func (s *StripeServiceImpl) handleSubscriptionDeleted(ctx context.Context, event
 		return errors.New("stripe webhook: customer.subscription.deleted missing subscription ID")
 	}
 	return s.donationRepo.DeleteByStripeSubscriptionID(ctx, subscriptionID)
+}
+
+// handleInvoicePaymentSucceeded はサブスクの請求成功時に next_billing_message をアクティビティに記録してクリアする (#19)
+func (s *StripeServiceImpl) handleInvoicePaymentSucceeded(ctx context.Context, event pkgstripe.WebhookEvent) error {
+	obj := event.Data.Object
+	subscriptionID := obj.Subscription
+	if subscriptionID == "" {
+		return nil // one-time invoice, skip
+	}
+
+	d, err := s.donationRepo.GetByStripeSubscriptionID(ctx, subscriptionID)
+	if err != nil || d == nil {
+		return nil // donation not found, skip silently
+	}
+
+	if d.NextBillingMessage == "" {
+		return nil // no message to record
+	}
+
+	// Record activity with the message
+	s.recordDonationActivity(ctx, d.ProjectID, d.DonorID, d.Amount, d.NextBillingMessage)
+
+	// Clear next_billing_message
+	empty := ""
+	_ = s.donationRepo.Patch(ctx, d.ID, model.DonationPatch{NextBillingMessage: &empty})
+
+	return nil
 }

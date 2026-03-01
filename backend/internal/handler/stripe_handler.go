@@ -96,6 +96,13 @@ func (h *StripeHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	// Donor identification: prefer session cookie → fall back to donor_token in body
 	donorType, donorID := h.resolveDonor(r, req.DonorToken)
 
+	// Recurring donations require a logged-in user (#21)
+	if req.IsRecurring && donorType == "token" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "recurring_requires_login"})
+		return
+	}
+
 	// For anonymous donors, auto-generate a token if none provided
 	if donorType == "token" && donorID == "" {
 		donorID = generateDonorToken()

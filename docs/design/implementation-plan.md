@@ -69,6 +69,7 @@ giving_platform/
 - **donations**: id, project_id, **donor_type**（'token' \| 'user'）, **donor_id**（token の UUID または user の UUID）, amount, currency, stripe_payment_id, **is_recurring**（BOOLEAN）, **stripe_subscription_id**（TEXT NULL、定期寄付のみ非 NULL）, created_at, ...
   ※ 単発・定期を同一テーブルで管理。donor_type + donor_id の 2 カラムで識別（検索・インデックス・トークン→ユーザー移行が明確）。アカウントなし・ありを問わず全寄付を記録。idea.md の「全ての寄付者の寄付行動履歴を保存する」方針に基づく。定期寄付の状態管理は stripe_subscription_id + Stripe Webhook で行う。
 - **platform_health**: プラットフォーム全体の健全性（月額必要額、達成率など）
+- **activities**: アクティビティフィード。`id（UUID PK）, type（VARCHAR: donation / project_created / project_updated / milestone）, project_id（FK → projects）, project_name（VARCHAR）, actor_name（VARCHAR）, amount（INT NULL）, rate（INT NULL）, message（TEXT NULL）, created_at`。寄付確定・プロジェクト作成/更新・マイルストーン到達時に自動 INSERT。
 - **project_updates**: プロジェクトのアップデート投稿
 - **watches**: ウォッチ（ユーザー×プロジェクト）
 - **project_mutes**: ミュート（プロジェクトオーナーが寄付者をミュート、プロジェクト単位）
@@ -141,6 +142,7 @@ giving_platform/
 - **説明フィールド**: `overview` 1 カラム（Markdown）で統合。新規作成フォームでも Markdown 入力可。「後から編集できます」注記を表示
 - **費用設定**: `cost_items` 配列（ラベル・金額の自由入力行）。UI も動的行追加に対応（`cost-items-plan.md` 参照）
 - アラート閾値（WARNING, CRITICAL）設定
+- **画像アップロード**: `POST /api/projects/:id/image`（JPEG/PNG/WebP、2MB 以下）、`DELETE /api/projects/:id/image`。オーナーのみ。詳細ページから D&D またはファイル選択で操作
 - フロント: プロジェクト一覧・詳細・マイページ（設定フォームは React）
 - **認証**: ミドルウェア注入方式。開発中は `AUTH_REQUIRED=false` で認証なし。詳細は [phase3-plan.md](phase3-plan.md)
 
@@ -149,6 +151,10 @@ giving_platform/
 - **Stripe Connect オンボーディングは一般プロジェクトオーナーのプロジェクト作成時に必須**。作成フォームの最終ステップで Stripe Connect にリダイレクト。オンボーディング完了後にプロジェクトが公開される。Stripe 未接続のままプロジェクト公開は不可。
 - **サービスホスト（`HOST_EMAILS` に含まれるユーザー）は Connect 不要**。プロジェクトは `status: active` で即時公開され、プラットフォームの Stripe アカウントで直接決済される。
 - 寄付用 Checkout Session / サブスク作成
+- **定期寄付にログイン必須**: `is_recurring=true` の場合は認証必須。未認証（トークンのみ）で定期寄付を試みた場合は 400。フロントでも未ログイン時に月額ボタンを非活性化。idea.md「継続支援はアカウント必須」に基づく。
+- **サブスク金額変更の Stripe 連携**: `PATCH /api/me/donations/:id` で金額変更時に Stripe Subscription の price も更新する
+- **次回決済メッセージ**: `donations.next_billing_message` カラム。寄付者が次回請求時に添えるメッセージを設定可能。`invoice.payment_succeeded` webhook でアクティビティに記録→クリア
+- **プロジェクト詳細でのサブスク管理 UI**: 寄付者が既にサブスク寄付中のプロジェクトでは、DonateForm の代わりに SubscriptionManageForm（金額変更・一時停止/再開・キャンセル・次回メッセージ入力）を表示
 - Webhook で決済完了・サブスク状態の同期
 - フロント: 寄付フォーム（React）、金額・通貨・単発/定期の選択
 - **匿名寄付者トークン**: 単発寄付は決済成功時（Webhook または成功リダイレクト）に donor_token を発行し、donations に記録すると同時に Cookie で返す。Cookie は HttpOnly, Secure（本番）, SameSite=Lax、有効期限は 1 年程度。詳細は `mock-implementation-status.md` 12.2「単発寄付時のトークン発行タイミング」。
@@ -165,6 +171,7 @@ giving_platform/
 - **ホスト自身の利用停止を禁止**: `PATCH /api/admin/users/:id/suspend` で対象が自分自身の場合は 400 エラー。フロントでも自分の行の「利用停止」ボタンを非表示 or disabled にする。
 - **問い合わせフォーム** (`/contact`): メールアドレス必須でホストにメッセージを送信。認証不要。メッセージは DB 保存し、`CONTACT_NOTIFY_EMAIL` 設定時は受信通知メールを送信。
 - **問い合わせ閲覧** (`/host/contacts`): ホスト権限で問い合わせ一覧を閲覧・既読管理できる管理ページ。
+- **寄付メッセージ閲覧**: プロジェクトオーナーが寄付者からのメッセージを閲覧する機能。`GET /api/projects/:id/messages`（オーナー認証必須、ソート・フィルタ対応）。ProjectDetail にオーナー専用「メッセージ」タブを追加。
 
 ### Phase 5.5: チャート表示（推移・進捗）
 
@@ -229,6 +236,10 @@ giving_platform/
 - [ ] サブスク（月額等）の申し込みができる
 - [ ] Webhook で決済完了が DB に記録される
 - [ ] 寄付履歴がマイページに表示される
+- [ ] 未ログインで定期寄付（月額）を選択できないこと
+- [ ] サブスク寄付中のプロジェクト詳細で管理 UI が表示される（DonateForm ではなく SubscriptionManageForm）
+- [ ] 管理 UI から金額変更すると Stripe の請求額も変わる
+- [ ] 次回決済メッセージを設定し、請求成功後にアクティビティに反映されること
 
 ### Phase 5: プラットフォーム機能
 
@@ -244,6 +255,8 @@ giving_platform/
 - [ ] `/contact` にアクセスするとメールアドレス入力必須の問い合わせフォームが表示される
 - [ ] フォーム送信後に「送信しました」メッセージが表示される
 - [ ] `/host/contacts` でホストが問い合わせ一覧を閲覧できる（未読/既読管理）
+- [ ] プロジェクトオーナーがメッセージタブで寄付者のメッセージ一覧を閲覧できる
+- [ ] メッセージの日時ソート・寄付者名フィルタが機能する
 
 ### Phase 6: 仕上げ
 

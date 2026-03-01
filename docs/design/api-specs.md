@@ -50,6 +50,41 @@
 | PUT | `/api/projects/:id/updates/:uid` | 必須（投稿者） | アップデート編集 |
 | DELETE | `/api/projects/:id/updates/:uid` | 必須（投稿者またはホスト） | アップデート削除 |
 
+### プロジェクト画像
+
+| Method | Path | 認証 | 説明 |
+|--------|------|------|------|
+| POST | `/api/projects/:id/image` | 必須（オーナー） | プロジェクト画像アップロード（JPEG/PNG/WebP、2MB 以下） |
+| DELETE | `/api/projects/:id/image` | 必須（オーナー） | プロジェクト画像削除 |
+
+### アクティビティ
+
+| Method | Path | 認証 | 説明 |
+|--------|------|------|------|
+| GET | `/api/activity` | 不要 | 全体アクティビティフィード（`?limit=N`、デフォルト 20） |
+| GET | `/api/projects/:id/activity` | 不要 | プロジェクト別アクティビティフィード |
+
+アクティビティは以下のイベント種別で自動記録される:
+
+| type | トリガー |
+|------|----------|
+| `donation` | 寄付確定時（Stripe Webhook） |
+| `project_created` | プロジェクト作成時 |
+| `project_updated` | プロジェクト更新時 |
+| `milestone` | 月間達成率 50% / 100% 到達時 |
+
+### 寄付メッセージ
+
+| Method | Path | 認証 | 説明 |
+|--------|------|------|------|
+| GET | `/api/projects/:id/messages` | 必須（オーナー） | プロジェクトへの寄付メッセージ一覧（ソート・フィルタ対応） |
+
+### チャート
+
+| Method | Path | 認証 | 説明 |
+|--------|------|------|------|
+| GET | `/api/projects/:id/chart` | 不要 | プロジェクト月別集計データ（minAmount / targetAmount / actualAmount） |
+
 ### マイページ
 
 | Method | Path | 認証 | 説明 |
@@ -66,7 +101,7 @@
 
 | Method | Path | 認証 | 説明 |
 |--------|------|------|------|
-| POST | `/api/donations/checkout` | 不要（匿名寄付あり） | Stripe Checkout Session 作成 |
+| POST | `/api/donations/checkout` | 不要（匿名寄付あり。ただし `is_recurring=true` の場合は認証必須） | Stripe Checkout Session 作成 |
 | GET | `/api/stripe/onboarding/return` | 不要（Stripe からのリダイレクト） | Stripe v2 オンボーディング完了コールバック |
 | GET | `/api/stripe/onboarding/refresh` | 不要（Stripe からのリダイレクト） | オンボーディングリンク再生成 |
 | POST | `/api/webhooks/stripe` | 不要（Stripe 署名検証） | Stripe Webhook |
@@ -144,6 +179,7 @@
 {
   "name": "string（必須）",
   "overview": "string（任意、Markdown 対応。旧 description を統合）",
+  "share_message": "string（任意。シェアダイアログの初期メッセージ。オーナーが設定）",
   "deadline": "2026-12-31（任意, ISO 8601 date）",
   "owner_want_monthly": 50000,
   "cost_items": [
@@ -237,14 +273,65 @@
 ```json
 {
   "amount": 2000,
-  "paused": true
+  "paused": true,
+  "next_billing_message": "次回もよろしくお願いします"
 }
 ```
 
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `amount` | int | 新しい金額（Stripe Subscription の price も更新される） |
+| `paused` | bool | 一時停止 / 再開 |
+| `next_billing_message` | string | 次回決済時にアクティビティに記録されるメッセージ。`invoice.payment_succeeded` webhook 処理時に使用→クリア |
+
 **レスポンス (200)**
 ```json
-{ "id": "...", "amount": 2000, "paused": true, "..." : "..." }
+{ "id": "...", "amount": 2000, "paused": true, "next_billing_message": "...", "..." : "..." }
 ```
+
+### GET /api/projects/:id/messages
+
+プロジェクトへの寄付メッセージ一覧を返す（オーナー認証必須）。
+
+**クエリパラメータ**
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `limit` | int | 50 | 最大 200 |
+| `offset` | int | 0 | ページネーション用オフセット |
+| `sort` | string | `desc` | `asc`（古い順）/ `desc`（新しい順）。`created_at` 基準 |
+| `donor` | string | なし | 寄付者名の部分一致フィルタ |
+
+**レスポンス (200)**
+```json
+{
+  "messages": [
+    {
+      "id": "uuid",
+      "donor_name": "山田太郎",
+      "donor_type": "user",
+      "amount": 1000,
+      "message": "応援しています！",
+      "is_recurring": true,
+      "created_at": "2026-02-15T10:00:00Z"
+    }
+  ],
+  "total": 42
+}
+```
+
+- メッセージが空の寄付は結果に含まない（`message IS NOT NULL AND message != ''`）
+- 匿名寄付者（`donor_type='token'`）は `donor_name` を `null` として返す
+
+### POST /api/donations/checkout — 定期寄付の認証
+
+`is_recurring=true` の場合は**認証必須**。未認証（トークンのみ）で定期寄付を試みた場合は **400 Bad Request** を返す。
+
+```json
+{ "errors": [{ "message": "recurring donations require login" }] }
+```
+
+> idea.md「継続支援はアカウント必須（解約・変更を確実に管理できるようにするため）」に基づく。
 
 ### GET /api/host
 
