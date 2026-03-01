@@ -20,13 +20,13 @@ func NewPgProjectRepository(pool *pgxpool.Pool) *PgProjectRepository {
 	return &PgProjectRepository{pool: pool}
 }
 
-const projectSelectCols = `p.id, p.owner_id, p.name, p.description, p.overview, p.share_message, p.deadline, p.status, p.owner_want_monthly, p.monthly_target, COALESCE(p.stripe_account_id, ''), p.cost_items, p.image_url, p.created_at, p.updated_at, COALESCE((SELECT SUM(amount) FROM donations WHERE project_id = p.id AND created_at >= DATE_TRUNC('month', NOW())), 0)::int`
+const projectSelectCols = `p.id, p.owner_id, p.name, p.description, p.overview, p.share_message, p.thank_you_message, p.deadline, p.status, p.owner_want_monthly, p.monthly_target, COALESCE(p.stripe_account_id, ''), p.cost_items, p.image_url, p.created_at, p.updated_at, COALESCE((SELECT SUM(amount) FROM donations WHERE project_id = p.id AND created_at >= DATE_TRUNC('month', NOW())), 0)::int`
 
 func scanProject(row pgx.Row) (*model.Project, error) {
 	var p model.Project
 	var costItemsJSON []byte
 	if err := row.Scan(
-		&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage,
+		&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage, &p.ThankYouMessage,
 		&p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget,
 		&p.StripeAccountID, &costItemsJSON, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
 		&p.CurrentMonthlyDonations,
@@ -45,7 +45,7 @@ func scanProjects(rows pgx.Rows) ([]*model.Project, error) {
 		var p model.Project
 		var costItemsJSON []byte
 		if err := rows.Scan(
-			&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage,
+			&p.ID, &p.OwnerID, &p.Name, &p.Description, &p.Overview, &p.ShareMessage, &p.ThankYouMessage,
 			&p.Deadline, &p.Status, &p.OwnerWantMonthly, &p.MonthlyTarget,
 			&p.StripeAccountID, &costItemsJSON, &p.ImageURL, &p.CreatedAt, &p.UpdatedAt,
 			&p.CurrentMonthlyDonations,
@@ -188,10 +188,10 @@ func (r *PgProjectRepository) Create(ctx context.Context, project *model.Project
 	project.MonthlyTarget = model.TotalMonthly(project.CostItems)
 
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO projects (owner_id, name, description, overview, share_message, deadline, status, owner_want_monthly, monthly_target, cost_items, image_url)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		`INSERT INTO projects (owner_id, name, description, overview, share_message, thank_you_message, deadline, status, owner_want_monthly, monthly_target, cost_items, image_url)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		 RETURNING id, created_at, updated_at`,
-		project.OwnerID, project.Name, project.Description, project.Overview, project.ShareMessage, project.Deadline,
+		project.OwnerID, project.Name, project.Description, project.Overview, project.ShareMessage, project.ThankYouMessage, project.Deadline,
 		project.Status, project.OwnerWantMonthly, project.MonthlyTarget, marshalCostItems(project.CostItems), project.ImageURL,
 	).Scan(&project.ID, &project.CreatedAt, &project.UpdatedAt)
 	if err != nil {
@@ -212,9 +212,9 @@ func (r *PgProjectRepository) Update(ctx context.Context, project *model.Project
 	project.MonthlyTarget = model.TotalMonthly(project.CostItems)
 
 	if _, err := r.pool.Exec(ctx,
-		`UPDATE projects SET name=$1, description=$2, overview=$3, share_message=$4, deadline=$5, status=$6, owner_want_monthly=$7, monthly_target=$8, cost_items=$9, image_url=$10, updated_at=NOW()
-		 WHERE id=$11`,
-		project.Name, project.Description, project.Overview, project.ShareMessage, project.Deadline, project.Status,
+		`UPDATE projects SET name=$1, description=$2, overview=$3, share_message=$4, thank_you_message=$5, deadline=$6, status=$7, owner_want_monthly=$8, monthly_target=$9, cost_items=$10, image_url=$11, updated_at=NOW()
+		 WHERE id=$12`,
+		project.Name, project.Description, project.Overview, project.ShareMessage, project.ThankYouMessage, project.Deadline, project.Status,
 		project.OwnerWantMonthly, project.MonthlyTarget, marshalCostItems(project.CostItems), project.ImageURL, project.ID,
 	); err != nil {
 		return err

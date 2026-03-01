@@ -36,6 +36,20 @@ test.describe("寄付フロー", () => {
     }
   });
 
+  test("決済完了後に感謝モーダルが表示される", async ({ page }) => {
+    // session_id パラメータ付きでアクセス（Stripe からの戻りをシミュレート）
+    await page.goto("/projects/mock-1?session_id=test_session");
+    // モーダルダイアログが表示される
+    const modal = page.locator("[role='dialog']");
+    await expect(modal).toBeVisible({ timeout: 10_000 });
+    // 感謝メッセージが含まれている
+    await expect(modal).toContainText(/ありがとう|Thank you/);
+    // 閉じるボタンで閉じられる
+    const closeBtn = modal.locator("button");
+    await closeBtn.click();
+    await expect(modal).not.toBeVisible();
+  });
+
   test("停止ユーザーは寄付不可", async ({ page }) => {
     await setSuspended(page, true);
     await page.reload();

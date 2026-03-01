@@ -21,6 +21,8 @@ export const MOCK_PROJECTS: MockProject[] = [
     name: "オープンソースの軽量エディタ",
     description:
       "誰でも使える、シンプルで軽量なテキストエディタ。プラグインで拡張可能。",
+    thank_you_message:
+      "ご支援ありがとうございます！エディタの改善に役立てます。",
     _mockImageUrl:
       "https://placehold.co/800x400/4a7c59/ffffff?text=Lightweight+Editor",
     _mockOverview: `## このプロジェクトについて

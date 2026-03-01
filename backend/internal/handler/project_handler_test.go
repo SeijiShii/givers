@@ -1029,6 +1029,95 @@ func TestProjectHandler_Create_RegularOwnerGetsDraftStatus(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Create / Update: thank_you_message tests
+// ---------------------------------------------------------------------------
+
+func TestProjectHandler_Create_WithThankYouMessage(t *testing.T) {
+	var created *model.Project
+	mock := &mockProjectService{
+		createFunc: func(ctx context.Context, project *model.Project) error {
+			created = project
+			project.ID = "new-id"
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	body := bytes.NewBufferString(`{"name":"P","thank_you_message":"ご支援感謝します！"}`)
+	req := httptest.NewRequest("POST", "/api/projects", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	h.Create(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if created == nil || created.ThankYouMessage != "ご支援感謝します！" {
+		t.Errorf("expected thank_you_message, got %q", created.ThankYouMessage)
+	}
+}
+
+func TestProjectHandler_Update_ThankYouMessage(t *testing.T) {
+	var updated *model.Project
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "u1", Name: "P1", ThankYouMessage: "old"}, nil
+		},
+		updateFunc: func(ctx context.Context, p *model.Project) error {
+			updated = p
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/projects/{id}", http.HandlerFunc(h.Update))
+
+	body := bytes.NewBufferString(`{"thank_you_message":"新しい感謝メッセージ"}`)
+	req := httptest.NewRequest("PUT", "/api/projects/p1", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if updated == nil || updated.ThankYouMessage != "新しい感謝メッセージ" {
+		t.Errorf("expected thank_you_message='新しい感謝メッセージ', got %q", updated.ThankYouMessage)
+	}
+}
+
+func TestProjectHandler_Update_ThankYouMessageNotSentKeepsOld(t *testing.T) {
+	var updated *model.Project
+	mock := &mockProjectService{
+		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {
+			return &model.Project{ID: id, OwnerID: "u1", Name: "P1", ThankYouMessage: "keep me"}, nil
+		},
+		updateFunc: func(ctx context.Context, p *model.Project) error {
+			updated = p
+			return nil
+		},
+	}
+	h := NewProjectHandler(mock, nil)
+
+	mux := http.NewServeMux()
+	mux.Handle("PUT /api/projects/{id}", http.HandlerFunc(h.Update))
+
+	body := bytes.NewBufferString(`{"name":"Updated Name"}`)
+	req := httptest.NewRequest("PUT", "/api/projects/p1", body)
+	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if updated == nil || updated.ThankYouMessage != "keep me" {
+		t.Errorf("expected thank_you_message to be preserved as 'keep me', got %q", updated.ThankYouMessage)
+	}
+}
+
 func TestProjectHandler_PatchStatus_NotFound(t *testing.T) {
 	mock := &mockProjectService{
 		getByIDFunc: func(ctx context.Context, id string) (*model.Project, error) {

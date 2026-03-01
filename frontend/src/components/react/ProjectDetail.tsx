@@ -32,6 +32,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import LoadingSkeleton from "./LoadingSkeleton";
 import ShareButtons from "./ShareButtons";
 import LoginDialog from "./LoginDialog";
+import ThankYouModal from "./ThankYouModal";
 import { t, type Locale } from "../../lib/i18n";
 
 interface Props {
@@ -214,6 +215,9 @@ export default function ProjectDetail({
   const [ownerWantDraft, setOwnerWantDraft] = useState(0);
   const [savingOwnerWant, setSavingOwnerWant] = useState(false);
 
+  // Thank you modal state
+  const [showThankYou, setShowThankYou] = useState(false);
+
   // Refresh key for chart re-fetch
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -261,6 +265,7 @@ export default function ProjectDetail({
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("donated") || params.has("session_id")) {
+      setShowThankYou(true);
       const timer = setTimeout(() => {
         getProject(id)
           .then((p) => {
@@ -1965,6 +1970,14 @@ export default function ProjectDetail({
         locale={locale}
         onClose={() => setShowLoginDialog(false)}
       />
+      {showThankYou && (
+        <ThankYouModal
+          locale={locale}
+          title={thankYouTitle}
+          message={project?.thank_you_message}
+          onClose={() => setShowThankYou(false)}
+        />
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ type Project struct {
 	Description      string     `json:"description"`
 	Overview         string     `json:"overview,omitempty"`
 	ShareMessage     string     `json:"share_message,omitempty"`
+	ThankYouMessage  string     `json:"thank_you_message,omitempty"`
 	Deadline         *time.Time `json:"deadline,omitempty"`
 	Status           string     `json:"status"`
 	OwnerWantMonthly *int       `json:"owner_want_monthly,omitempty"` // オーナーの「〇〇円欲しい」表明（月額）

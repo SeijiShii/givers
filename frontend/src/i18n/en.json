@@ -308,6 +308,13 @@
     "ja": "日本語",
     "en": "English"
   },
+  "thankYouMessage": {
+    "formLabel": "Thank you message",
+    "placeholder": "Enter a message shown after donation",
+    "hint": "This message is displayed to donors after completing payment",
+    "defaultMessage": "Thank you for your support!",
+    "close": "Close"
+  },
   "share": {
     "label": "Share",
     "x": "Share on X",

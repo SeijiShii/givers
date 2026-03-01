@@ -71,6 +71,11 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     project?.share_message ?? "",
   );
 
+  // 感謝メッセージ
+  const [thankYouMessage, setThankYouMessage] = useState(
+    project?.thank_you_message ?? "",
+  );
+
   // 画像アップロード
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -138,6 +143,7 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         name,
         overview,
         share_message: shareMessage,
+        thank_you_message: thankYouMessage,
         deadline:
           deadlineType === "date" && deadlineValue ? deadlineValue : null,
         owner_want_monthly: ownerWant > 0 ? ownerWant : null,
@@ -350,6 +356,27 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         />
         <small style={{ color: "var(--color-text-muted)" }}>
           {t(locale, "share.formHint")}
+        </small>
+      </div>
+
+      {/* 感謝メッセージ */}
+      <div style={{ marginBottom: "1rem" }}>
+        <label
+          htmlFor="thankYouMessage"
+          style={{ display: "block", marginBottom: "0.25rem" }}
+        >
+          {t(locale, "thankYouMessage.formLabel")}
+        </label>
+        <textarea
+          id="thankYouMessage"
+          value={thankYouMessage}
+          onChange={(e) => setThankYouMessage(e.target.value)}
+          rows={2}
+          placeholder={t(locale, "thankYouMessage.placeholder")}
+          style={{ width: "100%", padding: "0.5rem" }}
+        />
+        <small style={{ color: "var(--color-text-muted)" }}>
+          {t(locale, "thankYouMessage.hint")}
         </small>
       </div>
 

@@ -336,6 +336,8 @@ export interface Project {
   monthly_target?: number;
   /** SNS シェア時のデフォルトメッセージ */
   share_message?: string;
+  /** 寄付者への感謝メッセージ */
+  thank_you_message?: string;
 }
 
 /** プロジェクトオーナーからのアップデート（モック/Phase5以降） */
@@ -770,6 +772,7 @@ export interface CreateProjectInput {
   description?: string;
   overview?: string;
   share_message?: string;
+  thank_you_message?: string;
   deadline?: string | null;
   status?: string;
   owner_want_monthly?: number | null;
@@ -792,6 +795,7 @@ export interface UpdateProjectInput {
   name?: string;
   description?: string;
   share_message?: string;
+  thank_you_message?: string;
   overview?: string | null;
   deadline?: string | null;
   status?: string;

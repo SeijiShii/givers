@@ -308,6 +308,13 @@
     "ja": "日本語",
     "en": "English"
   },
+  "thankYouMessage": {
+    "formLabel": "感謝メッセージ",
+    "placeholder": "寄付後に表示されるメッセージを入力",
+    "hint": "寄付者が決済完了後にこのメッセージが表示されます",
+    "defaultMessage": "ご支援ありがとうございます！",
+    "close": "閉じる"
+  },
   "share": {
     "label": "シェアする",
     "x": "Xでシェア",
