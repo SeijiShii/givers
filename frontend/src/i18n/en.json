@@ -114,8 +114,7 @@
     "signalWarn": "Caution",
     "signalWarnDesc": "Barely",
     "signalDanger": "Critical",
-    "signalDangerDesc": "Sustainability at risk",
-    "phaseNote": "(API integration in Phase 5)"
+    "signalDangerDesc": "Sustainability at risk"
   },
   "platformProject": {
     "badge": "Platform project",
@@ -130,8 +129,6 @@
     "supportStatusDetail": "Monthly target: ¥{target} / Current: ¥{current} ({rate}%)",
     "supportTitle": "Support this project",
     "donate": "Donate",
-    "phaseNote": "(API integration in Phase 3)",
-    "phaseNoteDonate": "(Donation form in Phase 4)",
     "newProject": "New Project",
     "editProject": "Edit Project",
     "amountType": "Amount input type",
@@ -303,6 +300,7 @@
     "notConfigured": "This page has not been configured yet.",
     "backToTop": "Back to top"
   },
+  "testBanner": "This service is currently in test mode. Actual donations cannot be made.",
   "footer": {
     "text": "GIVErS - GIVE spirit / Donation platform for the GIVE spirit."
   },

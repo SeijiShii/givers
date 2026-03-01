@@ -146,6 +146,12 @@ export async function getDisclosureExport(
 
 export async function getMe(): Promise<User | null> {
   if (MOCK_MODE) return (await import("./mock-api")).mockApi.getMe();
+  if (
+    typeof document !== "undefined" &&
+    !document.cookie.includes("givers_logged_in")
+  ) {
+    return null;
+  }
   const res = await fetch(`${API_URL}/api/me`, {
     credentials: "include",
   });

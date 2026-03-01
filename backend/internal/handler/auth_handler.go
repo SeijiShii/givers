@@ -488,6 +488,16 @@ func (h *AuthHandler) FinalizeLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   os.Getenv("ENV") == "production",
 	}
 	http.SetCookie(w, cookie)
+	// Companion cookie for JavaScript login detection (not HttpOnly, no sensitive data)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "givers_logged_in",
+		Value:    "1",
+		Path:     "/",
+		MaxAge:   auth.SessionMaxAge,
+		HttpOnly: false,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   os.Getenv("ENV") == "production",
+	})
 	slog.Info("finalize login success", "cookie_name", cookie.Name, "max_age", cookie.MaxAge)
 
 	http.Redirect(w, r, h.frontendURL+"/", http.StatusFound)
@@ -507,6 +517,15 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Expires:  time.Unix(0, 0),
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "givers_logged_in",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: false,
 		SameSite: http.SameSiteLaxMode,
 		Expires:  time.Unix(0, 0),
 	})

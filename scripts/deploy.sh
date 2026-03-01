@@ -93,6 +93,11 @@ echo ""
 echo "=== Step 3: サーバーでビルド・起動 ==="
 ssh "$REMOTE_HOST" "cd $REMOTE_DIR && docker compose -f docker-compose.prod.yml up -d --build"
 
+# --- Step 3.5: nginx 再起動（upstream の DNS キャッシュをリセット） ---
+echo ""
+echo "=== Step 3.5: nginx 再起動 ==="
+ssh "$REMOTE_HOST" "cd $REMOTE_DIR && docker compose -f docker-compose.prod.yml restart nginx"
+
 # --- Step 4: DBマイグレーション ---
 echo ""
 echo "=== Step 4: DBマイグレーション ==="

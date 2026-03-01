@@ -19,6 +19,7 @@ interface Props {
 const { title, locale = 'ja', ogTitle, ogDescription, ogImage, ogUrl, ogType } = Astro.props;
 
 const basePath = locale === 'en' ? '/en' : '';
+const testMode = import.meta.env.PUBLIC_TEST_MODE === 'true';
 
 const resolvedOgTitle = ogTitle || `${title} | GIVErS`;
 const resolvedOgDescription = ogDescription || t(locale, 'home.description');
@@ -118,6 +119,9 @@ const resolvedOgType = ogType || 'website';
         });
       })();
     </script>
+    {testMode && (
+      <div class="test-banner">{t(locale, 'testBanner')}</div>
+    )}
     <main>
       <slot />
     </main>

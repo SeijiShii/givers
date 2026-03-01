@@ -114,8 +114,7 @@
     "signalWarn": "注意",
     "signalWarnDesc": "ギリギリ",
     "signalDanger": "危険",
-    "signalDangerDesc": "継続困難",
-    "phaseNote": "（Phase 5 で API 連携を実装）"
+    "signalDangerDesc": "継続困難"
   },
   "platformProject": {
     "badge": "プラットフォームプロジェクト",
@@ -130,8 +129,6 @@
     "supportStatusDetail": "月額目標: ¥{target} / 現在: ¥{current} ({rate}%)",
     "supportTitle": "このプロジェクトを支援する",
     "donate": "寄付する",
-    "phaseNote": "（Phase 3 で API 連携を実装）",
-    "phaseNoteDonate": "（Phase 4 で寄付フォームを実装）",
     "newProject": "新規プロジェクト",
     "editProject": "プロジェクトを編集",
     "amountType": "金額の入力方法",
@@ -303,6 +300,7 @@
     "notConfigured": "このページはまだ設定されていません。",
     "backToTop": "トップに戻る"
   },
+  "testBanner": "このサービスは現在テスト運用中であり、実際の寄付はできません",
   "footer": {
     "text": "GIVErS - GIVEの精神 / Donation platform for the GIVE spirit."
   },

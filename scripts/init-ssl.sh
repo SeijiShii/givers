@@ -37,10 +37,16 @@ cp nginx/conf.d/default.conf.bak nginx/conf.d/default.conf 2>/dev/null || \
   git checkout nginx/conf.d/default.conf
 
 echo "=== Step 4: 全サービスを起動 ==="
-docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml up -d --build
+
+echo "=== Step 5: nginx に SSL 設定を反映 ==="
+docker compose -f docker-compose.prod.yml exec nginx nginx -s reload
+
+echo "=== Step 6: DBマイグレーション ==="
+docker compose -f docker-compose.prod.yml exec backend ./migrate
 
 echo "=== 完了 ==="
 echo "https://$DOMAIN でアクセスできるか確認してください。"
 echo ""
 echo "証明書の自動更新を cron に追加してください:"
-echo "  0 3 * * * cd $(pwd) && docker compose -f docker-compose.prod.yml run --rm certbot renew && docker compose -f docker-compose.prod.yml exec nginx nginx -s reload"
+echo '  (echo "0 3 * * * cd /opt/givers && docker compose -f docker-compose.prod.yml run --rm certbot renew --quiet && docker compose -f docker-compose.prod.yml exec nginx nginx -s reload") | crontab -'
