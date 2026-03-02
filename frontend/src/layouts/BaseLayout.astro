@@ -26,6 +26,7 @@ const resolvedOgDescription = ogDescription || t(locale, 'home.description');
 const resolvedOgImage = ogImage || `${SITE_URL}/ogp-default.png`;
 const resolvedOgUrl = ogUrl || `${SITE_URL}${Astro.url.pathname}`;
 const resolvedOgType = ogType || 'website';
+const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
 ---
 
 <!DOCTYPE html>
@@ -50,6 +51,17 @@ const resolvedOgType = ogType || 'website';
     <meta name="twitter:title" content={resolvedOgTitle} />
     <meta name="twitter:description" content={resolvedOgDescription} />
     <meta name="twitter:image" content={resolvedOgImage} />
+    {gaId && (
+      <>
+        <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}></script>
+        <script define:vars={{ gaId }}>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', gaId);
+        </script>
+      </>
+    )}
   </head>
   <body>
     <header>
