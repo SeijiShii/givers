@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { t, type Locale } from "../../lib/i18n";
 import {
-  updateRecurringDonation,
-  pauseRecurringDonation,
-  resumeRecurringDonation,
-  deleteRecurringDonation,
+  updateSubscription,
+  pauseSubscription,
+  resumeSubscription,
+  deleteSubscription,
   type RecurringDonation,
 } from "../../lib/api";
 import ConfirmDialog from "./ConfirmDialog";
@@ -37,7 +37,7 @@ export default function SubscriptionManageForm({
     if (amount <= 0 || amount === donation.amount) return;
     setSaving(true);
     try {
-      const updated = await updateRecurringDonation(donation.id, { amount });
+      const updated = await updateSubscription(donation.id, { amount });
       onUpdate(updated);
       setEditingAmount(false);
     } finally {
@@ -49,9 +49,9 @@ export default function SubscriptionManageForm({
     setSaving(true);
     try {
       if (isPaused) {
-        await resumeRecurringDonation(donation.id);
+        await resumeSubscription(donation.id);
       } else {
-        await pauseRecurringDonation(donation.id);
+        await pauseSubscription(donation.id);
       }
       onUpdate({
         ...donation,
@@ -66,7 +66,7 @@ export default function SubscriptionManageForm({
     setShowCancelConfirm(false);
     setSaving(true);
     try {
-      await deleteRecurringDonation(donation.id);
+      await deleteSubscription(donation.id);
       onCancel();
     } finally {
       setSaving(false);
@@ -76,7 +76,7 @@ export default function SubscriptionManageForm({
   const handleSaveMessage = async () => {
     setSaving(true);
     try {
-      const updated = await updateRecurringDonation(donation.id, {
+      const updated = await updateSubscription(donation.id, {
         next_billing_message: nextMessage,
       });
       onUpdate(updated);
@@ -212,10 +212,7 @@ export default function SubscriptionManageForm({
             setNextMessage(e.target.value);
             setMessageSaved(false);
           }}
-          placeholder={t(
-            locale,
-            "projects.subscriptionNextMessagePlaceholder",
-          )}
+          placeholder={t(locale, "projects.subscriptionNextMessagePlaceholder")}
           rows={2}
           style={{
             width: "100%",

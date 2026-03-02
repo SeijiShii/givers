@@ -10,10 +10,11 @@ import (
 
 // mockUserRepository は UserRepository のモック
 type mockUserRepository struct {
-	findByGoogleIDFunc  func(ctx context.Context, googleID string) (*model.User, error)
-	findByEmailFunc     func(ctx context.Context, email string) (*model.User, error)
-	createFunc          func(ctx context.Context, user *model.User) error
-	updateProviderIDErr error
+	findByGoogleIDFunc   func(ctx context.Context, googleID string) (*model.User, error)
+	findByEmailFunc      func(ctx context.Context, email string) (*model.User, error)
+	createFunc           func(ctx context.Context, user *model.User) error
+	updateProviderIDFunc func(ctx context.Context, userID, column, value string) error
+	updateProviderIDErr  error
 }
 
 func (m *mockUserRepository) FindByID(ctx context.Context, id string) (*model.User, error) {
@@ -50,6 +51,9 @@ func (m *mockUserRepository) Create(ctx context.Context, user *model.User) error
 }
 
 func (m *mockUserRepository) UpdateProviderID(ctx context.Context, userID, column, value string) error {
+	if m.updateProviderIDFunc != nil {
+		return m.updateProviderIDFunc(ctx, userID, column, value)
+	}
 	return m.updateProviderIDErr
 }
 
@@ -83,6 +87,56 @@ func TestAuthService_GetOrCreateUserFromGoogle_ExistingUser(t *testing.T) {
 	}
 	if u.ID != existingUser.ID {
 		t.Errorf("expected ID %q, got %q", existingUser.ID, u.ID)
+	}
+}
+
+// Bug reproduction: empty Sub should be rejected, not used to look up / link accounts.
+func TestAuthService_GetOrCreateUserFromGoogle_RejectsEmptySub(t *testing.T) {
+	svc := NewAuthService(&mockUserRepository{})
+	_, err := svc.GetOrCreateUserFromGoogle(context.Background(), &GoogleUserInfo{
+		Sub:   "",
+		Email: "a@example.com",
+		Name:  "A",
+	})
+	if err == nil {
+		t.Fatal("expected error for empty Sub, got nil")
+	}
+}
+
+// Linking existing account by email must store a valid google_id.
+func TestAuthService_GetOrCreateUserFromGoogle_LinkByEmail_StoresGoogleID(t *testing.T) {
+	existing := &model.User{ID: "u1", Email: "c@example.com", Name: "C"}
+	var linkedColumn, linkedValue string
+	mock := &mockUserRepository{
+		findByGoogleIDFunc: func(_ context.Context, _ string) (*model.User, error) {
+			return nil, errors.New("not found")
+		},
+		findByEmailFunc: func(_ context.Context, email string) (*model.User, error) {
+			if email == "c@example.com" {
+				return existing, nil
+			}
+			return nil, errors.New("not found")
+		},
+		updateProviderIDFunc: func(_ context.Context, userID, column, value string) error {
+			linkedColumn = column
+			linkedValue = value
+			return nil
+		},
+	}
+	svc := NewAuthService(mock)
+	u, err := svc.GetOrCreateUserFromGoogle(context.Background(), &GoogleUserInfo{
+		Sub:   "google-789",
+		Email: "c@example.com",
+		Name:  "C",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if u.ID != "u1" {
+		t.Errorf("expected user u1, got %s", u.ID)
+	}
+	if linkedColumn != "google_id" || linkedValue != "google-789" {
+		t.Errorf("expected google_id=google-789 to be linked, got %s=%s", linkedColumn, linkedValue)
 	}
 }
 

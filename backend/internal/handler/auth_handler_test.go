@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -254,6 +255,172 @@ func TestAuthHandler_FinalizeLogin_CodeUsedOnlyOnce(t *testing.T) {
 	loc := rec2.Header().Get("Location")
 	if !strings.Contains(loc, "error=invalid_code") {
 		t.Errorf("second use should fail with invalid_code, got %s", loc)
+	}
+}
+
+// --- return_url tests ---
+
+func TestAuthHandler_FinalizeLogin_WithReturnURL(t *testing.T) {
+	h := newTestAuthHandler()
+	storeOneTimeCode("code-ret", "session-ret")
+
+	req := httptest.NewRequest("GET", "/api/auth/finalize?code=code-ret&return_url=/projects/abc123", nil)
+	rec := httptest.NewRecorder()
+
+	h.FinalizeLogin(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+	loc := rec.Header().Get("Location")
+	if loc != "http://localhost:3000/projects/abc123" {
+		t.Errorf("expected redirect to /projects/abc123, got %s", loc)
+	}
+}
+
+func TestAuthHandler_FinalizeLogin_RejectsExternalReturnURL(t *testing.T) {
+	h := newTestAuthHandler()
+	storeOneTimeCode("code-ext", "session-ext")
+
+	req := httptest.NewRequest("GET", "/api/auth/finalize?code=code-ext&return_url=https://evil.com", nil)
+	rec := httptest.NewRecorder()
+
+	h.FinalizeLogin(rec, req)
+
+	loc := rec.Header().Get("Location")
+	if loc != "http://localhost:3000/" {
+		t.Errorf("expected redirect to /, got %s", loc)
+	}
+}
+
+func TestAuthHandler_FinalizeLogin_RejectsProtocolRelativeReturnURL(t *testing.T) {
+	h := newTestAuthHandler()
+	storeOneTimeCode("code-proto", "session-proto")
+
+	req := httptest.NewRequest("GET", "/api/auth/finalize?code=code-proto&return_url=//evil.com", nil)
+	rec := httptest.NewRecorder()
+
+	h.FinalizeLogin(rec, req)
+
+	loc := rec.Header().Get("Location")
+	if loc != "http://localhost:3000/" {
+		t.Errorf("expected redirect to / for protocol-relative URL, got %s", loc)
+	}
+}
+
+func TestAuthHandler_FinalizeLogin_EmptyReturnURL_DefaultsToHome(t *testing.T) {
+	h := newTestAuthHandler()
+	storeOneTimeCode("code-empty", "session-empty")
+
+	req := httptest.NewRequest("GET", "/api/auth/finalize?code=code-empty&return_url=", nil)
+	rec := httptest.NewRecorder()
+
+	h.FinalizeLogin(rec, req)
+
+	loc := rec.Header().Get("Location")
+	if loc != "http://localhost:3000/" {
+		t.Errorf("expected redirect to /, got %s", loc)
+	}
+}
+
+func TestOAuthState_StoresAndReturnsReturnURL(t *testing.T) {
+	state := "test-state-return"
+	storeOAuthState(state, "/projects/xyz")
+
+	returnURL, ok := verifyAndDeleteOAuthState(state)
+	if !ok {
+		t.Fatal("expected state to be valid")
+	}
+	if returnURL != "/projects/xyz" {
+		t.Errorf("expected /projects/xyz, got %s", returnURL)
+	}
+}
+
+func TestOAuthState_EmptyReturnURL(t *testing.T) {
+	state := "test-state-no-return"
+	storeOAuthState(state, "")
+
+	returnURL, ok := verifyAndDeleteOAuthState(state)
+	if !ok {
+		t.Fatal("expected state to be valid")
+	}
+	if returnURL != "" {
+		t.Errorf("expected empty return_url, got %s", returnURL)
+	}
+}
+
+func TestAuthHandler_GoogleLoginURL_PassesReturnURL(t *testing.T) {
+	h := newTestAuthHandler()
+	req := httptest.NewRequest("GET", "/api/auth/google/login?return_url=/projects/abc", nil)
+	rec := httptest.NewRecorder()
+
+	h.GoogleLoginURL(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode: %v", err)
+	}
+	if body["url"] == "" {
+		t.Fatal("expected url in response")
+	}
+
+	// Verify state was stored with return_url by extracting state from the URL
+	// and checking it via verifyAndDeleteOAuthState
+	authURL := body["url"]
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("failed to parse auth URL: %v", err)
+	}
+	stateVal := parsed.Query().Get("state")
+	if stateVal == "" {
+		t.Fatal("expected state in auth URL")
+	}
+
+	returnURL, ok := verifyAndDeleteOAuthState(stateVal)
+	if !ok {
+		t.Fatal("expected state to be valid")
+	}
+	if returnURL != "/projects/abc" {
+		t.Errorf("expected /projects/abc return_url stored in state, got %s", returnURL)
+	}
+}
+
+// Verify that googleUserInfo correctly parses Google v2 userinfo "id" field.
+func TestGoogleUserInfo_ParsesV2ID(t *testing.T) {
+	// Google OAuth2 v2 userinfo returns "id", not "sub"
+	body := `{"id":"112233445566778899","email":"test@gmail.com","name":"Test User"}`
+	var info googleUserInfo
+	if err := json.Unmarshal([]byte(body), &info); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+	if info.ID == "" {
+		t.Fatal("expected ID to be parsed from v2 'id' field, got empty string")
+	}
+	if info.ID != "112233445566778899" {
+		t.Errorf("expected ID 112233445566778899, got %s", info.ID)
+	}
+	if info.Email != "test@gmail.com" {
+		t.Errorf("expected email test@gmail.com, got %s", info.Email)
+	}
+}
+
+// Verify that Google login URL includes prompt=select_account
+func TestAuthHandler_GoogleLoginURL_IncludesPromptSelectAccount(t *testing.T) {
+	h := newTestAuthHandler()
+	req := httptest.NewRequest("GET", "/api/auth/google/login", nil)
+	rec := httptest.NewRecorder()
+
+	h.GoogleLoginURL(rec, req)
+
+	var body map[string]string
+	_ = json.NewDecoder(rec.Body).Decode(&body)
+	authURL := body["url"]
+	if !strings.Contains(authURL, "prompt=select_account") {
+		t.Errorf("expected prompt=select_account in auth URL, got %s", authURL)
 	}
 }
 

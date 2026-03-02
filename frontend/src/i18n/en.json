@@ -234,7 +234,23 @@
     "subscriptionPaused": "Paused",
     "subscriptionNextMessage": "Message for next billing",
     "subscriptionNextMessagePlaceholder": "Message shown in activity feed on next billing (optional)",
-    "subscriptionNextMessageSaved": "Message saved"
+    "subscriptionNextMessageSaved": "Message saved",
+    "tabDonationHistory": "Donation History",
+    "donationHistoryTitle": "Donation History",
+    "donationHistoryEmpty": "No donations yet",
+    "donationHistorySourceAll": "All",
+    "donationHistorySourceCheckout": "Manual",
+    "donationHistorySourceRenewal": "Auto-renewal",
+    "donationHistoryFilterSource": "Filter by type",
+    "donationHistoryFilterDonor": "Filter by donor",
+    "donationHistoryDonor": "Donor",
+    "donationHistoryAmount": "Amount",
+    "donationHistorySource": "Type",
+    "donationHistoryMessage": "Message",
+    "donationHistoryDate": "Date",
+    "donationHistoryRecurring": "Recurring",
+    "donationHistoryOneTime": "One-time",
+    "donationHistoryAnonymous": "Anonymous"
   },
   "admin": {
     "usersTitle": "User Management",
@@ -327,5 +343,11 @@
     "formHint": "Default message shown when sharing on social media",
     "copyLink": "Copy link",
     "linkCopied": "Copied!"
+  },
+  "badge": {
+    "title": "Embed Badge",
+    "description": "Embed this badge in your GitHub README or website",
+    "copy": "Copy",
+    "copied": "Copied!"
   }
 }

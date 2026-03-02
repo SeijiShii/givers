@@ -14,7 +14,7 @@ import {
   getMe,
   getRelatedProjects,
   getWatchedProjects,
-  getMyRecurringDonations,
+  getMySubscriptions,
   getProjectMessages,
   watchProject,
   unwatchProject,
@@ -31,9 +31,15 @@ import ProjectChart from "./charts/ProjectChart";
 import ConfirmDialog from "./ConfirmDialog";
 import LoadingSkeleton from "./LoadingSkeleton";
 import ShareButtons from "./ShareButtons";
+import BadgeEmbed from "./BadgeEmbed";
 import LoginDialog from "./LoginDialog";
 import ThankYouModal from "./ThankYouModal";
+import OwnerDonationHistory from "./OwnerDonationHistory";
 import { t, type Locale } from "../../lib/i18n";
+
+const API_URL_FOR_BADGE =
+  (typeof import.meta !== "undefined" && import.meta.env?.PUBLIC_API_URL) ??
+  "http://localhost:8080";
 
 interface Props {
   id: string;
@@ -115,7 +121,7 @@ function formatUpdateDate(iso: string, locale: Locale): string {
   });
 }
 
-type TabId = "support" | "updates" | "messages";
+type TabId = "support" | "updates" | "messages" | "donations";
 
 export default function ProjectDetail({
   id,
@@ -251,7 +257,7 @@ export default function ProjectDetail({
       setActiveSubscription(null);
       return;
     }
-    getMyRecurringDonations()
+    getMySubscriptions()
       .then((list) => {
         const sub = list.find(
           (d) => d.project_id === project.id && d.status !== "cancelled",
@@ -865,6 +871,16 @@ export default function ProjectDetail({
         />
       )}
 
+      {project.status === "active" && shareUrl && (
+        <BadgeEmbed
+          projectId={project.id}
+          projectUrl={shareUrl}
+          badgeUrl={`${API_URL_FOR_BADGE}/api/projects/${project.id}/badge.svg`}
+          locale={locale}
+          isOwner={!!isOwner}
+        />
+      )}
+
       <button
         type="button"
         className="btn btn-accent"
@@ -1386,7 +1402,7 @@ export default function ProjectDetail({
       >
         {(
           (isOwner
-            ? ["support", "updates", "messages"]
+            ? ["support", "updates", "messages", "donations"]
             : ["support", "updates"]) as TabId[]
         ).map((tabId) => (
           <button
@@ -1414,6 +1430,7 @@ export default function ProjectDetail({
             {tabId === "support" && tabSupportLabel}
             {tabId === "updates" && tabUpdatesLabel}
             {tabId === "messages" && t(locale, "projects.tabMessages")}
+            {tabId === "donations" && t(locale, "projects.tabDonationHistory")}
           </button>
         ))}
       </div>
@@ -1907,6 +1924,10 @@ export default function ProjectDetail({
             )}
           </div>
         )}
+
+        {activeTab === "donations" && isOwner && project && (
+          <OwnerDonationHistory projectId={project.id} locale={locale} />
+        )}
       </div>
 
       {relatedProjects.length > 0 && (
@@ -1969,6 +1990,9 @@ export default function ProjectDetail({
         open={showLoginDialog}
         locale={locale}
         onClose={() => setShowLoginDialog(false)}
+        returnUrl={
+          typeof window !== "undefined" ? window.location.pathname : undefined
+        }
       />
       {showThankYou && (
         <ThankYouModal

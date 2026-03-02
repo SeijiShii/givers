@@ -16,9 +16,15 @@ interface Props {
   open: boolean;
   locale: string;
   onClose: () => void;
+  returnUrl?: string;
 }
 
-export default function LoginDialog({ open, locale, onClose }: Props) {
+export default function LoginDialog({
+  open,
+  locale,
+  onClose,
+  returnUrl,
+}: Props) {
   const [providers, setProviders] = useState<string[]>(["google"]);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [emailValue, setEmailValue] = useState("");
@@ -55,22 +61,22 @@ export default function LoginDialog({ open, locale, onClose }: Props) {
       let url: string;
       switch (provider) {
         case "google": {
-          const res = await getGoogleLoginUrl();
+          const res = await getGoogleLoginUrl(returnUrl);
           url = res.url;
           break;
         }
         case "github": {
-          const res = await getGitHubLoginUrl();
+          const res = await getGitHubLoginUrl(returnUrl);
           url = res.url;
           break;
         }
         case "discord": {
-          const res = await getDiscordLoginUrl();
+          const res = await getDiscordLoginUrl(returnUrl);
           url = res.url;
           break;
         }
         case "apple": {
-          const res = await getAppleLoginUrl();
+          const res = await getAppleLoginUrl(returnUrl);
           url = res.url;
           break;
         }
@@ -150,9 +156,7 @@ export default function LoginDialog({ open, locale, onClose }: Props) {
         type="button"
         className="login-provider-btn"
         onClick={() =>
-          provider === "email"
-            ? setShowEmailForm(true)
-            : handleLogin(provider)
+          provider === "email" ? setShowEmailForm(true) : handleLogin(provider)
         }
       >
         <span>{t(provider)}</span>
@@ -203,7 +207,9 @@ export default function LoginDialog({ open, locale, onClose }: Props) {
         </h2>
 
         {!showEmailForm ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+          >
             {orderedProviders.map((p) => providerButton(p))}
             {MOCK_MODE && (
               <button

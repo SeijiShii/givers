@@ -181,27 +181,39 @@ export async function getAuthProviders(): Promise<AuthProviders> {
   return fetchApi("/api/auth/providers");
 }
 
-export async function getGoogleLoginUrl(): Promise<{ url: string }> {
+export async function getGoogleLoginUrl(
+  returnUrl?: string,
+): Promise<{ url: string }> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getGoogleLoginUrl();
-  return fetchApi("/api/auth/google/login");
+  const qs = returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
+  return fetchApi(`/api/auth/google/login${qs}`);
 }
 
-export async function getGitHubLoginUrl(): Promise<{ url: string }> {
+export async function getGitHubLoginUrl(
+  returnUrl?: string,
+): Promise<{ url: string }> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getGitHubLoginUrl();
-  return fetchApi("/api/auth/github/login");
+  const qs = returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
+  return fetchApi(`/api/auth/github/login${qs}`);
 }
 
-export async function getAppleLoginUrl(): Promise<{ url: string }> {
+export async function getAppleLoginUrl(
+  returnUrl?: string,
+): Promise<{ url: string }> {
   if (MOCK_MODE) return (await import("./mock-api")).mockApi.getAppleLoginUrl();
-  return fetchApi("/api/auth/apple/login");
+  const qs = returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
+  return fetchApi(`/api/auth/apple/login${qs}`);
 }
 
-export async function getDiscordLoginUrl(): Promise<{ url: string }> {
+export async function getDiscordLoginUrl(
+  returnUrl?: string,
+): Promise<{ url: string }> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getDiscordLoginUrl();
-  return fetchApi("/api/auth/discord/login");
+  const qs = returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : "";
+  return fetchApi(`/api/auth/discord/login${qs}`);
 }
 
 export async function getEmailLoginUrl(): Promise<{ url: string }> {
@@ -473,39 +485,42 @@ export async function getMyDonations(): Promise<Donation[]> {
     }));
 }
 
-export async function getMyRecurringDonations(): Promise<RecurringDonation[]> {
+/** サブスクリプション（定期寄付）一覧 */
+export async function getMySubscriptions(): Promise<RecurringDonation[]> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.getMyRecurringDonations();
-  const res = await fetchApi<{ donations: BackendDonation[] }>(
-    "/api/me/donations",
+  interface BackendSubscription {
+    id: string;
+    project_id: string;
+    donor_id: string;
+    amount: number;
+    currency: string;
+    paused: boolean;
+    next_billing_message?: string;
+    created_at: string;
+    updated_at: string;
+  }
+  const res = await fetchApi<{ subscriptions: BackendSubscription[] }>(
+    "/api/me/subscriptions",
   );
-  return (res.donations ?? [])
-    .filter((d) => d.is_recurring)
-    .map((d) => ({
-      id: d.id,
-      user_id: d.donor_id,
-      project_id: d.project_id,
-      project_name: "",
-      amount: d.amount,
-      created_at: d.created_at,
-      status: d.paused ? ("paused" as const) : ("active" as const),
-      interval: "monthly" as const,
-      next_billing_message: d.next_billing_message,
-    }));
+  return (res.subscriptions ?? []).map((s) => ({
+    id: s.id,
+    user_id: s.donor_id,
+    project_id: s.project_id,
+    project_name: "",
+    amount: s.amount,
+    created_at: s.created_at,
+    status: s.paused ? ("paused" as const) : ("active" as const),
+    interval: "monthly" as const,
+    next_billing_message: s.next_billing_message,
+  }));
 }
 
-export async function cancelRecurringDonation(id: string): Promise<void> {
-  if (MOCK_MODE)
-    return (await import("./mock-api")).mockApi.cancelRecurringDonation(id);
-  await fetchApi(`/api/me/donations/${id}`, { method: "DELETE" });
-}
-
-/** 定期寄付の変更（金額・タイミング・次回メッセージ） */
-export async function updateRecurringDonation(
+/** 定期寄付の変更（金額・次回メッセージ） */
+export async function updateSubscription(
   id: string,
   input: {
     amount?: number;
-    interval?: "monthly" | "yearly";
     next_billing_message?: string;
   },
 ): Promise<RecurringDonation> {
@@ -518,34 +533,41 @@ export async function updateRecurringDonation(
   if (input.amount != null) body.amount = input.amount;
   if (input.next_billing_message != null)
     body.next_billing_message = input.next_billing_message;
-  await fetchApi(`/api/me/donations/${id}`, {
+  await fetchApi(`/api/me/subscriptions/${id}`, {
     method: "PATCH",
     body: JSON.stringify(body),
   });
-  const all = await getMyRecurringDonations();
-  const updated = all.find((d) => d.id === id);
-  if (!updated) throw new Error("donation not found after update");
+  const all = await getMySubscriptions();
+  const updated = all.find((s) => s.id === id);
+  if (!updated) throw new Error("subscription not found after update");
   return updated;
 }
 
 /** 定期寄付の一時休止 */
-export async function pauseRecurringDonation(id: string): Promise<void> {
+export async function pauseSubscription(id: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.pauseRecurringDonation(id);
-  await fetchApi(`/api/me/donations/${id}`, {
+  await fetchApi(`/api/me/subscriptions/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ paused: true }),
   });
 }
 
 /** 定期寄付の再開 */
-export async function resumeRecurringDonation(id: string): Promise<void> {
+export async function resumeSubscription(id: string): Promise<void> {
   if (MOCK_MODE)
     return (await import("./mock-api")).mockApi.resumeRecurringDonation(id);
-  await fetchApi(`/api/me/donations/${id}`, {
+  await fetchApi(`/api/me/subscriptions/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ paused: false }),
   });
+}
+
+/** 定期寄付の削除（キャンセル） */
+export async function deleteSubscription(id: string): Promise<void> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.deleteRecurringDonation(id);
+  await fetchApi(`/api/me/subscriptions/${id}`, { method: "DELETE" });
 }
 
 // --- Project Messages (owner-only) ---
@@ -583,11 +605,45 @@ export async function getProjectMessages(
   );
 }
 
-/** 定期寄付の削除（完全に解除） */
-export async function deleteRecurringDonation(id: string): Promise<void> {
-  if (MOCK_MODE)
-    return (await import("./mock-api")).mockApi.deleteRecurringDonation(id);
-  await fetchApi(`/api/me/donations/${id}`, { method: "DELETE" });
+// --- Owner Donation History (project owner only) ---
+
+export interface OwnerDonationItem {
+  id: string;
+  donor_name: string | null;
+  donor_type: string;
+  amount: number;
+  currency: string;
+  message: string | null;
+  source: string; // "checkout" or "subscription_renewal"
+  is_recurring: boolean;
+  created_at: string;
+}
+
+export interface OwnerDonationResult {
+  donations: OwnerDonationItem[];
+  total: number;
+}
+
+export async function getOwnerDonations(
+  projectId: string,
+  params?: {
+    limit?: number;
+    offset?: number;
+    sort?: string;
+    source?: string;
+    donor?: string;
+  },
+): Promise<OwnerDonationResult> {
+  const q = new URLSearchParams();
+  if (params?.limit != null) q.set("limit", String(params.limit));
+  if (params?.offset != null) q.set("offset", String(params.offset));
+  if (params?.sort) q.set("sort", params.sort);
+  if (params?.source) q.set("source", params.source);
+  if (params?.donor) q.set("donor", params.donor);
+  const qs = q.toString();
+  return fetchApi<OwnerDonationResult>(
+    `/api/projects/${projectId}/donations${qs ? "?" + qs : ""}`,
+  );
 }
 
 /** 新着プロジェクト（トップページ用） */

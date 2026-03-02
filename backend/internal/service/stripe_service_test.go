@@ -815,20 +815,65 @@ func newTestStripeServiceWithActivity(client pkgstripe.Client, projectRepo Strip
 }
 
 // ---------------------------------------------------------------------------
-// Tests: invoice.payment_succeeded — next_billing_message (#19)
+// Mock StripeSubscriptionRepo
 // ---------------------------------------------------------------------------
 
-func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_RecordsMessageAndClears(t *testing.T) {
+type mockStripeSubscriptionRepo struct {
+	createFunc                    func(ctx context.Context, s *model.Subscription) error
+	getByStripeSubscriptionIDFunc func(ctx context.Context, stripeSubID string) (*model.Subscription, error)
+	deleteByStripeSubscriptionIDFunc func(ctx context.Context, stripeSubID string) error
+	patchFunc                     func(ctx context.Context, id string, patch model.SubscriptionPatch) error
+}
+
+func (m *mockStripeSubscriptionRepo) Create(ctx context.Context, s *model.Subscription) error {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, s)
+	}
+	return nil
+}
+func (m *mockStripeSubscriptionRepo) GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*model.Subscription, error) {
+	if m.getByStripeSubscriptionIDFunc != nil {
+		return m.getByStripeSubscriptionIDFunc(ctx, stripeSubID)
+	}
+	return nil, nil
+}
+func (m *mockStripeSubscriptionRepo) DeleteByStripeSubscriptionID(ctx context.Context, stripeSubID string) error {
+	if m.deleteByStripeSubscriptionIDFunc != nil {
+		return m.deleteByStripeSubscriptionIDFunc(ctx, stripeSubID)
+	}
+	return nil
+}
+func (m *mockStripeSubscriptionRepo) Patch(ctx context.Context, id string, patch model.SubscriptionPatch) error {
+	if m.patchFunc != nil {
+		return m.patchFunc(ctx, id, patch)
+	}
+	return nil
+}
+
+func newTestStripeServiceWithSubscriptionRepo(
+	client pkgstripe.Client,
+	projectRepo StripeProjectRepo,
+	donationRepo StripeDonationRepo,
+	subscriptionRepo StripeSubscriptionRepo,
+	activityRecorder StripeActivityRecorder,
+) StripeService {
+	return NewStripeServiceFull(client, projectRepo, donationRepo, subscriptionRepo, "https://example.com", activityRecorder, nil)
+}
+
+// ---------------------------------------------------------------------------
+// Tests: invoice.payment_succeeded — creates donation record + handles next_billing_message
+// ---------------------------------------------------------------------------
+
+func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_CreatesDonation(t *testing.T) {
 	ctx := context.Background()
+	var createdDonation *model.Donation
 	var recordedActivity *model.ActivityItem
-	var patchedID string
-	var patchedMessage *string
 
 	obj := pkgstripe.WebhookEventObject{
 		ID:           "in_test",
 		Amount:       2000,
 		Currency:     "jpy",
-		Subscription: "sub_msg",
+		Subscription: "sub_renew",
 	}
 	event := pkgstripe.WebhookEvent{Type: "invoice.payment_succeeded", ID: "evt_inv"}
 	event.Data.Object = obj
@@ -837,20 +882,21 @@ func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_RecordsMessageAndC
 		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
 		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
 	}
-	donationRepo := &mockStripeDonationRepo{
-		getByStripeSubscriptionIDFunc: func(_ context.Context, subID string) (*model.Donation, error) {
-			if subID == "sub_msg" {
-				return &model.Donation{
-					ID: "d1", ProjectID: "proj-1", DonorType: "user", DonorID: "user-1",
-					IsRecurring: true, StripeSubscriptionID: "sub_msg",
-					NextBillingMessage: "今月もよろしく",
+	subscriptionRepo := &mockStripeSubscriptionRepo{
+		getByStripeSubscriptionIDFunc: func(_ context.Context, subID string) (*model.Subscription, error) {
+			if subID == "sub_renew" {
+				return &model.Subscription{
+					ID: "s1", ProjectID: "proj-1", DonorType: "user", DonorID: "user-1",
+					Amount: 2000, Currency: "jpy",
+					StripeSubscriptionID: "sub_renew",
 				}, nil
 			}
-			return nil, errors.New("not found")
+			return nil, nil
 		},
-		patchFunc: func(_ context.Context, id string, patch model.DonationPatch) error {
-			patchedID = id
-			patchedMessage = patch.NextBillingMessage
+	}
+	donationRepo := &mockStripeDonationRepo{
+		createFunc: func(_ context.Context, d *model.Donation) error {
+			createdDonation = d
 			return nil
 		},
 	}
@@ -860,43 +906,117 @@ func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_RecordsMessageAndC
 			return nil
 		},
 	}
-	svc := newTestStripeServiceWithActivity(stripeClient, &mockStripeProjectRepo{}, donationRepo, activityRecorder)
+	svc := newTestStripeServiceWithSubscriptionRepo(stripeClient, &mockStripeProjectRepo{}, donationRepo, subscriptionRepo, activityRecorder)
 
 	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Activity should be recorded with the next_billing_message
+	if createdDonation == nil {
+		t.Fatal("expected donation to be created for renewal")
+	}
+	if createdDonation.ProjectID != "proj-1" {
+		t.Errorf("expected ProjectID=proj-1, got %q", createdDonation.ProjectID)
+	}
+	if createdDonation.Amount != 2000 {
+		t.Errorf("expected Amount=2000, got %d", createdDonation.Amount)
+	}
+	if createdDonation.Source != "subscription_renewal" {
+		t.Errorf("expected Source=subscription_renewal, got %q", createdDonation.Source)
+	}
+	if createdDonation.StripeInvoiceID != "in_test" {
+		t.Errorf("expected StripeInvoiceID=in_test, got %q", createdDonation.StripeInvoiceID)
+	}
+	if createdDonation.SubscriptionID != "s1" {
+		t.Errorf("expected SubscriptionID=s1, got %q", createdDonation.SubscriptionID)
+	}
+	if !createdDonation.IsRecurring {
+		t.Error("expected IsRecurring=true")
+	}
 	if recordedActivity == nil {
 		t.Fatal("expected activity to be recorded")
 	}
-	if recordedActivity.Message != "今月もよろしく" {
-		t.Errorf("expected message='今月もよろしく', got %q", recordedActivity.Message)
-	}
 	if recordedActivity.ProjectID != "proj-1" {
-		t.Errorf("expected ProjectID=proj-1, got %q", recordedActivity.ProjectID)
-	}
-
-	// next_billing_message should be cleared
-	if patchedID != "d1" {
-		t.Errorf("expected patch on donation d1, got %q", patchedID)
-	}
-	if patchedMessage == nil || *patchedMessage != "" {
-		t.Errorf("expected next_billing_message to be cleared (empty string), got %v", patchedMessage)
+		t.Errorf("expected activity ProjectID=proj-1, got %q", recordedActivity.ProjectID)
 	}
 }
 
-func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_NoMessage_SkipsActivity(t *testing.T) {
+func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_WithNextBillingMessage(t *testing.T) {
 	ctx := context.Background()
-	activityCalled := false
+	var createdDonation *model.Donation
+	var patchedSubID string
+	var patchedMessage *string
 
 	obj := pkgstripe.WebhookEventObject{
-		ID:           "in_nomsg",
-		Amount:       1000,
+		ID:           "in_msg",
+		Amount:       2000,
 		Currency:     "jpy",
-		Subscription: "sub_nomsg",
+		Subscription: "sub_msg",
 	}
-	event := pkgstripe.WebhookEvent{Type: "invoice.payment_succeeded", ID: "evt_inv2"}
+	event := pkgstripe.WebhookEvent{Type: "invoice.payment_succeeded", ID: "evt_inv_msg"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	subscriptionRepo := &mockStripeSubscriptionRepo{
+		getByStripeSubscriptionIDFunc: func(_ context.Context, subID string) (*model.Subscription, error) {
+			return &model.Subscription{
+				ID: "s2", ProjectID: "proj-1", DonorType: "user", DonorID: "user-1",
+				Amount: 2000, Currency: "jpy",
+				StripeSubscriptionID: "sub_msg",
+				NextBillingMessage:   "今月もよろしく",
+			}, nil
+		},
+		patchFunc: func(_ context.Context, id string, patch model.SubscriptionPatch) error {
+			patchedSubID = id
+			patchedMessage = patch.NextBillingMessage
+			return nil
+		},
+	}
+	donationRepo := &mockStripeDonationRepo{
+		createFunc: func(_ context.Context, d *model.Donation) error {
+			createdDonation = d
+			return nil
+		},
+	}
+	svc := newTestStripeServiceWithSubscriptionRepo(stripeClient, &mockStripeProjectRepo{}, donationRepo, subscriptionRepo, &mockStripeActivityRecorder{})
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Donation should carry the next_billing_message
+	if createdDonation == nil {
+		t.Fatal("expected donation to be created")
+	}
+	if createdDonation.Message != "今月もよろしく" {
+		t.Errorf("expected message='今月もよろしく', got %q", createdDonation.Message)
+	}
+
+	// next_billing_message should be cleared on subscription
+	if patchedSubID != "s2" {
+		t.Errorf("expected patch on subscription s2, got %q", patchedSubID)
+	}
+	if patchedMessage == nil || *patchedMessage != "" {
+		t.Errorf("expected next_billing_message to be cleared, got %v", patchedMessage)
+	}
+}
+
+func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_FallbackDonationRepo(t *testing.T) {
+	ctx := context.Background()
+	var createdDonation *model.Donation
+	var patchedID string
+	var patchedMessage *string
+
+	obj := pkgstripe.WebhookEventObject{
+		ID:           "in_fallback",
+		Amount:       1500,
+		Currency:     "jpy",
+		Subscription: "sub_old",
+	}
+	event := pkgstripe.WebhookEvent{Type: "invoice.payment_succeeded", ID: "evt_inv_fb"}
 	event.Data.Object = obj
 
 	stripeClient := &mockStripeClient{
@@ -906,25 +1026,79 @@ func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_NoMessage_SkipsAct
 	donationRepo := &mockStripeDonationRepo{
 		getByStripeSubscriptionIDFunc: func(_ context.Context, subID string) (*model.Donation, error) {
 			return &model.Donation{
-				ID: "d2", ProjectID: "proj-2", DonorType: "user", DonorID: "user-2",
-				IsRecurring: true, StripeSubscriptionID: "sub_nomsg",
-				NextBillingMessage: "", // no message
+				ID: "d1", ProjectID: "proj-2", DonorType: "user", DonorID: "user-2",
+				Amount: 1500, Currency: "jpy",
+				StripeSubscriptionID: "sub_old",
+				NextBillingMessage:   "メッセージ",
 			}, nil
 		},
-	}
-	activityRecorder := &mockStripeActivityRecorder{
-		insertFunc: func(_ context.Context, a *model.ActivityItem) error {
-			activityCalled = true
+		createFunc: func(_ context.Context, d *model.Donation) error {
+			createdDonation = d
+			return nil
+		},
+		patchFunc: func(_ context.Context, id string, patch model.DonationPatch) error {
+			patchedID = id
+			patchedMessage = patch.NextBillingMessage
 			return nil
 		},
 	}
-	svc := newTestStripeServiceWithActivity(stripeClient, &mockStripeProjectRepo{}, donationRepo, activityRecorder)
+	// No subscriptionRepo — fallback to donationRepo
+	svc := newTestStripeServiceWithActivity(stripeClient, &mockStripeProjectRepo{}, donationRepo, &mockStripeActivityRecorder{})
 
 	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if activityCalled {
-		t.Error("expected no activity when next_billing_message is empty")
+
+	if createdDonation == nil {
+		t.Fatal("expected donation to be created via fallback")
+	}
+	if createdDonation.Source != "subscription_renewal" {
+		t.Errorf("expected Source=subscription_renewal, got %q", createdDonation.Source)
+	}
+
+	// next_billing_message should be cleared on original donation
+	if patchedID != "d1" {
+		t.Errorf("expected patch on donation d1, got %q", patchedID)
+	}
+	if patchedMessage == nil || *patchedMessage != "" {
+		t.Errorf("expected next_billing_message to be cleared, got %v", patchedMessage)
+	}
+}
+
+func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_Idempotent(t *testing.T) {
+	ctx := context.Background()
+
+	obj := pkgstripe.WebhookEventObject{
+		ID:           "in_dup",
+		Amount:       2000,
+		Currency:     "jpy",
+		Subscription: "sub_dup",
+	}
+	event := pkgstripe.WebhookEvent{Type: "invoice.payment_succeeded", ID: "evt_inv_dup"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	subscriptionRepo := &mockStripeSubscriptionRepo{
+		getByStripeSubscriptionIDFunc: func(_ context.Context, _ string) (*model.Subscription, error) {
+			return &model.Subscription{
+				ID: "s1", ProjectID: "proj-1", DonorType: "user", DonorID: "user-1",
+				Amount: 2000, Currency: "jpy", StripeSubscriptionID: "sub_dup",
+			}, nil
+		},
+	}
+	donationRepo := &mockStripeDonationRepo{
+		createFunc: func(_ context.Context, _ *model.Donation) error {
+			return repository.ErrDuplicate // simulate duplicate invoice
+		},
+	}
+	svc := newTestStripeServiceWithSubscriptionRepo(stripeClient, &mockStripeProjectRepo{}, donationRepo, subscriptionRepo, nil)
+
+	// Duplicate should be silently ignored
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("expected no error for duplicate invoice, got: %v", err)
 	}
 }
 
@@ -949,5 +1123,115 @@ func TestStripeService_ProcessWebhook_InvoicePaymentSucceeded_NoSubscription_Ski
 	// No subscription → just ignore
 	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests: subscription.created with subscriptionRepo
+// ---------------------------------------------------------------------------
+
+func TestStripeService_ProcessWebhook_SubscriptionCreated_WithSubscriptionRepo(t *testing.T) {
+	ctx := context.Background()
+	var createdSub *model.Subscription
+	var createdDonation *model.Donation
+
+	obj := pkgstripe.WebhookEventObject{
+		ID: "sub_new",
+		Metadata: map[string]string{
+			"project_id": "proj-3",
+			"donor_type": "user",
+			"donor_id":   "user-3",
+			"message":    "毎月応援",
+		},
+		Plan: &struct {
+			Amount   int    `json:"amount"`
+			Currency string `json:"currency"`
+		}{Amount: 3000, Currency: "jpy"},
+	}
+	event := pkgstripe.WebhookEvent{Type: "customer.subscription.created", ID: "evt_sub_new"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	subscriptionRepo := &mockStripeSubscriptionRepo{
+		createFunc: func(_ context.Context, s *model.Subscription) error {
+			s.ID = "sub-table-id"
+			createdSub = s
+			return nil
+		},
+	}
+	donationRepo := &mockStripeDonationRepo{
+		createFunc: func(_ context.Context, d *model.Donation) error {
+			createdDonation = d
+			return nil
+		},
+	}
+	svc := newTestStripeServiceWithSubscriptionRepo(stripeClient, &mockStripeProjectRepo{}, donationRepo, subscriptionRepo, nil)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if createdSub == nil {
+		t.Fatal("expected subscription to be created")
+	}
+	if createdSub.ProjectID != "proj-3" {
+		t.Errorf("expected sub ProjectID=proj-3, got %q", createdSub.ProjectID)
+	}
+	if createdSub.Amount != 3000 {
+		t.Errorf("expected sub Amount=3000, got %d", createdSub.Amount)
+	}
+	if createdSub.StripeSubscriptionID != "sub_new" {
+		t.Errorf("expected sub StripeSubscriptionID=sub_new, got %q", createdSub.StripeSubscriptionID)
+	}
+
+	if createdDonation == nil {
+		t.Fatal("expected donation to be created")
+	}
+	if createdDonation.SubscriptionID != "sub-table-id" {
+		t.Errorf("expected donation SubscriptionID=sub-table-id, got %q", createdDonation.SubscriptionID)
+	}
+	if createdDonation.Source != "checkout" {
+		t.Errorf("expected donation Source=checkout, got %q", createdDonation.Source)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests: subscription.deleted with subscriptionRepo
+// ---------------------------------------------------------------------------
+
+func TestStripeService_ProcessWebhook_SubscriptionDeleted_WithSubscriptionRepo(t *testing.T) {
+	ctx := context.Background()
+	var deletedSubID string
+
+	obj := pkgstripe.WebhookEventObject{ID: "sub_cancel"}
+	event := pkgstripe.WebhookEvent{Type: "customer.subscription.deleted", ID: "evt_del2"}
+	event.Data.Object = obj
+
+	stripeClient := &mockStripeClient{
+		verifyWebhookSignatureFunc: func(_ []byte, _ string) error { return nil },
+		parseWebhookEventFunc:      func(_ []byte) (pkgstripe.WebhookEvent, error) { return event, nil },
+	}
+	subscriptionRepo := &mockStripeSubscriptionRepo{
+		deleteByStripeSubscriptionIDFunc: func(_ context.Context, subID string) error {
+			deletedSubID = subID
+			return nil
+		},
+	}
+	donationRepo := &mockStripeDonationRepo{
+		deleteBySubscriptionIDFunc: func(_ context.Context, _ string) error {
+			t.Error("donationRepo.DeleteByStripeSubscriptionID should not be called when subscriptionRepo is set")
+			return nil
+		},
+	}
+	svc := newTestStripeServiceWithSubscriptionRepo(stripeClient, &mockStripeProjectRepo{}, donationRepo, subscriptionRepo, nil)
+
+	if err := svc.ProcessWebhook(ctx, []byte(`{}`), "valid-sig"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if deletedSubID != "sub_cancel" {
+		t.Errorf("expected deleted sub_cancel, got %q", deletedSubID)
 	}
 }

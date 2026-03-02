@@ -48,6 +48,9 @@ export default function NewProjectCta({ locale, newProjectUrl }: Props) {
         open={showLogin}
         locale={locale}
         onClose={() => setShowLogin(false)}
+        returnUrl={
+          typeof window !== "undefined" ? window.location.pathname : undefined
+        }
       />
     </>
   );

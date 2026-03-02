@@ -38,6 +38,14 @@ type StripeDonationRepo interface {
 	Patch(ctx context.Context, id string, patch model.DonationPatch) error
 }
 
+// StripeSubscriptionRepo は Webhook イベントでサブスクリプションを操作するためのインターフェース
+type StripeSubscriptionRepo interface {
+	Create(ctx context.Context, s *model.Subscription) error
+	GetByStripeSubscriptionID(ctx context.Context, stripeSubID string) (*model.Subscription, error)
+	DeleteByStripeSubscriptionID(ctx context.Context, stripeSubID string) error
+	Patch(ctx context.Context, id string, patch model.SubscriptionPatch) error
+}
+
 // StripeActivityRecorder は寄付確定時にアクティビティを記録するためのミニマムインターフェース
 type StripeActivityRecorder interface {
 	Insert(ctx context.Context, a *model.ActivityItem) error
@@ -67,6 +75,7 @@ type StripeServiceImpl struct {
 	client             pkgstripe.Client
 	projectRepo        StripeProjectRepo
 	donationRepo       StripeDonationRepo
+	subscriptionRepo   StripeSubscriptionRepo  // optional, nil = fallback to donationRepo
 	activityRecorder   StripeActivityRecorder  // optional, nil = skip
 	milestoneNotifier  StripeMilestoneNotifier // optional, nil = skip
 	frontendURL        string
@@ -88,6 +97,19 @@ func NewStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripePro
 		client:            client,
 		projectRepo:       projectRepo,
 		donationRepo:      donationRepo,
+		activityRecorder:  activityRecorder,
+		milestoneNotifier: milestoneNotifier,
+		frontendURL:       frontendURL,
+	}
+}
+
+// NewStripeServiceFull は全依存関係付きの StripeServiceImpl を生成する
+func NewStripeServiceFull(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, subscriptionRepo StripeSubscriptionRepo, frontendURL string, activityRecorder StripeActivityRecorder, milestoneNotifier StripeMilestoneNotifier) StripeService {
+	return &StripeServiceImpl{
+		client:            client,
+		projectRepo:       projectRepo,
+		donationRepo:      donationRepo,
+		subscriptionRepo:  subscriptionRepo,
 		activityRecorder:  activityRecorder,
 		milestoneNotifier: milestoneNotifier,
 		frontendURL:       frontendURL,
@@ -275,6 +297,25 @@ func (s *StripeServiceImpl) handleSubscriptionCreated(ctx context.Context, event
 		currency = "jpy"
 	}
 
+	// Create subscription management record
+	var subscriptionID string
+	if s.subscriptionRepo != nil {
+		sub := &model.Subscription{
+			ProjectID:            projectID,
+			DonorType:            donorType,
+			DonorID:              donorID,
+			Amount:               amount,
+			Currency:             currency,
+			Message:              obj.Metadata["message"],
+			StripeSubscriptionID: obj.ID,
+		}
+		if err := s.subscriptionRepo.Create(ctx, sub); err != nil && !errors.Is(err, repository.ErrDuplicate) {
+			return err
+		}
+		subscriptionID = sub.ID
+	}
+
+	// Create initial donation record
 	d := &model.Donation{
 		ProjectID:            projectID,
 		DonorType:            donorType,
@@ -283,6 +324,8 @@ func (s *StripeServiceImpl) handleSubscriptionCreated(ctx context.Context, event
 		Currency:             currency,
 		Message:              obj.Metadata["message"],
 		IsRecurring:          true,
+		Source:               "checkout",
+		SubscriptionID:       subscriptionID,
 		StripeSubscriptionID: obj.ID,
 	}
 	if err := s.donationRepo.Create(ctx, d); err != nil && !errors.Is(err, repository.ErrDuplicate) {
@@ -324,10 +367,15 @@ func (s *StripeServiceImpl) handleSubscriptionDeleted(ctx context.Context, event
 	if subscriptionID == "" {
 		return errors.New("stripe webhook: customer.subscription.deleted missing subscription ID")
 	}
+	// Delete from subscriptions table (donation history is preserved)
+	if s.subscriptionRepo != nil {
+		return s.subscriptionRepo.DeleteByStripeSubscriptionID(ctx, subscriptionID)
+	}
+	// Fallback to old behavior if subscriptionRepo not configured
 	return s.donationRepo.DeleteByStripeSubscriptionID(ctx, subscriptionID)
 }
 
-// handleInvoicePaymentSucceeded はサブスクの請求成功時に next_billing_message をアクティビティに記録してクリアする (#19)
+// handleInvoicePaymentSucceeded はサブスクの請求成功時に寄付レコードを作成し、アクティビティを記録する
 func (s *StripeServiceImpl) handleInvoicePaymentSucceeded(ctx context.Context, event pkgstripe.WebhookEvent) error {
 	obj := event.Data.Object
 	subscriptionID := obj.Subscription
@@ -335,21 +383,86 @@ func (s *StripeServiceImpl) handleInvoicePaymentSucceeded(ctx context.Context, e
 		return nil // one-time invoice, skip
 	}
 
-	d, err := s.donationRepo.GetByStripeSubscriptionID(ctx, subscriptionID)
-	if err != nil || d == nil {
-		return nil // donation not found, skip silently
+	// Look up subscription info (prefer subscriptionRepo, fallback to donationRepo)
+	var projectID, donorType, donorID, message string
+	var amount int
+	var currency string
+	var subTableID string // subscription table ID for FK
+
+	if s.subscriptionRepo != nil {
+		sub, err := s.subscriptionRepo.GetByStripeSubscriptionID(ctx, subscriptionID)
+		if err != nil || sub == nil {
+			return nil // subscription not found, skip silently
+		}
+		projectID = sub.ProjectID
+		donorType = sub.DonorType
+		donorID = sub.DonorID
+		amount = sub.Amount
+		currency = sub.Currency
+		message = sub.NextBillingMessage
+		subTableID = sub.ID
+	} else {
+		d, err := s.donationRepo.GetByStripeSubscriptionID(ctx, subscriptionID)
+		if err != nil || d == nil {
+			return nil // donation not found, skip silently
+		}
+		projectID = d.ProjectID
+		donorType = d.DonorType
+		donorID = d.DonorID
+		amount = d.Amount
+		currency = d.Currency
+		message = d.NextBillingMessage
 	}
 
-	if d.NextBillingMessage == "" {
-		return nil // no message to record
+	// Override amount/currency from invoice if provided
+	if obj.Amount > 0 {
+		amount = obj.Amount
+	}
+	if obj.Currency != "" {
+		currency = obj.Currency
+	}
+	if currency == "" {
+		currency = "jpy"
 	}
 
-	// Record activity with the message
-	s.recordDonationActivity(ctx, d.ProjectID, d.DonorID, d.Amount, d.NextBillingMessage)
+	// Determine message: next_billing_message takes priority, then subscription original message
+	donationMessage := message
 
-	// Clear next_billing_message
-	empty := ""
-	_ = s.donationRepo.Patch(ctx, d.ID, model.DonationPatch{NextBillingMessage: &empty})
+	// Create donation record for this renewal
+	d := &model.Donation{
+		ProjectID:            projectID,
+		DonorType:            donorType,
+		DonorID:              donorID,
+		Amount:               amount,
+		Currency:             currency,
+		Message:              donationMessage,
+		IsRecurring:          true,
+		Source:               "subscription_renewal",
+		SubscriptionID:       subTableID,
+		StripeSubscriptionID: subscriptionID,
+		StripeInvoiceID:      obj.ID,
+	}
+	if err := s.donationRepo.Create(ctx, d); err != nil && !errors.Is(err, repository.ErrDuplicate) {
+		return err
+	}
+
+	// Record activity and notify milestone
+	s.recordDonationActivity(ctx, projectID, donorID, amount, donationMessage)
+	s.notifyMilestone(ctx, projectID)
+
+	// Clear next_billing_message on subscription (if it was set)
+	if message != "" {
+		empty := ""
+		if s.subscriptionRepo != nil && subTableID != "" {
+			_ = s.subscriptionRepo.Patch(ctx, subTableID, model.SubscriptionPatch{NextBillingMessage: &empty})
+		} else {
+			// fallback: clear on donation record
+			orig, _ := s.donationRepo.GetByStripeSubscriptionID(ctx, subscriptionID)
+			if orig != nil {
+				_ = s.donationRepo.Patch(ctx, orig.ID, model.DonationPatch{NextBillingMessage: &empty})
+			}
+		}
+	}
 
 	return nil
 }

@@ -2,15 +2,15 @@ import { useEffect, useState } from "react";
 import {
   getMe,
   getMyDonations,
-  getMyRecurringDonations,
+  getMySubscriptions,
   getMyProjects,
   getWatchedProjects,
   unwatchProject,
   updateProject,
-  updateRecurringDonation,
-  pauseRecurringDonation,
-  resumeRecurringDonation,
-  deleteRecurringDonation,
+  updateSubscription,
+  pauseSubscription,
+  resumeSubscription,
+  deleteSubscription,
   type User,
   type Donation,
   type RecurringDonation,
@@ -152,7 +152,7 @@ export default function MePage({
     if (me) {
       const [d, r, p, w] = await Promise.all([
         getMyDonations(),
-        getMyRecurringDonations(),
+        getMySubscriptions(),
         getMyProjects(),
         getWatchedProjects(),
       ]);
@@ -205,15 +205,14 @@ export default function MePage({
     setSavingRecurringId(id);
     try {
       const current = recurring.find((r) => r.id === id);
-      await updateRecurringDonation(id, {
+      await updateSubscription(id, {
         amount: editRecurringAmount,
-        interval: editRecurringInterval,
         next_billing_message:
           editRecurringNextMsg !== (current?.next_billing_message ?? "")
             ? editRecurringNextMsg
             : undefined,
       });
-      setRecurring(await getMyRecurringDonations());
+      setRecurring(await getMySubscriptions());
       setEditingRecurringId(null);
     } finally {
       setSavingRecurringId(null);
@@ -223,11 +222,11 @@ export default function MePage({
   const handlePauseResumeRecurring = async (r: RecurringDonation) => {
     try {
       if (r.status === "paused") {
-        await resumeRecurringDonation(r.id);
+        await resumeSubscription(r.id);
       } else {
-        await pauseRecurringDonation(r.id);
+        await pauseSubscription(r.id);
       }
-      setRecurring(await getMyRecurringDonations());
+      setRecurring(await getMySubscriptions());
     } catch (e) {
       // ignore
     }
@@ -238,8 +237,8 @@ export default function MePage({
     if (!id) return;
     setDeleteConfirmRecurringId(null);
     try {
-      await deleteRecurringDonation(id);
-      setRecurring(await getMyRecurringDonations());
+      await deleteSubscription(id);
+      setRecurring(await getMySubscriptions());
       if (editingRecurringId === id) setEditingRecurringId(null);
     } catch (e) {
       // ignore

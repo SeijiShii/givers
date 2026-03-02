@@ -47,6 +47,7 @@ func main() {
 	projectUpdateRepo := repository.NewPgProjectUpdateRepository(pool)
 	platformHealthRepo := repository.NewPgPlatformHealthRepository(pool)
 	donationRepo := repository.NewPgDonationRepository(pool)
+	subscriptionRepo := repository.NewPgSubscriptionRepository(pool)
 	activityRepo := repository.NewPgActivityRepository(pool)
 	costPresetRepo := repository.NewPgCostPresetRepository(pool)
 	sessionRepo := repository.NewPgSessionRepository(pool)
@@ -66,8 +67,9 @@ func main() {
 	)
 	activityService := service.NewActivityService(activityRepo)
 	milestoneService := service.NewMilestoneService(projectRepo, donationRepo, activityRepo)
-	stripeService := service.NewStripeServiceWithActivity(stripeClient, projectRepo, donationRepo, frontendURL, activityRepo, milestoneService)
-	donationService := service.NewDonationService(donationRepo, stripeClient)
+	stripeService := service.NewStripeServiceFull(stripeClient, projectRepo, donationRepo, subscriptionRepo, frontendURL, activityRepo, milestoneService)
+	donationService := service.NewDonationService(donationRepo)
+	subscriptionService := service.NewSubscriptionService(subscriptionRepo, stripeClient)
 	costPresetService := service.NewCostPresetService(costPresetRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
@@ -112,10 +114,13 @@ func main() {
 	hostHandler := handler.NewHostHandler(platformHealthService)
 	adminUserHandler := handler.NewAdminUserHandler(adminUserService, projectService, donationRepo)
 	donationHandler := handler.NewDonationHandler(donationService)
+	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
 	activityHandler := handler.NewActivityHandler(activityService)
 	chartHandler := handler.NewChartHandler(projectService, donationRepo)
 	costPresetHandler := handler.NewCostPresetHandler(costPresetService)
 	messageHandler := handler.NewMessageHandler(donationService, projectService)
+	ownerDonationHandler := handler.NewOwnerDonationHandler(donationService, projectService)
+	badgeHandler := handler.NewBadgeHandler(projectService)
 
 	uploadsDir := os.Getenv("UPLOADS_DIR")
 	if uploadsDir == "" {
@@ -190,15 +195,22 @@ func main() {
 	mux.HandleFunc("GET /api/activity", activityHandler.GlobalFeed)
 	mux.HandleFunc("GET /api/projects/{id}/activity", activityHandler.ProjectFeed)
 	mux.HandleFunc("GET /api/projects/{id}/chart", chartHandler.Chart)
+	mux.HandleFunc("GET /api/projects/{id}/badge.svg", badgeHandler.Badge)
 
 	// Project messages (owner or host auth required)
 	mux.Handle("GET /api/projects/{id}/messages", wrapAuth(http.HandlerFunc(messageHandler.List)))
 
+	// Owner donation history (owner or host auth required)
+	mux.Handle("GET /api/projects/{id}/donations", wrapAuth(http.HandlerFunc(ownerDonationHandler.List)))
+
 	// Donation routes (auth required)
 	mux.Handle("GET /api/me/donations", wrapAuth(http.HandlerFunc(donationHandler.List)))
-	mux.Handle("PATCH /api/me/donations/{id}", wrapAuth(http.HandlerFunc(donationHandler.Patch)))
-	mux.Handle("DELETE /api/me/donations/{id}", wrapAuth(http.HandlerFunc(donationHandler.Delete)))
 	mux.Handle("POST /api/me/migrate-from-token", wrapAuth(http.HandlerFunc(donationHandler.MigrateFromToken)))
+
+	// Subscription routes (auth required)
+	mux.Handle("GET /api/me/subscriptions", wrapAuth(http.HandlerFunc(subscriptionHandler.List)))
+	mux.Handle("PATCH /api/me/subscriptions/{id}", wrapAuth(http.HandlerFunc(subscriptionHandler.Patch)))
+	mux.Handle("DELETE /api/me/subscriptions/{id}", wrapAuth(http.HandlerFunc(subscriptionHandler.Delete)))
 
 	// Cost preset routes (auth required)
 	mux.Handle("GET /api/me/cost-presets", wrapAuth(http.HandlerFunc(costPresetHandler.List)))

@@ -12,8 +12,11 @@ type Donation struct {
 	Currency             string    `json:"currency"`
 	Message              string    `json:"message,omitempty"`
 	IsRecurring          bool      `json:"is_recurring"`
+	Source               string    `json:"source"`                    // "checkout" or "subscription_renewal"
+	SubscriptionID       string    `json:"subscription_id,omitempty"` // FK → subscriptions.id
 	StripePaymentID      string    `json:"-"`
 	StripeSubscriptionID string    `json:"-"`
+	StripeInvoiceID      string    `json:"-"`
 	Paused               bool      `json:"paused"`
 	NextBillingMessage   string    `json:"next_billing_message,omitempty"`
 	CreatedAt            time.Time `json:"created_at"`
@@ -54,6 +57,25 @@ type DonationMessage struct {
 type DonationMessageResult struct {
 	Messages []*DonationMessage `json:"messages"`
 	Total    int                `json:"total"`
+}
+
+// OwnerDonationItem represents a donation record as seen by the project owner.
+type OwnerDonationItem struct {
+	ID          string    `json:"id"`
+	DonorName   *string   `json:"donor_name"`
+	DonorType   string    `json:"donor_type"`
+	Amount      int       `json:"amount"`
+	Currency    string    `json:"currency"`
+	Message     *string   `json:"message"`
+	Source      string    `json:"source"` // "checkout" or "subscription_renewal"
+	IsRecurring bool      `json:"is_recurring"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// OwnerDonationResult holds a page of owner donation items with total count.
+type OwnerDonationResult struct {
+	Donations []*OwnerDonationItem `json:"donations"`
+	Total     int                  `json:"total"`
 }
 
 // ActivityItem represents a single entry in the activity feed.

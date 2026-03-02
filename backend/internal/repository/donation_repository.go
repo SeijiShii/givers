@@ -34,4 +34,7 @@ type DonationRepository interface {
 	// ListMessagesByProject returns donation messages with donor names for a project.
 	// sort must be "asc" or "desc". donor is a partial-match filter on display name.
 	ListMessagesByProject(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
+	// ListByProjectForOwner returns donations for a project with donor names, for owner viewing.
+	// Supports pagination, sorting, source filtering, and donor name filtering.
+	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error)
 }

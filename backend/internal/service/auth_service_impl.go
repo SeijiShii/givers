@@ -21,6 +21,9 @@ func NewAuthService(userRepo repository.UserRepository) AuthService {
 
 // GetOrCreateUserFromGoogle は Google ユーザー情報からユーザーを取得または作成する
 func (s *AuthServiceImpl) GetOrCreateUserFromGoogle(ctx context.Context, info *GoogleUserInfo) (*model.User, error) {
+	if info.Sub == "" {
+		return nil, fmt.Errorf("google user ID (sub) is empty")
+	}
 	slog.Debug("get or create google user", "sub", info.Sub, "email", info.Email, "name", info.Name)
 
 	u, err := s.userRepo.FindByGoogleID(ctx, info.Sub)
@@ -56,6 +59,9 @@ func (s *AuthServiceImpl) GetOrCreateUserFromGoogle(ctx context.Context, info *G
 
 // GetOrCreateUserFromGitHub は GitHub ユーザー情報からユーザーを取得または作成する
 func (s *AuthServiceImpl) GetOrCreateUserFromGitHub(ctx context.Context, info *GitHubUserInfo) (*model.User, error) {
+	if info.ID == 0 {
+		return nil, fmt.Errorf("github user ID is zero")
+	}
 	githubID := fmt.Sprintf("%d", info.ID)
 	u, err := s.userRepo.FindByGitHubID(ctx, githubID)
 	if err == nil {
@@ -95,6 +101,9 @@ func (s *AuthServiceImpl) GetOrCreateUserFromGitHub(ctx context.Context, info *G
 
 // GetOrCreateUserFromDiscord は Discord ユーザー情報からユーザーを取得または作成する
 func (s *AuthServiceImpl) GetOrCreateUserFromDiscord(ctx context.Context, info *DiscordUserInfo) (*model.User, error) {
+	if info.ID == "" {
+		return nil, fmt.Errorf("discord user ID is empty")
+	}
 	u, err := s.userRepo.FindByDiscordID(ctx, info.ID)
 	if err == nil {
 		return u, nil

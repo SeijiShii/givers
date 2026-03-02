@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -22,10 +23,16 @@ import (
 
 // ── Server-side OAuth state & one-time code storage ──────────────────────
 
+// oauthStateInfo stores metadata associated with an OAuth state token.
+type oauthStateInfo struct {
+	Expiry    time.Time
+	ReturnURL string // optional: redirect destination after login
+}
+
 // pendingStates stores OAuth state tokens server-side (replaces cookie-based state).
 // This avoids cross-port cookie issues when the OAuth callback goes directly to
 // the backend (:8080) but the state cookie was set via the Vite proxy (:4321).
-var pendingStates sync.Map // state string → time.Time (expiry)
+var pendingStates sync.Map // state string → oauthStateInfo
 
 // pendingCodes stores one-time auth codes that relay session tokens through the
 // Vite dev proxy so the session cookie is set on the frontend's origin (:4321).
@@ -37,16 +44,24 @@ func generateRandomString() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-func storeOAuthState(state string) {
-	pendingStates.Store(state, time.Now().Add(10*time.Minute))
+func storeOAuthState(state, returnURL string) {
+	pendingStates.Store(state, oauthStateInfo{
+		Expiry:    time.Now().Add(10 * time.Minute),
+		ReturnURL: returnURL,
+	})
 }
 
-func verifyAndDeleteOAuthState(state string) bool {
+// verifyAndDeleteOAuthState verifies the state and returns (returnURL, ok).
+func verifyAndDeleteOAuthState(state string) (string, bool) {
 	val, ok := pendingStates.LoadAndDelete(state)
 	if !ok {
-		return false
+		return "", false
 	}
-	return time.Now().Before(val.(time.Time))
+	info := val.(oauthStateInfo)
+	if time.Now().After(info.Expiry) {
+		return "", false
+	}
+	return info.ReturnURL, true
 }
 
 func storeOneTimeCode(code, sessionToken string) {
@@ -174,19 +189,21 @@ func NewAuthHandler(authService service.AuthService, cfg AuthConfig, sessionSvc 
 
 // ── Google OAuth ─────────────────────────────────────────────────────────
 
-// googleUserInfo は Google userinfo API のレスポンス
+// googleUserInfo は Google userinfo v2 API のレスポンス
+// v2 API は "id" を返す（"sub" は v3/OpenID Connect のフィールド名）
 type googleUserInfo struct {
-	Sub   string `json:"sub"`
+	ID    string `json:"id"`
 	Email string `json:"email"`
 	Name  string `json:"name"`
 }
 
 // GoogleLoginURL は Google OAuth の認証 URL を返す（GET /api/auth/google/login）
 func (h *AuthHandler) GoogleLoginURL(w http.ResponseWriter, r *http.Request) {
+	returnURL := r.URL.Query().Get("return_url")
 	state := generateRandomString()
-	storeOAuthState(state)
-	url := h.googleConfig.AuthCodeURL(state)
-	slog.Debug("google login url", "redirect_url", h.googleConfig.RedirectURL, "client_id_prefix", h.googleConfig.ClientID[:8])
+	storeOAuthState(state, returnURL)
+	url := h.googleConfig.AuthCodeURL(state, oauth2.SetAuthURLParam("prompt", "select_account"))
+	slog.Debug("google login url", "redirect_url", h.googleConfig.RedirectURL, "client_id_prefix", truncate(h.googleConfig.ClientID, 8))
 	slog.Debug("google login url: state stored", "state_prefix", state[:8], "auth_url_length", len(url))
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"url": url})
@@ -201,7 +218,8 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Server-side state verification (no cookies needed)
 	queryState := r.URL.Query().Get("state")
-	if !verifyAndDeleteOAuthState(queryState) {
+	returnURL, stateOK := verifyAndDeleteOAuthState(queryState)
+	if !stateOK {
 		slog.Warn("google callback: state verification failed", "state_prefix", truncate(queryState, 8))
 		http.Redirect(w, r, h.frontendURL+"/?error=invalid_state", http.StatusFound)
 		return
@@ -240,10 +258,10 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, h.frontendURL+"/?error=decode_failed", http.StatusFound)
 		return
 	}
-	slog.Debug("google callback: userinfo ok", "sub", info.Sub, "email", info.Email, "name", info.Name)
+	slog.Debug("google callback: userinfo ok", "id", info.ID, "email", info.Email, "name", info.Name)
 
 	user, err := h.authService.GetOrCreateUserFromGoogle(r.Context(), &service.GoogleUserInfo{
-		Sub:   info.Sub,
+		Sub:   info.ID,
 		Email: info.Email,
 		Name:  info.Name,
 	})
@@ -266,17 +284,21 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	// is set on the frontend's origin (localhost:4321), not the backend's (localhost:8080).
 	oneTimeCode := generateRandomString()
 	storeOneTimeCode(oneTimeCode, session.Token)
-	redirectURL := h.frontendURL + "/api/auth/finalize?code=" + oneTimeCode
+	finalizeURL := h.frontendURL + "/api/auth/finalize?code=" + oneTimeCode
+	if returnURL != "" {
+		finalizeURL += "&return_url=" + url.QueryEscape(returnURL)
+	}
 	slog.Info("google oauth login success")
-	http.Redirect(w, r, redirectURL, http.StatusFound)
+	http.Redirect(w, r, finalizeURL, http.StatusFound)
 }
 
 // ── GitHub OAuth ─────────────────────────────────────────────────────────
 
 // GitHubLoginURL は GitHub OAuth の認証 URL を返す（GET /api/auth/github/login）
 func (h *AuthHandler) GitHubLoginURL(w http.ResponseWriter, r *http.Request) {
+	returnURL := r.URL.Query().Get("return_url")
 	state := generateRandomString()
-	storeOAuthState(state)
+	storeOAuthState(state, returnURL)
 	url := h.githubConfig.AuthCodeURL(state)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"url": url})
@@ -295,7 +317,8 @@ func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("github callback start", "url", r.URL.String())
 
 	queryState := r.URL.Query().Get("state")
-	if !verifyAndDeleteOAuthState(queryState) {
+	returnURL, stateOK := verifyAndDeleteOAuthState(queryState)
+	if !stateOK {
 		slog.Warn("github callback: state verification failed")
 		http.Redirect(w, r, h.frontendURL+"/?error=invalid_state", http.StatusFound)
 		return
@@ -370,7 +393,11 @@ func (h *AuthHandler) GitHubCallback(w http.ResponseWriter, r *http.Request) {
 	// One-time code relay (same as Google)
 	oneTimeCode := generateRandomString()
 	storeOneTimeCode(oneTimeCode, session.Token)
-	http.Redirect(w, r, h.frontendURL+"/api/auth/finalize?code="+oneTimeCode, http.StatusFound)
+	finalizeURL := h.frontendURL + "/api/auth/finalize?code=" + oneTimeCode
+	if returnURL != "" {
+		finalizeURL += "&return_url=" + url.QueryEscape(returnURL)
+	}
+	http.Redirect(w, r, finalizeURL, http.StatusFound)
 }
 
 // ── Discord OAuth ────────────────────────────────────────────────────────
@@ -388,8 +415,9 @@ func (h *AuthHandler) DiscordLoginURL(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Discord login not configured", http.StatusNotFound)
 		return
 	}
+	returnURL := r.URL.Query().Get("return_url")
 	state := generateRandomString()
-	storeOAuthState(state)
+	storeOAuthState(state, returnURL)
 	url := h.discordConfig.AuthCodeURL(state)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"url": url})
@@ -403,7 +431,8 @@ func (h *AuthHandler) DiscordCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	queryState := r.URL.Query().Get("state")
-	if !verifyAndDeleteOAuthState(queryState) {
+	returnURL, stateOK := verifyAndDeleteOAuthState(queryState)
+	if !stateOK {
 		http.Redirect(w, r, h.frontendURL+"/?error=invalid_state", http.StatusFound)
 		return
 	}
@@ -454,8 +483,12 @@ func (h *AuthHandler) DiscordCallback(w http.ResponseWriter, r *http.Request) {
 
 	oneTimeCode := generateRandomString()
 	storeOneTimeCode(oneTimeCode, session.Token)
+	finalizeURL := h.frontendURL + "/api/auth/finalize?code=" + oneTimeCode
+	if returnURL != "" {
+		finalizeURL += "&return_url=" + url.QueryEscape(returnURL)
+	}
 	slog.Info("discord oauth login success")
-	http.Redirect(w, r, h.frontendURL+"/api/auth/finalize?code="+oneTimeCode, http.StatusFound)
+	http.Redirect(w, r, finalizeURL, http.StatusFound)
 }
 
 // ── Finalize (code relay) ────────────────────────────────────────────────
@@ -500,7 +533,12 @@ func (h *AuthHandler) FinalizeLogin(w http.ResponseWriter, r *http.Request) {
 	})
 	slog.Info("finalize login success", "cookie_name", cookie.Name, "max_age", cookie.MaxAge)
 
-	http.Redirect(w, r, h.frontendURL+"/", http.StatusFound)
+	// Redirect to return_url if provided and safe (must be a relative path)
+	redirect := "/"
+	if ru := r.URL.Query().Get("return_url"); ru != "" && strings.HasPrefix(ru, "/") && !strings.HasPrefix(ru, "//") {
+		redirect = ru
+	}
+	http.Redirect(w, r, h.frontendURL+redirect, http.StatusFound)
 }
 
 // ── Logout ───────────────────────────────────────────────────────────────

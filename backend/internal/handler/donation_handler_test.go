@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/givers/backend/internal/model"
-	"github.com/givers/backend/internal/repository"
 	"github.com/givers/backend/internal/service"
 	"github.com/givers/backend/pkg/auth"
 )
@@ -21,11 +20,9 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockDonationService struct {
-	listByUserFunc       func(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
-	patchFunc            func(ctx context.Context, id, userID string, patch model.DonationPatch) error
-	deleteFunc           func(ctx context.Context, id, userID string) error
-	migrateFunc          func(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error)
-	listProjectMsgsFunc  func(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
+	listByUserFunc      func(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
+	migrateFunc         func(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error)
+	listProjectMsgsFunc func(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
 }
 
 func (m *mockDonationService) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error) {
@@ -33,18 +30,6 @@ func (m *mockDonationService) ListByUser(ctx context.Context, userID string, lim
 		return m.listByUserFunc(ctx, userID, limit, offset)
 	}
 	return nil, nil
-}
-func (m *mockDonationService) Patch(ctx context.Context, id, userID string, patch model.DonationPatch) error {
-	if m.patchFunc != nil {
-		return m.patchFunc(ctx, id, userID, patch)
-	}
-	return nil
-}
-func (m *mockDonationService) Delete(ctx context.Context, id, userID string) error {
-	if m.deleteFunc != nil {
-		return m.deleteFunc(ctx, id, userID)
-	}
-	return nil
 }
 func (m *mockDonationService) MigrateToken(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error) {
 	if m.migrateFunc != nil {
@@ -58,6 +43,10 @@ func (m *mockDonationService) ListProjectMessages(ctx context.Context, projectID
 	}
 	return &model.DonationMessageResult{Messages: []*model.DonationMessage{}, Total: 0}, nil
 }
+func (m *mockDonationService) ListByProjectForOwner(_ context.Context, _ string, _, _ int, _, _, _ string) (*model.OwnerDonationResult, error) {
+	return &model.OwnerDonationResult{Donations: []*model.OwnerDonationItem{}, Total: 0}, nil
+}
+
 // helper: auth request for regular user
 func userAuthRequest(method, url, body string) *http.Request {
 	var r *http.Request
@@ -150,201 +139,6 @@ func TestDonationHandler_List_ServiceError(t *testing.T) {
 	h.List(rec, req)
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rec.Code)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// PATCH /api/me/donations/:id tests
-// ---------------------------------------------------------------------------
-
-func TestDonationHandler_Patch_RequiresAuth(t *testing.T) {
-	h := NewDonationHandler(&mockDonationService{})
-	req := httptest.NewRequest(http.MethodPatch, "/api/me/donations/d1",
-		strings.NewReader(`{"amount":2000}`))
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Patch(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", rec.Code)
-	}
-}
-
-func TestDonationHandler_Patch_Success(t *testing.T) {
-	var capturedID, capturedUserID string
-	var capturedPatch model.DonationPatch
-
-	mock := &mockDonationService{
-		patchFunc: func(ctx context.Context, id, userID string, patch model.DonationPatch) error {
-			capturedID = id
-			capturedUserID = userID
-			capturedPatch = patch
-			return nil
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := userAuthRequest(http.MethodPatch, "/api/me/donations/d1", `{"amount":2000,"paused":true}`)
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Patch(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
-	}
-	if capturedID != "d1" {
-		t.Errorf("expected id=d1, got %q", capturedID)
-	}
-	if capturedUserID != "user-1" {
-		t.Errorf("expected userID=user-1, got %q", capturedUserID)
-	}
-	if capturedPatch.Amount == nil || *capturedPatch.Amount != 2000 {
-		t.Error("expected amount=2000 in patch")
-	}
-}
-
-func TestDonationHandler_Patch_Forbidden(t *testing.T) {
-	mock := &mockDonationService{
-		patchFunc: func(ctx context.Context, id, userID string, patch model.DonationPatch) error {
-			return service.ErrForbidden
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := userAuthRequest(http.MethodPatch, "/api/me/donations/d1", `{"amount":2000}`)
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Patch(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", rec.Code)
-	}
-}
-
-func TestDonationHandler_Patch_NotFound(t *testing.T) {
-	mock := &mockDonationService{
-		patchFunc: func(ctx context.Context, id, userID string, patch model.DonationPatch) error {
-			return repository.ErrNotFound
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := userAuthRequest(http.MethodPatch, "/api/me/donations/d1", `{"amount":2000}`)
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Patch(rec, req)
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", rec.Code)
-	}
-}
-
-func TestDonationHandler_Patch_InvalidJSON(t *testing.T) {
-	h := NewDonationHandler(&mockDonationService{})
-	req := userAuthRequest(http.MethodPatch, "/api/me/donations/d1", `{bad`)
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Patch(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", rec.Code)
-	}
-}
-
-func TestDonationHandler_Patch_NextBillingMessage(t *testing.T) {
-	var capturedPatch model.DonationPatch
-
-	mock := &mockDonationService{
-		patchFunc: func(ctx context.Context, id, userID string, patch model.DonationPatch) error {
-			capturedPatch = patch
-			return nil
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := userAuthRequest(http.MethodPatch, "/api/me/donations/d1",
-		`{"next_billing_message":"今月もありがとうございます！"}`)
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Patch(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
-	}
-	if capturedPatch.NextBillingMessage == nil {
-		t.Fatal("expected NextBillingMessage to be set")
-	}
-	if *capturedPatch.NextBillingMessage != "今月もありがとうございます！" {
-		t.Errorf("expected message='今月もありがとうございます！', got %q", *capturedPatch.NextBillingMessage)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// DELETE /api/me/donations/:id tests
-// ---------------------------------------------------------------------------
-
-func TestDonationHandler_Delete_RequiresAuth(t *testing.T) {
-	h := NewDonationHandler(&mockDonationService{})
-	req := httptest.NewRequest(http.MethodDelete, "/api/me/donations/d1", nil)
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Delete(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", rec.Code)
-	}
-}
-
-func TestDonationHandler_Delete_Success(t *testing.T) {
-	var capturedID, capturedUserID string
-	mock := &mockDonationService{
-		deleteFunc: func(ctx context.Context, id, userID string) error {
-			capturedID = id
-			capturedUserID = userID
-			return nil
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := userAuthRequest(http.MethodDelete, "/api/me/donations/d1", "")
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Delete(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
-	}
-	if capturedID != "d1" || capturedUserID != "user-1" {
-		t.Errorf("unexpected id=%q or userID=%q", capturedID, capturedUserID)
-	}
-}
-
-func TestDonationHandler_Delete_Forbidden(t *testing.T) {
-	mock := &mockDonationService{
-		deleteFunc: func(ctx context.Context, id, userID string) error {
-			return service.ErrForbidden
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := userAuthRequest(http.MethodDelete, "/api/me/donations/d1", "")
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Delete(rec, req)
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", rec.Code)
-	}
-}
-
-func TestDonationHandler_Delete_NotFound(t *testing.T) {
-	mock := &mockDonationService{
-		deleteFunc: func(ctx context.Context, id, userID string) error {
-			return repository.ErrNotFound
-		},
-	}
-	h := NewDonationHandler(mock)
-
-	req := userAuthRequest(http.MethodDelete, "/api/me/donations/d1", "")
-	req.SetPathValue("id", "d1")
-	rec := httptest.NewRecorder()
-	h.Delete(rec, req)
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", rec.Code)
 	}
 }
 

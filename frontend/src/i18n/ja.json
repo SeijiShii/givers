@@ -234,7 +234,23 @@
     "subscriptionPaused": "休止中",
     "subscriptionNextMessage": "次回決済時のメッセージ",
     "subscriptionNextMessagePlaceholder": "次回決済時にアクティビティに表示されるメッセージ（任意）",
-    "subscriptionNextMessageSaved": "メッセージを保存しました"
+    "subscriptionNextMessageSaved": "メッセージを保存しました",
+    "tabDonationHistory": "寄付履歴",
+    "donationHistoryTitle": "寄付履歴一覧",
+    "donationHistoryEmpty": "寄付はまだありません",
+    "donationHistorySourceAll": "すべて",
+    "donationHistorySourceCheckout": "手動寄付",
+    "donationHistorySourceRenewal": "自動更新",
+    "donationHistoryFilterSource": "種別で絞り込み",
+    "donationHistoryFilterDonor": "寄付者で絞り込み",
+    "donationHistoryDonor": "寄付者",
+    "donationHistoryAmount": "金額",
+    "donationHistorySource": "種別",
+    "donationHistoryMessage": "メッセージ",
+    "donationHistoryDate": "日時",
+    "donationHistoryRecurring": "定期",
+    "donationHistoryOneTime": "単発",
+    "donationHistoryAnonymous": "匿名"
   },
   "admin": {
     "usersTitle": "ユーザー管理",
@@ -327,5 +343,11 @@
     "formHint": "SNSシェア時に表示されるデフォルトメッセージです",
     "copyLink": "リンクをコピー",
     "linkCopied": "コピーしました"
+  },
+  "badge": {
+    "title": "バッジ埋め込み",
+    "description": "GitHub の README やウェブサイトにバッジを埋め込めます",
+    "copy": "コピー",
+    "copied": "コピーしました"
   }
 }

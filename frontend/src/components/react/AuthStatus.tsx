@@ -311,6 +311,7 @@ export default function AuthStatus({ locale = "ja" }: Props) {
         open={showLoginDialog}
         locale={locale}
         onClose={() => setShowLoginDialog(false)}
+        returnUrl={typeof window !== "undefined" ? window.location.pathname : undefined}
       />
     </>
   );

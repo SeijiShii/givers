@@ -24,8 +24,9 @@
 | Method | Path | 認証 | 説明 |
 |--------|------|------|------|
 | GET | `/api/auth/providers` | 不要 | 有効な認証プロバイダ一覧（環境変数の有無で動的に返す） |
-| GET | `/api/auth/{provider}/login` | 不要 | OAuth 開始（provider = google \| github \| discord \| apple）。対応する認可 URL にリダイレクト |
+| GET | `/api/auth/{provider}/login` | 不要 | OAuth 開始（provider = google \| github \| discord \| apple）。対応する認可 URL にリダイレクト。クエリ `?return_url=/path` でログイン後のリダイレクト先を指定可能（相対パスのみ） |
 | GET | `/api/auth/{provider}/callback` | 不要 | OAuth コールバック。`code` を受け取り、ユーザー取得・セッション確立 |
+| GET | `/api/auth/finalize` | 不要 | ワンタイムコードをセッション Cookie に交換。`?return_url=/path` が指定されていればその画面にリダイレクト（未指定時は `/`） |
 | POST | `/api/auth/logout` | 必須 | ログアウト。sessions テーブルから該当行を削除、Cookie クリア |
 
 ### プロジェクト
@@ -79,6 +80,12 @@
 |--------|------|------|------|
 | GET | `/api/projects/:id/messages` | 必須（オーナー） | プロジェクトへの寄付メッセージ一覧（ソート・フィルタ対応） |
 
+### 寄付履歴（オーナー向け）
+
+| Method | Path | 認証 | 説明 |
+|--------|------|------|------|
+| GET | `/api/projects/:id/donations` | 必須（オーナーまたはホスト） | プロジェクトへの全寄付履歴（手動寄付 + 自動決済、メッセージ有無問わず） |
+
 ### チャート
 
 | Method | Path | 認証 | 説明 |
@@ -91,11 +98,12 @@
 |--------|------|------|------|
 | GET | `/api/me` | 必須 | 現在のユーザー情報 |
 | GET | `/api/me/projects` | 必須 | 自分のプロジェクト一覧（draft 含む） |
-| GET | `/api/me/donations` | 必須 | 自分の寄付履歴 |
-| PATCH | `/api/me/donations/:id` | 必須 | 定期寄付の編集（金額変更・一時停止・再開） |
-| DELETE | `/api/me/donations/:id` | 必須 | 定期寄付のキャンセル |
+| GET | `/api/me/donations` | 必須 | 自分の寄付履歴（全決済記録。手動寄付 + 自動決済） |
+| GET | `/api/me/subscriptions` | 必須 | 自分の定期寄付サブスクリプション一覧 |
+| PATCH | `/api/me/subscriptions/:id` | 必須 | 定期寄付の編集（金額変更・一時停止・再開・次回メッセージ設定） |
+| DELETE | `/api/me/subscriptions/:id` | 必須 | 定期寄付のキャンセル |
 | GET | `/api/me/watches` | 必須 | ウォッチ中のプロジェクト一覧 |
-| POST | `/api/me/migrate-from-token` | 必須 | 匿名トークンに紐づく寄付を現在ユーザーに移行（冪等。詳細は下記） |
+| POST | `/api/me/migrate-from-token` | 必須 | 匿名トークンに紐づく寄付・サブスクリプションを現在ユーザーに移行（冪等。詳細は下記） |
 
 ### 決済
 
@@ -267,7 +275,9 @@
 }
 ```
 
-### PATCH /api/me/donations/:id
+### PATCH /api/me/subscriptions/:id
+
+定期寄付サブスクリプションの編集（金額変更・一時停止・再開・次回メッセージ設定）。
 
 **リクエスト**（変更したいフィールドのみ）
 ```json
@@ -280,14 +290,29 @@
 
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
-| `amount` | int | 新しい金額（Stripe Subscription の price も更新される） |
-| `paused` | bool | 一時停止 / 再開 |
-| `next_billing_message` | string | 次回決済時にアクティビティに記録されるメッセージ。`invoice.payment_succeeded` webhook 処理時に使用→クリア |
+| `amount` | int | 新しい金額（Stripe Subscription の price も更新される。プロレーションなし） |
+| `paused` | bool | 一時停止（`true`）/ 再開（`false`）。Stripe の `pause_collection` を操作 |
+| `next_billing_message` | string | 次回自動決済時に寄付レコードの `message` として記録されるメッセージ。`invoice.payment_succeeded` webhook 処理時に使用→クリア |
 
 **レスポンス (200)**
 ```json
-{ "id": "...", "amount": 2000, "paused": true, "next_billing_message": "...", "..." : "..." }
+{
+  "id": "uuid",
+  "project_id": "uuid",
+  "amount": 2000,
+  "currency": "jpy",
+  "paused": true,
+  "next_billing_message": "次回もよろしくお願いします",
+  "created_at": "2026-02-15T10:00:00Z",
+  "updated_at": "2026-03-02T10:00:00Z"
+}
 ```
+
+### DELETE /api/me/subscriptions/:id
+
+定期寄付のキャンセル。Stripe Subscription をキャンセルし、`subscriptions` テーブルのレコードを削除する。過去の決済履歴（`donations` テーブル）は削除されない。
+
+**レスポンス (204)**: No Content
 
 ### GET /api/projects/:id/messages
 
@@ -322,6 +347,76 @@
 
 - メッセージが空の寄付は結果に含まない（`message IS NOT NULL AND message != ''`）
 - 匿名寄付者（`donor_type='token'`）は `donor_name` を `null` として返す
+
+### GET /api/projects/:id/donations
+
+プロジェクトへの全寄付履歴を返す（**オーナーまたはホスト認証必須**）。
+`messages` エンドポイントが「メッセージ付き寄付のみ」を返すのに対し、こちらは**全寄付（メッセージの有無にかかわらず）** を返す。手動寄付と自動決済を区別して表示するための `source` フィールドを含む。
+
+**クエリパラメータ**
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `limit` | int | 50 | 最大 200 |
+| `offset` | int | 0 | ページネーション用オフセット |
+| `sort` | string | `desc` | `asc`（古い順）/ `desc`（新しい順）。`created_at` 基準 |
+| `source` | string | なし | `checkout`（手動寄付）/ `subscription_renewal`（自動決済）。未指定で全件 |
+| `donor` | string | なし | 寄付者名の部分一致フィルタ |
+
+**レスポンス (200)**
+```json
+{
+  "donations": [
+    {
+      "id": "uuid",
+      "donor_name": "山田太郎",
+      "donor_type": "user",
+      "amount": 1000,
+      "currency": "jpy",
+      "message": "応援しています！",
+      "source": "checkout",
+      "is_recurring": true,
+      "created_at": "2026-02-15T10:00:00Z"
+    },
+    {
+      "id": "uuid",
+      "donor_name": "山田太郎",
+      "donor_type": "user",
+      "amount": 1000,
+      "currency": "jpy",
+      "message": "今月もよろしく",
+      "source": "subscription_renewal",
+      "is_recurring": true,
+      "created_at": "2026-03-01T00:00:00Z"
+    },
+    {
+      "id": "uuid",
+      "donor_name": null,
+      "donor_type": "token",
+      "amount": 500,
+      "currency": "jpy",
+      "message": null,
+      "source": "checkout",
+      "is_recurring": false,
+      "created_at": "2026-02-20T15:30:00Z"
+    }
+  ],
+  "total": 42
+}
+```
+
+**フィールド説明**
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `donor_name` | string \| null | 寄付者名。`donor_type='user'` の場合は `users.display_name`、`donor_type='token'` の場合は `null` |
+| `source` | string | `checkout`（Checkout 経由の手動寄付）/ `subscription_renewal`（サブスク自動決済） |
+| `message` | string \| null | 手動寄付時: Checkout 時に入力したメッセージ。自動決済時: 寄付者が `next_billing_message` で設定したメッセージ |
+| `is_recurring` | bool | 定期寄付に紐づく決済かどうか（`source` に関わらず、サブスクリプション起因なら `true`） |
+
+**認可エラー**
+- 未認証: 401
+- オーナーでもホストでもない: 403
 
 ### POST /api/donations/checkout — 定期寄付の認証
 
@@ -491,14 +586,103 @@
 
 | 項目 | 内容 |
 |------|------|
-| **目的** | 匿名寄付時につけたトークン（Cookie）に紐づく寄付を、ログイン中のユーザーに紐づけ直す。「これまでの寄付をアカウントに引き継ぎますか？」フローに対応 |
+| **目的** | 匿名寄付時につけたトークン（Cookie）に紐づく寄付・サブスクリプションを、ログイン中のユーザーに紐づけ直す。「これまでの寄付をアカウントに引き継ぎますか？」フローに対応 |
 | **認証** | 必須。セッションのユーザーに移行する |
 | **リクエスト** | トークンは **Cookie** で送る（Body は空で可） |
-| **処理** | Cookie の `donor_token` に紐づく donations（`donor_type='token'`）を `donor_type='user'`, `donor_id=現在ユーザーID` に UPDATE |
+| **処理** | Cookie の `donor_token` に紐づく donations と subscriptions（`donor_type='token'`）を `donor_type='user'`, `donor_id=現在ユーザーID` に UPDATE |
 | **冪等** | 同じトークンで複数回呼んでも 2 回目以降はエラーにせず成功扱い |
 | **成功時** | 200 OK。`{ "migrated_count": N, "already_migrated": false }` |
 | **移行済み** | 200 OK。`{ "migrated_count": 0, "already_migrated": true }` |
 | **トークンなし・無効** | 400 Bad Request |
+
+---
+
+## データモデル: donations / subscriptions テーブル分離
+
+### 設計方針
+
+`donations` テーブルと `subscriptions` テーブルを分離し、それぞれの責務を明確にする。
+
+| テーブル | 責務 | レコード作成タイミング |
+|---------|------|---------------------|
+| `subscriptions` | 定期寄付の管理（一時停止・金額変更・キャンセル） | `customer.subscription.created` webhook |
+| `donations` | 個別の決済記録（集計の基盤） | 手動: `payment_intent.succeeded` / 定期初回: `customer.subscription.created` / 定期更新: `invoice.payment_succeeded` |
+
+### subscriptions テーブル
+
+```sql
+CREATE TABLE subscriptions (
+    id                      VARCHAR(36) PRIMARY KEY,
+    project_id              VARCHAR(36) NOT NULL REFERENCES projects(id),
+    donor_type              VARCHAR(10) NOT NULL,   -- 'token' | 'user'
+    donor_id                TEXT NOT NULL,
+    amount                  INTEGER NOT NULL,
+    currency                VARCHAR(3) NOT NULL DEFAULT 'jpy',
+    message                 TEXT,                   -- 初回寄付時のメッセージ
+    stripe_subscription_id  TEXT UNIQUE,
+    paused                  BOOLEAN NOT NULL DEFAULT false,
+    next_billing_message    TEXT,                   -- 次回自動決済で使用→クリア
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### donations テーブル（変更後）
+
+既存カラムに加え、以下を追加:
+
+| カラム | 型 | 説明 |
+|--------|---|------|
+| `source` | VARCHAR(30) DEFAULT `'checkout'` | `checkout`（手動寄付）/ `subscription_renewal`（自動決済） |
+| `subscription_id` | FK → subscriptions.id | 紐づくサブスクリプション（単発寄付は NULL） |
+| `stripe_invoice_id` | TEXT (UNIQUE) | invoice ベースの冪等性キー（自動決済で使用） |
+
+### Stripe Webhook 処理フロー
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ payment_intent.succeeded（単発寄付）                              │
+│   → donations に INSERT (source='checkout', is_recurring=false) │
+│   → アクティビティ記録 + マイルストーン通知                        │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ customer.subscription.created（定期寄付の開始）                    │
+│   → subscriptions に INSERT                                     │
+│   → donations に INSERT (source='checkout', is_recurring=true)  │
+│   → アクティビティ記録 + マイルストーン通知                        │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ invoice.payment_succeeded（定期の自動決済 ※2回目以降）             │
+│   → subscriptions から subscription 情報を取得                   │
+│   → donations に INSERT (source='subscription_renewal')         │
+│     - message: next_billing_message があればそれを使用            │
+│     - stripe_invoice_id で冪等性を確保                           │
+│   → next_billing_message をクリア                                │
+│   → アクティビティ記録 + マイルストーン通知                        │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ customer.subscription.deleted（キャンセル）                       │
+│   → subscriptions を削除（donations の過去レコードは残す）         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 寄付額の集計
+
+`donations` テーブルの全レコードを SUM することで、手動寄付 + 自動決済を含む正確な累計額が得られる。
+
+```sql
+-- プロジェクトの今月の寄付額合計（手動 + 自動）
+SELECT SUM(amount) FROM donations
+WHERE project_id = $1
+  AND created_at >= date_trunc('month', NOW());
+
+-- 自動決済のみ
+SELECT SUM(amount) FROM donations
+WHERE project_id = $1 AND source = 'subscription_renewal';
+```
 
 ---
 

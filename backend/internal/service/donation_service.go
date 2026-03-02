@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/givers/backend/internal/model"
 	"github.com/givers/backend/internal/repository"
@@ -29,79 +28,30 @@ type SubscriptionManager interface {
 // DonationService provides business logic for donation management.
 type DonationService interface {
 	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
-	Patch(ctx context.Context, id, userID string, patch model.DonationPatch) error
-	Delete(ctx context.Context, id, userID string) error
 	MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error)
 	ListProjectMessages(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
+	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error)
 }
 
 type donationService struct {
 	repo repository.DonationRepository
-	sm   SubscriptionManager
 }
 
-// NewDonationService creates a DonationService. sm can be nil to skip Stripe calls.
-func NewDonationService(repo repository.DonationRepository, sm SubscriptionManager) DonationService {
-	return &donationService{repo: repo, sm: sm}
+// NewDonationService creates a DonationService.
+func NewDonationService(repo repository.DonationRepository) DonationService {
+	return &donationService{repo: repo}
 }
 
 func (s *donationService) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error) {
 	return s.repo.ListByUser(ctx, userID, limit, offset)
 }
 
-func (s *donationService) Patch(ctx context.Context, id, userID string, patch model.DonationPatch) error {
-	d, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if d.DonorType != "user" || d.DonorID != userID {
-		return ErrForbidden
-	}
-
-	// Stripe subscription pause/resume for recurring donations
-	if patch.Paused != nil && d.IsRecurring && d.StripeSubscriptionID != "" && s.sm != nil {
-		if *patch.Paused {
-			if err := s.sm.PauseSubscription(ctx, d.StripeSubscriptionID); err != nil {
-				return fmt.Errorf("stripe pause: %w", err)
-			}
-		} else {
-			if err := s.sm.ResumeSubscription(ctx, d.StripeSubscriptionID); err != nil {
-				return fmt.Errorf("stripe resume: %w", err)
-			}
-		}
-	}
-
-	// Stripe subscription amount update for recurring donations (#19)
-	if patch.Amount != nil && *patch.Amount != d.Amount && d.IsRecurring && d.StripeSubscriptionID != "" && s.sm != nil {
-		if err := s.sm.UpdateSubscriptionAmount(ctx, d.StripeSubscriptionID, *patch.Amount); err != nil {
-			return fmt.Errorf("stripe update amount: %w", err)
-		}
-	}
-
-	return s.repo.Patch(ctx, id, patch)
-}
-
-func (s *donationService) Delete(ctx context.Context, id, userID string) error {
-	d, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if d.DonorType != "user" || d.DonorID != userID {
-		return ErrForbidden
-	}
-
-	// Cancel Stripe subscription before deleting
-	if d.IsRecurring && d.StripeSubscriptionID != "" && s.sm != nil {
-		if err := s.sm.CancelSubscription(ctx, d.StripeSubscriptionID); err != nil {
-			return fmt.Errorf("stripe cancel: %w", err)
-		}
-	}
-
-	return s.repo.Delete(ctx, id)
-}
-
 func (s *donationService) ListProjectMessages(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
 	return s.repo.ListMessagesByProject(ctx, projectID, limit, offset, sort, donor)
+}
+
+func (s *donationService) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+	return s.repo.ListByProjectForOwner(ctx, projectID, limit, offset, sort, sourceFilter, donorFilter)
 }
 
 func (s *donationService) MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error) {

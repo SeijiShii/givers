@@ -95,6 +95,9 @@ func (r *PgUserRepository) UpdateProviderID(ctx context.Context, userID, column,
 	if !allowed[column] {
 		return fmt.Errorf("invalid provider column: %s", column)
 	}
+	if value == "" {
+		return fmt.Errorf("provider ID value must not be empty for %s", column)
+	}
 	_, err := r.pool.Exec(ctx,
 		`UPDATE users SET `+column+` = $1, updated_at = NOW() WHERE id = $2`,
 		value, userID)

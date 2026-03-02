@@ -19,8 +19,9 @@ func NewPgDonationRepository(pool *pgxpool.Pool) DonationRepository {
 }
 
 const donationSelectCols = `id, project_id, donor_type, donor_id, amount, currency,
-	COALESCE(message, ''), is_recurring, COALESCE(stripe_payment_id, ''),
-	COALESCE(stripe_subscription_id, ''), paused, COALESCE(next_billing_message, ''),
+	COALESCE(message, ''), is_recurring, source, COALESCE(subscription_id, ''),
+	COALESCE(stripe_payment_id, ''), COALESCE(stripe_subscription_id, ''),
+	COALESCE(stripe_invoice_id, ''), paused, COALESCE(next_billing_message, ''),
 	created_at, updated_at`
 
 func scanDonation(scan func(...any) error) (*model.Donation, error) {
@@ -28,19 +29,27 @@ func scanDonation(scan func(...any) error) (*model.Donation, error) {
 	return d, scan(
 		&d.ID, &d.ProjectID, &d.DonorType, &d.DonorID,
 		&d.Amount, &d.Currency, &d.Message,
-		&d.IsRecurring, &d.StripePaymentID, &d.StripeSubscriptionID,
-		&d.Paused, &d.NextBillingMessage, &d.CreatedAt, &d.UpdatedAt,
+		&d.IsRecurring, &d.Source, &d.SubscriptionID,
+		&d.StripePaymentID, &d.StripeSubscriptionID,
+		&d.StripeInvoiceID, &d.Paused, &d.NextBillingMessage,
+		&d.CreatedAt, &d.UpdatedAt,
 	)
 }
 
 func (r *pgDonationRepository) Create(ctx context.Context, d *model.Donation) error {
+	source := d.Source
+	if source == "" {
+		source = "checkout"
+	}
 	_, err := r.pool.Exec(ctx,
 		`INSERT INTO donations
 		 (project_id, donor_type, donor_id, amount, currency, message, is_recurring,
-		  stripe_payment_id, stripe_subscription_id)
-		 VALUES ($1, $2, $3, $4, $5, NULLIF($6,''), $7, NULLIF($8,''), NULLIF($9,''))`,
+		  source, subscription_id, stripe_payment_id, stripe_subscription_id, stripe_invoice_id)
+		 VALUES ($1, $2, $3, $4, $5, NULLIF($6,''), $7, $8,
+		  NULLIF($9,''), NULLIF($10,''), NULLIF($11,''), NULLIF($12,''))`,
 		d.ProjectID, d.DonorType, d.DonorID, d.Amount, d.Currency,
-		d.Message, d.IsRecurring, d.StripePaymentID, d.StripeSubscriptionID,
+		d.Message, d.IsRecurring, source, d.SubscriptionID,
+		d.StripePaymentID, d.StripeSubscriptionID, d.StripeInvoiceID,
 	)
 	if err != nil && strings.Contains(err.Error(), "duplicate key") {
 		return ErrDuplicate
@@ -238,6 +247,81 @@ func (r *pgDonationRepository) ListMessagesByProject(ctx context.Context, projec
 		msgs = []*model.DonationMessage{}
 	}
 	return &model.DonationMessageResult{Messages: msgs, Total: total}, nil
+}
+
+func (r *pgDonationRepository) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+	// Count total matching
+	countQuery := `SELECT COUNT(*) FROM donations d
+		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
+		WHERE d.project_id = $1`
+	countArgs := []any{projectID}
+	argIdx := 2
+
+	if sourceFilter != "" {
+		countQuery += fmt.Sprintf(` AND d.source = $%d`, argIdx)
+		countArgs = append(countArgs, sourceFilter)
+		argIdx++
+	}
+	if donorFilter != "" {
+		countQuery += fmt.Sprintf(` AND COALESCE(u.display_name, '') ILIKE '%%' || $%d || '%%'`, argIdx)
+		countArgs = append(countArgs, donorFilter)
+		argIdx++
+	}
+
+	var total int
+	if err := r.pool.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+		return nil, err
+	}
+
+	// Fetch data
+	sortDir := "DESC"
+	if sort == "asc" {
+		sortDir = "ASC"
+	}
+	query := `SELECT d.id, u.display_name, d.donor_type,
+		d.amount, d.currency, d.message, d.source, d.is_recurring, d.created_at
+		FROM donations d
+		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
+		WHERE d.project_id = $1`
+	args := []any{projectID}
+	argIdx = 2
+
+	if sourceFilter != "" {
+		query += fmt.Sprintf(` AND d.source = $%d`, argIdx)
+		args = append(args, sourceFilter)
+		argIdx++
+	}
+	if donorFilter != "" {
+		query += fmt.Sprintf(` AND COALESCE(u.display_name, '') ILIKE '%%' || $%d || '%%'`, argIdx)
+		args = append(args, donorFilter)
+		argIdx++
+	}
+	query += fmt.Sprintf(` ORDER BY d.created_at %s LIMIT $%d OFFSET $%d`, sortDir, argIdx, argIdx+1)
+	args = append(args, limit, offset)
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []*model.OwnerDonationItem
+	for rows.Next() {
+		item := &model.OwnerDonationItem{}
+		if err := rows.Scan(&item.ID, &item.DonorName, &item.DonorType,
+			&item.Amount, &item.Currency, &item.Message,
+			&item.Source, &item.IsRecurring, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if items == nil {
+		items = []*model.OwnerDonationItem{}
+	}
+	return &model.OwnerDonationResult{Donations: items, Total: total}, nil
 }
 
 // CurrentMonthSumByProject returns the total donation amount for a project in the current month.
