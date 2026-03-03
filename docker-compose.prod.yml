@@ -8,10 +8,16 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - certbot_conf:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
+      - ./logs/nginx:/var/log/nginx
     depends_on:
       - frontend
       - backend
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
   certbot:
     image: certbot/certbot
@@ -30,6 +36,11 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   backend:
     build:
@@ -45,6 +56,11 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
   db:
     image: postgres:16-alpine
@@ -60,6 +76,11 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
 volumes:
   postgres_data:

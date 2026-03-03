@@ -1,0 +1,13 @@
+/opt/givers/logs/nginx/access.log
+/opt/givers/logs/nginx/error.log {
+    daily
+    missingok
+    rotate 90
+    compress
+    delaycompress
+    notifempty
+    sharedscripts
+    postrotate
+        docker compose -f /opt/givers/docker-compose.prod.yml exec -T nginx nginx -s reopen 2>/dev/null || true
+    endscript
+}

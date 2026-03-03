@@ -213,6 +213,9 @@ nginx/conf.d/
 scripts/
   deploy.sh                # ローカル→サーバー デプロイスクリプト
   init-ssl.sh              # SSL 初期設定スクリプト
+  logs.sh                  # ログ閲覧ユーティリティ
+logrotate/
+  nginx                    # nginx 用 logrotate 設定
 ```
 
 ---
@@ -238,7 +241,34 @@ scripts/
 
 ---
 
-## 11. トラブルシューティング
+## 12. ログ管理
+
+> 詳細: [logging.md](logging.md)
+
+### ログの場所
+
+| サービス | 保存先 | ローテーション |
+|---------|--------|--------------|
+| Backend / Frontend / DB | Docker json-file ドライバ | 50MB × 3〜5 ファイル |
+| Nginx access/error | `/opt/givers/logs/nginx/` | logrotate 日次 90日保持 |
+
+### ログの確認
+
+```bash
+# ローカルからリモートサーバーのログを確認
+./scripts/logs.sh --remote backend          # backend を follow
+./scripts/logs.sh --remote nginx            # nginx アクセスログ
+./scripts/logs.sh --remote --since "1h" backend -o ./out.log  # ファイル出力
+
+# サーバー上で直接確認
+cd /opt/givers
+docker compose -f docker-compose.prod.yml logs -f backend
+tail -f logs/nginx/access.log
+```
+
+---
+
+## 13. トラブルシューティング
 
 ### SSH 接続できない
 - ConoHa セキュリティグループに `IPv4v6-SSH` が割り当てられているか確認

@@ -62,6 +62,7 @@ rsync -a --exclude='node_modules' \
 cp docker-compose.prod.yml "$LOCAL_TMP/"
 cp -r nginx "$LOCAL_TMP/"
 cp -r scripts "$LOCAL_TMP/"
+cp -r logrotate "$LOCAL_TMP/"
 cp .env.prod.example "$LOCAL_TMP/"
 
 echo "  パッケージサイズ: $(du -sh "$LOCAL_TMP" | cut -f1)"
@@ -72,9 +73,17 @@ echo "=== Step 2: サーバーに転送 ==="
 ssh "$REMOTE_HOST" "mkdir -p $REMOTE_DIR"
 rsync -azP --delete \
   --exclude='.env' \
+  --exclude='logs' \
   "$LOCAL_TMP/" "$REMOTE_HOST:$REMOTE_DIR/"
 
 echo "  転送完了"
+
+# --- Step 2.5: ログディレクトリと logrotate 設定 ---
+echo ""
+echo "=== Step 2.5: ログ設定 ==="
+ssh "$REMOTE_HOST" "mkdir -p $REMOTE_DIR/logs/nginx"
+ssh "$REMOTE_HOST" "cp $REMOTE_DIR/logrotate/nginx /etc/logrotate.d/givers-nginx"
+echo "  ログディレクトリ作成・logrotate 設定完了"
 
 if [ "$INIT_ONLY" = true ]; then
   echo ""
@@ -103,9 +112,16 @@ echo ""
 echo "=== Step 4: DBマイグレーション ==="
 ssh "$REMOTE_HOST" "cd $REMOTE_DIR && docker compose -f docker-compose.prod.yml exec backend ./migrate"
 
+# --- Step 5: ログヘルスチェック ---
+echo ""
+echo "=== Step 5: ログヘルスチェック ==="
+ssh "$REMOTE_HOST" "cd $REMOTE_DIR && docker compose -f docker-compose.prod.yml logs --tail=3 backend 2>&1 | head -5"
+ssh "$REMOTE_HOST" "ls -la $REMOTE_DIR/logs/nginx/ 2>/dev/null || echo 'nginx ログは初回リクエスト時に作成されます'"
+
 echo ""
 echo "=== デプロイ完了 ==="
-echo "確認: ssh $REMOTE_HOST 'cd $REMOTE_DIR && docker compose -f docker-compose.prod.yml logs -f'"
+echo "ログ確認: ./scripts/logs.sh --remote backend"
+echo "全ログ:   ./scripts/logs.sh --remote"
 
 # クリーンアップ
 rm -rf "$LOCAL_TMP"
