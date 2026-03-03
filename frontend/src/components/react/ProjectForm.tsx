@@ -1,10 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Project, CostItem, ProjectAlerts } from "../../lib/api";
 import {
   createProject,
   updateProject,
   uploadProjectImage,
   deleteProjectImage,
+  getMe,
 } from "../../lib/api";
 import { t, type Locale } from "../../lib/i18n";
 
@@ -42,6 +43,15 @@ function initCostItems(project?: Project | null): CostItem[] {
 
 export default function ProjectForm({ locale, project, redirectPath }: Props) {
   const isEdit = !!project;
+
+  // Host detection: hosts don't need Stripe Connect
+  const [isHost, setIsHost] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (isEdit) return;
+    getMe()
+      .then((user) => setIsHost(user?.role === "host"))
+      .catch(() => setIsHost(false));
+  }, [isEdit]);
 
   const [name, setName] = useState(project?.name ?? "");
   const [overview, setOverview] = useState(
@@ -725,8 +735,8 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         )}
       </fieldset>
 
-      {/* Stripe Connect 案内（新規作成のみ） */}
-      {!isEdit && (
+      {/* Stripe Connect 案内（新規作成のみ・ホスト以外） */}
+      {!isEdit && isHost === false && (
         <div
           style={{
             marginBottom: "1.5rem",
@@ -741,15 +751,26 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
           <p style={{ marginBottom: "0.5rem", fontSize: "0.9rem" }}>
             {t(locale, "projects.stripeConnectDesc")}
           </p>
-          <p
+          <div
             style={{
-              marginBottom: 0,
-              fontSize: "0.8rem",
-              color: "var(--color-text-muted)",
+              marginTop: "0.75rem",
+              padding: "0.75rem",
+              background: "var(--color-bg-muted, #f9f9f9)",
+              borderRadius: "4px",
+              fontSize: "0.85rem",
+              lineHeight: "1.6",
             }}
           >
-            {t(locale, "projects.stripeConnectNote")}
-          </p>
+            <p style={{ margin: "0 0 0.5rem", fontWeight: "bold" }}>
+              {t(locale, "projects.stripeConnectFlowTitle")}
+            </p>
+            <ol style={{ margin: 0, paddingLeft: "1.25rem" }}>
+              <li>{t(locale, "projects.stripeConnectStep1")}</li>
+              <li>{t(locale, "projects.stripeConnectStep2")}</li>
+              <li>{t(locale, "projects.stripeConnectStep3")}</li>
+              <li>{t(locale, "projects.stripeConnectStep4")}</li>
+            </ol>
+          </div>
         </div>
       )}
 
