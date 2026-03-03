@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: February 21, 2026
+Last updated: March 3, 2026
 
 GIVErS ("the Service") respects your privacy and handles personal information appropriately. This policy explains what information the Service collects and how it is used.
 
@@ -12,7 +12,7 @@ The Service collects the following information.
 - Email address, name (obtained via social login)
 
 **Donation information**
-- Donation project, amount, and date
+- Donation project, amount, date, and refund status
 - Anonymous donations are managed via browser tokens; no name or personal details are collected
 
 **Contact information**

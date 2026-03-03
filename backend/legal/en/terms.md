@@ -1,6 +1,6 @@
 # Terms of Service
 
-Last updated: February 21, 2026
+Last updated: March 3, 2026
 
 These Terms of Service ("Terms") govern your use of GIVErS ("the Service"). Please read them carefully before using the Service. By using the Service, you agree to these Terms.
 
@@ -22,9 +22,10 @@ The Service is available to individuals and organizations, both inside and outsi
 ## Article 4 (Donations)
 
 1. Payments are processed through the payment services provided by Stripe, Inc.
-2. The Service does not intermediate donations. Funds are deposited directly into the project owner's account.
-3. For refunds or cancellations, contact the project owner directly.
-4. For information on tax deductions, consult the guidance on each project page and seek advice from a tax professional or lawyer.
+2. Donation funds are deposited directly into the project owner's Stripe account. However, refund processing is handled by the Service through Stripe on behalf of the parties.
+3. Refunds may be initiated by either the project owner or the donor through the platform. Only full refunds are supported; partial refunds are not available.
+4. Refunds for recurring donations apply to individual payments. Cancellation of the recurring donation itself must be done separately by the donor.
+5. For information on tax deductions, consult the guidance on each project page and seek advice from a tax professional or lawyer.
 
 ## Article 5 (Obligations of Project Owners)
 

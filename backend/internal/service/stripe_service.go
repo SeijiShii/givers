@@ -441,6 +441,7 @@ func (s *StripeServiceImpl) handleInvoicePaymentSucceeded(ctx context.Context, e
 		SubscriptionID:       subTableID,
 		StripeSubscriptionID: subscriptionID,
 		StripeInvoiceID:      obj.ID,
+		StripePaymentID:      obj.PaymentIntent, // 返金時に必要
 	}
 	if err := s.donationRepo.Create(ctx, d); err != nil && !errors.Is(err, repository.ErrDuplicate) {
 		return err

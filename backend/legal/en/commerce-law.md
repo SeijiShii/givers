@@ -27,7 +27,7 @@ This page provides disclosures required under Japan's Act on Specified Commercia
 
 ## Cancellations and Refunds
 
-Cancellations and refunds are handled on a per-project basis. Please contact the project owner directly for refund requests. The operator does not intermediate refunds.
+Donation refunds can be processed through the platform. Either the project owner or the donor may initiate a full refund, which is processed via Stripe. Refund processing may take several business days. Partial refunds are not supported.
 
 ## Other Terms
 

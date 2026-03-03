@@ -45,11 +45,12 @@ type CheckoutParams struct {
 
 // WebhookEventObject は payment_intent や subscription の data.object
 type WebhookEventObject struct {
-	ID           string            `json:"id"`
-	Amount       int               `json:"amount"`
-	Currency     string            `json:"currency"`
-	Metadata     map[string]string `json:"metadata"`
-	Subscription string            `json:"subscription"` // invoice イベントで使用
+	ID            string            `json:"id"`
+	Amount        int               `json:"amount"`
+	Currency      string            `json:"currency"`
+	Metadata      map[string]string `json:"metadata"`
+	Subscription  string            `json:"subscription"`   // invoice イベントで使用
+	PaymentIntent string            `json:"payment_intent"` // invoice イベントで使用（返金時に必要）
 	// subscription の場合のみ使用
 	Plan *struct {
 		Amount   int    `json:"amount"`
@@ -88,6 +89,10 @@ type Client interface {
 	CancelSubscription(ctx context.Context, subscriptionID string) error
 	// UpdateSubscriptionAmount はサブスクリプションの金額を変更する
 	UpdateSubscriptionAmount(ctx context.Context, subscriptionID string, newAmount int) error
+	// CreateRefund は PaymentIntent の全額返金を作成する。stripeAccountID が空なら Stripe-Account ヘッダーを省略する。
+	CreateRefund(ctx context.Context, paymentIntentID, stripeAccountID string) (refundID string, err error)
+	// GetInvoicePaymentIntent は Invoice から PaymentIntent ID を取得する（subscription_renewal の返金用）。
+	GetInvoicePaymentIntent(ctx context.Context, invoiceID, stripeAccountID string) (paymentIntentID string, err error)
 }
 
 // RealClient は Stripe API への raw HTTP クライアント実装
@@ -95,6 +100,7 @@ type RealClient struct {
 	SecretKey     string
 	WebhookSecret string // whsec_...
 	httpClient    *http.Client
+	baseURL       string // テスト用。空なら "https://api.stripe.com" を使用
 }
 
 // NewClient は RealClient を生成する
@@ -104,6 +110,13 @@ func NewClient(secretKey, webhookSecret string) *RealClient {
 		WebhookSecret: webhookSecret,
 		httpClient:    &http.Client{Timeout: 30 * time.Second},
 	}
+}
+
+func (c *RealClient) apiBase() string {
+	if c.baseURL != "" {
+		return c.baseURL
+	}
+	return "https://api.stripe.com"
 }
 
 // ErrNotConfigured は Stripe が設定されていない場合のエラー
@@ -524,6 +537,88 @@ func (c *RealClient) UpdateSubscriptionAmount(ctx context.Context, subscriptionI
 	data.Set("proration_behavior", "none")
 
 	return c.updateSubscription(ctx, subscriptionID, data)
+}
+
+// CreateRefund は PaymentIntent の全額返金を作成する
+func (c *RealClient) CreateRefund(ctx context.Context, paymentIntentID, stripeAccountID string) (string, error) {
+	if c.SecretKey == "" {
+		return "", ErrNotConfigured
+	}
+	data := url.Values{}
+	data.Set("payment_intent", paymentIntentID)
+
+	endpoint := c.apiBase() + "/v1/refunds"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(c.SecretKey, "")
+	if stripeAccountID != "" {
+		req.Header.Set("Stripe-Account", stripeAccountID)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		ID    string `json:"id"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.Error != nil {
+		return "", fmt.Errorf("stripe refund: %s", result.Error.Message)
+	}
+	if result.ID == "" {
+		return "", errors.New("stripe refund: empty refund ID in response")
+	}
+	return result.ID, nil
+}
+
+// GetInvoicePaymentIntent は Invoice から PaymentIntent ID を取得する
+func (c *RealClient) GetInvoicePaymentIntent(ctx context.Context, invoiceID, stripeAccountID string) (string, error) {
+	if c.SecretKey == "" {
+		return "", ErrNotConfigured
+	}
+	endpoint := fmt.Sprintf("%s/v1/invoices/%s", c.apiBase(), invoiceID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	req.SetBasicAuth(c.SecretKey, "")
+	if stripeAccountID != "" {
+		req.Header.Set("Stripe-Account", stripeAccountID)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		PaymentIntent string `json:"payment_intent"`
+		Error         *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.Error != nil {
+		return "", fmt.Errorf("stripe get invoice: %s", result.Error.Message)
+	}
+	if result.PaymentIntent == "" {
+		return "", errors.New("stripe: invoice has no payment_intent")
+	}
+	return result.PaymentIntent, nil
 }
 
 func (c *RealClient) updateSubscription(ctx context.Context, subscriptionID string, data url.Values) error {

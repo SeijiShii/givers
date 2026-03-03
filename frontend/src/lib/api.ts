@@ -442,6 +442,7 @@ export interface Donation {
   amount: number;
   created_at: string;
   message?: string | null;
+  refund_status?: string | null; // null, "pending", "completed"
 }
 
 /** 定期寄付 */
@@ -471,6 +472,7 @@ interface BackendDonation {
   is_recurring: boolean;
   paused: boolean;
   next_billing_message?: string;
+  refund_status?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -490,6 +492,7 @@ export async function getMyDonations(): Promise<Donation[]> {
       amount: d.amount,
       created_at: d.created_at,
       message: d.message ?? null,
+      refund_status: d.refund_status ?? null,
     }));
 }
 
@@ -624,6 +627,7 @@ export interface OwnerDonationItem {
   message: string | null;
   source: string; // "checkout" or "subscription_renewal"
   is_recurring: boolean;
+  refund_status?: string | null; // null, "pending", "completed"
   created_at: string;
 }
 
@@ -652,6 +656,34 @@ export async function getOwnerDonations(
   return fetchApi<OwnerDonationResult>(
     `/api/projects/${projectId}/donations${qs ? "?" + qs : ""}`,
   );
+}
+
+/** オーナーが寄付を返金する */
+export async function refundDonationByOwner(
+  projectId: string,
+  donationId: string,
+): Promise<{ status: string }> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.refundDonationByOwner(
+      projectId,
+      donationId,
+    );
+  return fetchApi(`/api/projects/${projectId}/donations/${donationId}/refund`, {
+    method: "POST",
+  });
+}
+
+/** 寄付者が自分の寄付を返金する */
+export async function refundDonationByDonor(
+  donationId: string,
+): Promise<{ status: string }> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.refundDonationByDonor(
+      donationId,
+    );
+  return fetchApi(`/api/me/donations/${donationId}/refund`, {
+    method: "POST",
+  });
 }
 
 /** 新着プロジェクト（トップページ用） */

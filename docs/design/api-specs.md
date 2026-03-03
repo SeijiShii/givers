@@ -85,6 +85,7 @@
 | Method | Path | 認証 | 説明 |
 |--------|------|------|------|
 | GET | `/api/projects/:id/donations` | 必須（オーナーまたはホスト） | プロジェクトへの全寄付履歴（手動寄付 + 自動決済、メッセージ有無問わず） |
+| POST | `/api/projects/:id/donations/:donationId/refund` | 必須（オーナーまたはホスト） | 寄付の全額返金（詳細は `refund-spec.md`） |
 
 ### チャート
 
@@ -99,6 +100,7 @@
 | GET | `/api/me` | 必須 | 現在のユーザー情報 |
 | GET | `/api/me/projects` | 必須 | 自分のプロジェクト一覧（draft 含む） |
 | GET | `/api/me/donations` | 必須 | 自分の寄付履歴（全決済記録。手動寄付 + 自動決済） |
+| POST | `/api/me/donations/:donationId/refund` | 必須 | 自分の寄付の全額返金（詳細は `refund-spec.md`） |
 | GET | `/api/me/subscriptions` | 必須 | 自分の定期寄付サブスクリプション一覧 |
 | PATCH | `/api/me/subscriptions/:id` | 必須 | 定期寄付の編集（金額変更・一時停止・再開・次回メッセージ設定） |
 | DELETE | `/api/me/subscriptions/:id` | 必須 | 定期寄付のキャンセル |

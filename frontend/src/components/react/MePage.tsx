@@ -11,6 +11,7 @@ import {
   pauseSubscription,
   resumeSubscription,
   deleteSubscription,
+  refundDonationByDonor,
   type User,
   type Donation,
   type RecurringDonation,
@@ -62,6 +63,11 @@ interface Props {
   noWatchesLabel: string;
   nextBillingMessageLabel?: string;
   nextBillingMessagePlaceholder?: string;
+  refundBtnLabel?: string;
+  refundConfirmLabel?: string;
+  refundPendingLabel?: string;
+  refundCompletedLabel?: string;
+  refundErrorLabel?: string;
 }
 
 function formatDate(iso: string, locale: Locale): string {
@@ -120,6 +126,11 @@ export default function MePage({
   noWatchesLabel,
   nextBillingMessageLabel,
   nextBillingMessagePlaceholder,
+  refundBtnLabel,
+  refundConfirmLabel,
+  refundPendingLabel,
+  refundCompletedLabel,
+  refundErrorLabel,
 }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,6 +154,9 @@ export default function MePage({
   const [deleteConfirmRecurringId, setDeleteConfirmRecurringId] = useState<
     string | null
   >(null);
+  const [refundConfirmId, setRefundConfirmId] = useState<string | null>(null);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [refundError, setRefundError] = useState<string | null>(null);
 
   const basePath = locale === "en" ? "/en" : "";
 
@@ -255,6 +269,24 @@ export default function MePage({
     }
   };
 
+  const handleRefund = async (donationId: string) => {
+    setRefundConfirmId(null);
+    setRefundingId(donationId);
+    setRefundError(null);
+    try {
+      await refundDonationByDonor(donationId);
+      setDonations((prev) =>
+        prev.map((d) =>
+          d.id === donationId ? { ...d, refund_status: "completed" } : d,
+        ),
+      );
+    } catch (e: unknown) {
+      setRefundError(refundErrorLabel ?? "Refund failed");
+    } finally {
+      setRefundingId(null);
+    }
+  };
+
   if (loading) {
     return <LoadingSkeleton variant="mePage" />;
   }
@@ -285,6 +317,34 @@ export default function MePage({
         onConfirm={handleConfirmDeleteRecurring}
         onCancel={() => setDeleteConfirmRecurringId(null)}
       />
+      {refundBtnLabel && (
+        <ConfirmDialog
+          open={refundConfirmId !== null}
+          title={refundBtnLabel}
+          message={refundConfirmLabel ?? ""}
+          confirmLabel={refundBtnLabel}
+          cancelLabel={cancelLabel}
+          danger
+          onConfirm={() => {
+            if (refundConfirmId) handleRefund(refundConfirmId);
+          }}
+          onCancel={() => {
+            setRefundConfirmId(null);
+            setRefundError(null);
+          }}
+        />
+      )}
+      {refundError && (
+        <p
+          style={{
+            margin: "0.75rem 0 0",
+            color: "var(--color-danger)",
+            fontSize: "0.9rem",
+          }}
+        >
+          {refundError}
+        </p>
+      )}
       {/* タブ */}
       <div
         style={{
@@ -362,6 +422,14 @@ export default function MePage({
                       >
                         {messageLabel}
                       </th>
+                      {refundBtnLabel && (
+                        <th
+                          style={{
+                            textAlign: "left",
+                            padding: "0.5rem 0.75rem",
+                          }}
+                        />
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -402,6 +470,47 @@ export default function MePage({
                         >
                           {d.message ?? "—"}
                         </td>
+                        {refundBtnLabel && (
+                          <td
+                            style={{
+                              padding: "0.5rem 0.75rem",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {d.refund_status === "completed" ? (
+                              <span
+                                style={{
+                                  color: "var(--color-text-muted)",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                {refundCompletedLabel}
+                              </span>
+                            ) : d.refund_status === "pending" ||
+                              refundingId === d.id ? (
+                              <span
+                                style={{
+                                  color: "var(--color-text-muted)",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                {refundPendingLabel}
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-small"
+                                style={{
+                                  fontSize: "0.8rem",
+                                  padding: "0.25rem 0.5rem",
+                                }}
+                                onClick={() => setRefundConfirmId(d.id)}
+                              >
+                                {refundBtnLabel}
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

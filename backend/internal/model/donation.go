@@ -19,6 +19,8 @@ type Donation struct {
 	StripeInvoiceID      string    `json:"-"`
 	Paused               bool      `json:"paused"`
 	NextBillingMessage   string    `json:"next_billing_message,omitempty"`
+	RefundStatus         *string   `json:"refund_status,omitempty"` // nil, "pending", "completed"
+	StripeRefundID       string    `json:"-"`
 	CreatedAt            time.Time `json:"created_at"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }
@@ -68,8 +70,9 @@ type OwnerDonationItem struct {
 	Currency    string    `json:"currency"`
 	Message     *string   `json:"message"`
 	Source      string    `json:"source"` // "checkout" or "subscription_renewal"
-	IsRecurring bool      `json:"is_recurring"`
-	CreatedAt   time.Time `json:"created_at"`
+	IsRecurring  bool      `json:"is_recurring"`
+	RefundStatus *string   `json:"refund_status,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // OwnerDonationResult holds a page of owner donation items with total count.

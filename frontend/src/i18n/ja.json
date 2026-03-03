@@ -53,7 +53,12 @@
     "unwatch": "ウォッチ解除",
     "noWatches": "ウォッチ中のプロジェクトはありません。",
     "nextBillingMessage": "次回決済メッセージ",
-    "nextBillingMessagePlaceholder": "次回決済時にアクティビティに記録されるメッセージ（任意）"
+    "nextBillingMessagePlaceholder": "次回決済時にアクティビティに記録されるメッセージ（任意）",
+    "refundBtn": "返金する",
+    "refundConfirm": "この寄付を全額返金しますか？この操作は取り消せません。",
+    "refundPending": "返金処理中",
+    "refundCompleted": "返金済み",
+    "refundError": "返金に失敗しました"
   },
   "home": {
     "title": "GIVErS",
@@ -250,7 +255,16 @@
     "donationHistoryDate": "日時",
     "donationHistoryRecurring": "定期",
     "donationHistoryOneTime": "単発",
-    "donationHistoryAnonymous": "匿名"
+    "donationHistoryAnonymous": "匿名",
+    "donationHistoryRefund": "返金",
+    "donationHistoryRefundBtn": "返金する",
+    "donationHistoryRefundConfirm": "この寄付を全額返金しますか？この操作は取り消せません。",
+    "donationHistoryRefundConfirmSubscription": "この寄付を全額返金しますか？\n※ 定期寄付の解約は次回決済前に寄付者が行う必要があります。",
+    "donationHistoryRefundPending": "返金処理中",
+    "donationHistoryRefundCompleted": "返金済み",
+    "donationHistoryRefundError": "返金に失敗しました",
+    "donationHistoryRefundAlreadyRefunded": "この寄付は既に返金済みです",
+    "donationHistoryStatus": "ステータス"
   },
   "admin": {
     "usersTitle": "ユーザー管理",

@@ -120,6 +120,8 @@ func main() {
 	costPresetHandler := handler.NewCostPresetHandler(costPresetService)
 	messageHandler := handler.NewMessageHandler(donationService, projectService)
 	ownerDonationHandler := handler.NewOwnerDonationHandler(donationService, projectService)
+	refundService := service.NewRefundService(donationRepo, projectRepo, stripeClient)
+	refundHandler := handler.NewRefundHandler(refundService, projectService)
 	badgeHandler := handler.NewBadgeHandler(projectService)
 
 	uploadsDir := os.Getenv("UPLOADS_DIR")
@@ -202,6 +204,10 @@ func main() {
 
 	// Owner donation history (owner or host auth required)
 	mux.Handle("GET /api/projects/{id}/donations", wrapAuth(http.HandlerFunc(ownerDonationHandler.List)))
+
+	// Refund routes (auth required)
+	mux.Handle("POST /api/projects/{id}/donations/{donationId}/refund", wrapAuth(http.HandlerFunc(refundHandler.RefundByOwner)))
+	mux.Handle("POST /api/me/donations/{donationId}/refund", wrapAuth(http.HandlerFunc(refundHandler.RefundByDonor)))
 
 	// Donation routes (auth required)
 	mux.Handle("GET /api/me/donations", wrapAuth(http.HandlerFunc(donationHandler.List)))

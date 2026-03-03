@@ -75,6 +75,15 @@ func (m *mockDonationRepository) ListMessagesByProject(ctx context.Context, proj
 func (m *mockDonationRepository) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
 	return nil, nil
 }
+func (m *mockDonationRepository) SetRefundPending(_ context.Context, _ string) error {
+	return nil
+}
+func (m *mockDonationRepository) CompleteRefund(_ context.Context, _, _ string) error {
+	return nil
+}
+func (m *mockDonationRepository) ClearRefundPending(_ context.Context, _ string) error {
+	return nil
+}
 
 // ---------------------------------------------------------------------------
 // DonationService.ListByUser tests

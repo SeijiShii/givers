@@ -22,6 +22,7 @@ const donationSelectCols = `id, project_id, donor_type, donor_id, amount, curren
 	COALESCE(message, ''), is_recurring, source, COALESCE(subscription_id, ''),
 	COALESCE(stripe_payment_id, ''), COALESCE(stripe_subscription_id, ''),
 	COALESCE(stripe_invoice_id, ''), paused, COALESCE(next_billing_message, ''),
+	refund_status, COALESCE(stripe_refund_id, ''),
 	created_at, updated_at`
 
 func scanDonation(scan func(...any) error) (*model.Donation, error) {
@@ -32,6 +33,7 @@ func scanDonation(scan func(...any) error) (*model.Donation, error) {
 		&d.IsRecurring, &d.Source, &d.SubscriptionID,
 		&d.StripePaymentID, &d.StripeSubscriptionID,
 		&d.StripeInvoiceID, &d.Paused, &d.NextBillingMessage,
+		&d.RefundStatus, &d.StripeRefundID,
 		&d.CreatedAt, &d.UpdatedAt,
 	)
 }
@@ -279,7 +281,7 @@ func (r *pgDonationRepository) ListByProjectForOwner(ctx context.Context, projec
 		sortDir = "ASC"
 	}
 	query := `SELECT d.id, u.display_name, d.donor_type,
-		d.amount, d.currency, d.message, d.source, d.is_recurring, d.created_at
+		d.amount, d.currency, d.message, d.source, d.is_recurring, d.refund_status, d.created_at
 		FROM donations d
 		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
 		WHERE d.project_id = $1`
@@ -310,7 +312,7 @@ func (r *pgDonationRepository) ListByProjectForOwner(ctx context.Context, projec
 		item := &model.OwnerDonationItem{}
 		if err := rows.Scan(&item.ID, &item.DonorName, &item.DonorType,
 			&item.Amount, &item.Currency, &item.Message,
-			&item.Source, &item.IsRecurring, &item.CreatedAt); err != nil {
+			&item.Source, &item.IsRecurring, &item.RefundStatus, &item.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -331,10 +333,54 @@ func (r *pgDonationRepository) CurrentMonthSumByProject(ctx context.Context, pro
 		`SELECT COALESCE(SUM(amount), 0)::int
 		 FROM donations
 		 WHERE project_id = $1
-		   AND created_at >= DATE_TRUNC('month', NOW())`,
+		   AND created_at >= DATE_TRUNC('month', NOW())
+		   AND (refund_status IS NULL OR refund_status != 'completed')`,
 		projectID,
 	).Scan(&sum)
 	return sum, err
+}
+
+// SetRefundPending sets refund_status='pending' on a donation.
+// Returns ErrAlreadyRefunded if refund_status is not NULL, ErrNotFound if donation does not exist.
+func (r *pgDonationRepository) SetRefundPending(ctx context.Context, id string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE donations SET refund_status = 'pending', updated_at = NOW()
+		 WHERE id = $1 AND refund_status IS NULL`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		// Check if donation exists to distinguish not-found vs already-refunded
+		var exists bool
+		_ = r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM donations WHERE id = $1)`, id).Scan(&exists)
+		if !exists {
+			return ErrNotFound
+		}
+		return ErrAlreadyRefunded
+	}
+	return nil
+}
+
+// CompleteRefund sets refund_status='completed' and stripe_refund_id on a donation.
+func (r *pgDonationRepository) CompleteRefund(ctx context.Context, id string, stripeRefundID string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE donations SET refund_status = 'completed', stripe_refund_id = $2, updated_at = NOW()
+		 WHERE id = $1`, id, stripeRefundID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ClearRefundPending resets refund_status to NULL (rollback on Stripe failure).
+func (r *pgDonationRepository) ClearRefundPending(ctx context.Context, id string) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE donations SET refund_status = NULL, updated_at = NOW()
+		 WHERE id = $1 AND refund_status = 'pending'`, id)
+	return err
 }
 
 func (r *pgDonationRepository) MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error) {
@@ -344,6 +390,7 @@ func (r *pgDonationRepository) MonthlySumByProject(ctx context.Context, projectI
 		 FROM donations
 		 WHERE project_id = $1
 		   AND created_at >= DATE_TRUNC('month', NOW()) - INTERVAL '11 months'
+		   AND (refund_status IS NULL OR refund_status != 'completed')
 		 GROUP BY DATE_TRUNC('month', created_at)
 		 ORDER BY month`,
 		projectID)

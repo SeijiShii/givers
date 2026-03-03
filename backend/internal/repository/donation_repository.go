@@ -37,4 +37,11 @@ type DonationRepository interface {
 	// ListByProjectForOwner returns donations for a project with donor names, for owner viewing.
 	// Supports pagination, sorting, source filtering, and donor name filtering.
 	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error)
+	// SetRefundPending sets refund_status='pending' on a donation.
+	// Returns ErrAlreadyRefunded if refund_status is not NULL, ErrNotFound if donation does not exist.
+	SetRefundPending(ctx context.Context, id string) error
+	// CompleteRefund sets refund_status='completed' and stripe_refund_id on a donation.
+	CompleteRefund(ctx context.Context, id string, stripeRefundID string) error
+	// ClearRefundPending resets refund_status to NULL (rollback on Stripe failure).
+	ClearRefundPending(ctx context.Context, id string) error
 }

@@ -53,7 +53,12 @@
     "unwatch": "Unwatch",
     "noWatches": "No watched projects yet.",
     "nextBillingMessage": "Next billing message",
-    "nextBillingMessagePlaceholder": "Message shown in activity feed on next billing (optional)"
+    "nextBillingMessagePlaceholder": "Message shown in activity feed on next billing (optional)",
+    "refundBtn": "Refund",
+    "refundConfirm": "Are you sure you want to refund this donation in full? This action cannot be undone.",
+    "refundPending": "Refund pending",
+    "refundCompleted": "Refunded",
+    "refundError": "Refund failed"
   },
   "home": {
     "title": "GIVErS",
@@ -250,7 +255,16 @@
     "donationHistoryDate": "Date",
     "donationHistoryRecurring": "Recurring",
     "donationHistoryOneTime": "One-time",
-    "donationHistoryAnonymous": "Anonymous"
+    "donationHistoryAnonymous": "Anonymous",
+    "donationHistoryRefund": "Refund",
+    "donationHistoryRefundBtn": "Refund",
+    "donationHistoryRefundConfirm": "Are you sure you want to refund this donation in full? This action cannot be undone.",
+    "donationHistoryRefundConfirmSubscription": "Are you sure you want to refund this donation in full?\nNote: The donor must cancel the recurring donation before the next billing cycle.",
+    "donationHistoryRefundPending": "Refund pending",
+    "donationHistoryRefundCompleted": "Refunded",
+    "donationHistoryRefundError": "Refund failed",
+    "donationHistoryRefundAlreadyRefunded": "This donation has already been refunded",
+    "donationHistoryStatus": "Status"
   },
   "admin": {
     "usersTitle": "User Management",

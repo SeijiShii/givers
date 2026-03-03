@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { OwnerDonationItem } from "../../lib/api";
-import { getOwnerDonations } from "../../lib/api";
+import { getOwnerDonations, refundDonationByOwner } from "../../lib/api";
 import { t, type Locale } from "../../lib/i18n";
+import ConfirmDialog from "./ConfirmDialog";
 
 const PAGE_SIZE = 50;
 
@@ -29,6 +30,9 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
   const [sourceFilter, setSourceFilter] = useState("");
   const [donorFilter, setDonorFilter] = useState("");
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
+  const [refundConfirmId, setRefundConfirmId] = useState<string | null>(null);
+  const [refundingId, setRefundingId] = useState<string | null>(null);
+  const [refundError, setRefundError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +67,34 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
   useEffect(() => {
     setOffset(0);
   }, [sourceFilter, donorFilter]);
+
+  const handleRefund = async (donationId: string) => {
+    setRefundConfirmId(null);
+    setRefundingId(donationId);
+    setRefundError(null);
+    try {
+      await refundDonationByOwner(projectId, donationId);
+      // Update local state to reflect refund
+      setDonations((prev) =>
+        prev.map((d) =>
+          d.id === donationId ? { ...d, refund_status: "completed" } : d,
+        ),
+      );
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("409")) {
+        setRefundError(
+          t(locale, "projects.donationHistoryRefundAlreadyRefunded"),
+        );
+      } else {
+        setRefundError(t(locale, "projects.donationHistoryRefundError"));
+      }
+    } finally {
+      setRefundingId(null);
+    }
+  };
+
+  const refundConfirmDonation = donations.find((d) => d.id === refundConfirmId);
 
   return (
     <div className="card" style={{ padding: "1.5rem" }}>
@@ -154,6 +186,9 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
                   <th style={{ padding: "0.5rem" }}>
                     {t(locale, "projects.donationHistoryDate")}
                   </th>
+                  <th style={{ padding: "0.5rem" }}>
+                    {t(locale, "projects.donationHistoryStatus")}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -206,6 +241,40 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
                     >
                       {formatDate(d.created_at, locale)}
                     </td>
+                    <td style={{ padding: "0.5rem", whiteSpace: "nowrap" }}>
+                      {d.refund_status === "completed" ? (
+                        <span
+                          style={{
+                            color: "var(--color-text-muted)",
+                            fontSize: "0.85rem",
+                          }}
+                        >
+                          {t(locale, "projects.donationHistoryRefundCompleted")}
+                        </span>
+                      ) : d.refund_status === "pending" ||
+                        refundingId === d.id ? (
+                        <span
+                          style={{
+                            color: "var(--color-text-muted)",
+                            fontSize: "0.85rem",
+                          }}
+                        >
+                          {t(locale, "projects.donationHistoryRefundPending")}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-small"
+                          style={{
+                            fontSize: "0.8rem",
+                            padding: "0.25rem 0.5rem",
+                          }}
+                          onClick={() => setRefundConfirmId(d.id)}
+                        >
+                          {t(locale, "projects.donationHistoryRefundBtn")}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -245,6 +314,38 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
           )}
         </>
       )}
+
+      {refundError && (
+        <p
+          style={{
+            marginTop: "0.75rem",
+            color: "var(--color-danger)",
+            fontSize: "0.9rem",
+          }}
+        >
+          {refundError}
+        </p>
+      )}
+
+      <ConfirmDialog
+        open={refundConfirmId !== null}
+        title={t(locale, "projects.donationHistoryRefund")}
+        message={
+          refundConfirmDonation?.is_recurring
+            ? t(locale, "projects.donationHistoryRefundConfirmSubscription")
+            : t(locale, "projects.donationHistoryRefundConfirm")
+        }
+        confirmLabel={t(locale, "projects.donationHistoryRefundBtn")}
+        cancelLabel={t(locale, "projects.cancel")}
+        danger
+        onConfirm={() => {
+          if (refundConfirmId) handleRefund(refundConfirmId);
+        }}
+        onCancel={() => {
+          setRefundConfirmId(null);
+          setRefundError(null);
+        }}
+      />
     </div>
   );
 }

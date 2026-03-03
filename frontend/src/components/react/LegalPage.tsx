@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getLegalDoc } from "../../lib/api";
 
 interface Props {
@@ -58,7 +59,7 @@ export default function LegalPage({
         maxWidth: "720px",
       }}
     >
-      <ReactMarkdown>{content}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </div>
   );
 }

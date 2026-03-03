@@ -746,6 +746,21 @@ export const mockApi = {
     if (p) (p as Record<string, unknown>)._mockImageUrl = null;
   },
 
+  async refundDonationByOwner(
+    _projectId: string,
+    _donationId: string,
+  ): Promise<{ status: string }> {
+    await delay(MOCK_DELAY);
+    return { status: "refunded" };
+  },
+
+  async refundDonationByDonor(
+    _donationId: string,
+  ): Promise<{ status: string }> {
+    await delay(MOCK_DELAY);
+    return { status: "refunded" };
+  },
+
   async getHostHealth(): Promise<{
     monthly_cost: number;
     current_monthly: number;

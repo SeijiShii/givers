@@ -7,3 +7,6 @@ var ErrNotFound = errors.New("not found")
 
 // ErrDuplicate is returned when a unique constraint violation occurs (e.g. duplicate stripe_payment_id).
 var ErrDuplicate = errors.New("duplicate")
+
+// ErrAlreadyRefunded is returned when attempting to refund a donation that is already refunded or pending refund.
+var ErrAlreadyRefunded = errors.New("donation already refunded")
