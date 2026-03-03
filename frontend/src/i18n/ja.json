@@ -10,6 +10,7 @@
     "financialHealthTitleReached": "財政的健全性：寄付は目標金額に達しています",
     "financialHealthTitleNotReached": "財政的健全性：寄付は目標金額に未達（現在 {rate}%）",
     "adminUsers": "ユーザー管理",
+    "announcements": "お知らせ",
     "about": "About",
     "faq": "よくある質問",
     "contact": "お問い合わせ"
@@ -292,7 +293,23 @@
     "contactDate": "日時",
     "contactMessage": "メッセージ",
     "contactFilterAll": "すべて",
-    "contactFilterUnread": "未読のみ"
+    "contactFilterUnread": "未読のみ",
+    "announcements": "お知らせ管理",
+    "announcementCreate": "新しいお知らせを投稿",
+    "announcementEdit": "お知らせを編集",
+    "announcementTitle": "タイトル",
+    "announcementBody": "本文",
+    "announcementSeverity": "重要度",
+    "announcementPublish": "公開",
+    "announcementHide": "非表示にする",
+    "announcementSubmit": "投稿",
+    "announcementSubmitScheduled": "予約投稿",
+    "announcementUpdate": "更新",
+    "announcementSchedule": "公開日時を指定する",
+    "announcementScheduledAt": "公開日時",
+    "announcementStatusPublished": "公開中",
+    "announcementStatusScheduled": "予約中",
+    "announcementStatusHidden": "非表示"
   },
   "errors": {
     "accountSuspended": "このアカウントは利用停止されています。ご不明な点は運営までお問い合わせください。",
@@ -365,5 +382,16 @@
     "description": "GitHub の README やウェブサイトにバッジを埋め込めます",
     "copy": "コピー",
     "copied": "コピーしました"
+  },
+  "announcements": {
+    "title": "お知らせ",
+    "empty": "お知らせはありません",
+    "viewAll": "すべて見る",
+    "loadMore": "もっと読み込む",
+    "severityInfo": "情報",
+    "severityWarn": "注意",
+    "severityError": "障害",
+    "unread": "未読",
+    "manage": "お知らせを管理"
   }
 }

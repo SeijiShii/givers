@@ -923,3 +923,115 @@ export async function getHostHealth(): Promise<PlatformHealthData> {
   if (MOCK_MODE) return (await import("./mock-api")).mockApi.getHostHealth();
   return fetchApi<PlatformHealthData>("/api/host");
 }
+
+// --- Announcements ---
+
+export interface Announcement {
+  id: string;
+  author_id: string;
+  title: string;
+  body: string;
+  severity: "info" | "warn" | "error";
+  visible: boolean;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+  is_read?: boolean | null;
+}
+
+export interface AnnouncementListResult {
+  announcements: Announcement[];
+  next_cursor: string | null;
+}
+
+export async function getAnnouncements(
+  limit = 20,
+  cursor?: string,
+): Promise<AnnouncementListResult> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getAnnouncements(limit, cursor);
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  return fetchApi<AnnouncementListResult>(
+    `/api/announcements?${params.toString()}`,
+  );
+}
+
+export async function getAnnouncementUnreadCount(): Promise<number> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getAnnouncementUnreadCount();
+  const res = await fetchApi<{ count: number }>(
+    "/api/announcements/unread-count",
+  );
+  return res.count;
+}
+
+export async function markAnnouncementRead(id: string): Promise<void> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.markAnnouncementRead(id);
+  await fetchApi(`/api/announcements/${id}/read`, { method: "POST" });
+}
+
+export async function getAdminAnnouncements(
+  limit = 20,
+  cursor?: string,
+): Promise<AnnouncementListResult> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getAdminAnnouncements(
+      limit,
+      cursor,
+    );
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  return fetchApi<AnnouncementListResult>(
+    `/api/admin/announcements?${params.toString()}`,
+  );
+}
+
+export async function createAnnouncement(input: {
+  title: string;
+  body?: string;
+  severity?: string;
+  published_at?: string;
+}): Promise<Announcement> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.createAnnouncement(input);
+  const res = await fetchApi<{ announcement: Announcement }>(
+    "/api/admin/announcements",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+  return res.announcement;
+}
+
+export async function updateAnnouncement(
+  id: string,
+  input: {
+    title?: string;
+    body?: string;
+    severity?: string;
+    published_at?: string;
+  },
+): Promise<Announcement> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.updateAnnouncement(id, input);
+  const res = await fetchApi<{ announcement: Announcement }>(
+    `/api/admin/announcements/${id}`,
+    { method: "PUT", body: JSON.stringify(input) },
+  );
+  return res.announcement;
+}
+
+export async function setAnnouncementVisibility(
+  id: string,
+  visible: boolean,
+): Promise<void> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.setAnnouncementVisibility(
+      id,
+      visible,
+    );
+  await fetchApi(`/api/admin/announcements/${id}/visibility`, {
+    method: "PATCH",
+    body: JSON.stringify({ visible }),
+  });
+}

@@ -10,6 +10,7 @@
     "financialHealthTitleReached": "Financial health: Donations have reached the target.",
     "financialHealthTitleNotReached": "Financial health: Donations have not reached the target (currently {rate}%).",
     "adminUsers": "User Management",
+    "announcements": "Announcements",
     "about": "About",
     "faq": "FAQ",
     "contact": "Contact"
@@ -292,7 +293,23 @@
     "contactDate": "Date",
     "contactMessage": "Message",
     "contactFilterAll": "All",
-    "contactFilterUnread": "Unread only"
+    "contactFilterUnread": "Unread only",
+    "announcements": "Announcement Management",
+    "announcementCreate": "Post new announcement",
+    "announcementEdit": "Edit announcement",
+    "announcementTitle": "Title",
+    "announcementBody": "Body",
+    "announcementSeverity": "Severity",
+    "announcementPublish": "Publish",
+    "announcementHide": "Hide",
+    "announcementSubmit": "Post",
+    "announcementSubmitScheduled": "Schedule",
+    "announcementUpdate": "Update",
+    "announcementSchedule": "Schedule publish date",
+    "announcementScheduledAt": "Publish date",
+    "announcementStatusPublished": "Published",
+    "announcementStatusScheduled": "Scheduled",
+    "announcementStatusHidden": "Hidden"
   },
   "errors": {
     "accountSuspended": "This account has been suspended. Please contact support if you have questions.",
@@ -365,5 +382,16 @@
     "description": "Embed this badge in your GitHub README or website",
     "copy": "Copy",
     "copied": "Copied!"
+  },
+  "announcements": {
+    "title": "Announcements",
+    "empty": "No announcements",
+    "viewAll": "View all",
+    "loadMore": "Load more",
+    "severityInfo": "Info",
+    "severityWarn": "Warning",
+    "severityError": "Incident",
+    "unread": "Unread",
+    "manage": "Manage Announcements"
   }
 }

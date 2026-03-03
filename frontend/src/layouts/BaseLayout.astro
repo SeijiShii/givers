@@ -5,6 +5,7 @@ import { SITE_URL } from '../lib/site';
 import AuthStatus from '../components/react/AuthStatus';
 import NavAdminLink from '../components/react/NavAdminLink';
 import NavFinancialHealthMark from '../components/react/NavFinancialHealthMark';
+import NavAnnouncementBell from '../components/react/NavAnnouncementBell';
 
 interface Props {
   title: string;
@@ -74,6 +75,9 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
           {t(locale, 'nav.host')}
           <NavFinancialHealthMark client:load locale={locale} />
         </a>
+        <span class="announcement-bell-header">
+          <NavAnnouncementBell client:load locale={locale} basePath={basePath} viewAllLabel={t(locale, 'announcements.viewAll')} titleLabel={t(locale, 'announcements.title')} emptyLabel={t(locale, 'announcements.empty')} />
+        </span>
         <span class="auth-status-header">
           <AuthStatus client:load locale={locale} />
         </span>
@@ -84,6 +88,7 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
         </button>
         <div class="nav-menu" data-nav-menu>
           <a href={`${basePath}/projects`}>{t(locale, 'nav.projects')}</a>
+          <a href={`${basePath}/announcements`}>{t(locale, 'nav.announcements')}</a>
           <a href={`${basePath}/me`}>{t(locale, 'nav.me')}</a>
           <NavAdminLink client:load locale={locale} basePath={basePath} />
           <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>

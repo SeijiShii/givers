@@ -122,6 +122,9 @@ func main() {
 	refundService := service.NewRefundService(donationRepo, projectRepo, stripeClient)
 	refundHandler := handler.NewRefundHandler(refundService, projectService)
 	badgeHandler := handler.NewBadgeHandler(projectService)
+	announcementRepo := repository.NewPgAnnouncementRepository(pool)
+	announcementService := service.NewAnnouncementService(announcementRepo)
+	announcementHandler := handler.NewAnnouncementHandler(announcementService)
 
 	uploadsDir := os.Getenv("UPLOADS_DIR")
 	if uploadsDir == "" {
@@ -188,6 +191,16 @@ func main() {
 	mux.Handle("GET /api/admin/users", wrapAuth(http.HandlerFunc(adminUserHandler.List)))
 	mux.Handle("PATCH /api/admin/users/{id}/suspend", wrapAuth(http.HandlerFunc(adminUserHandler.Suspend)))
 	mux.Handle("GET /api/admin/disclosure-export", wrapAuth(http.HandlerFunc(adminUserHandler.DisclosureExport)))
+
+	// お知らせ API（一覧は認証不要、unread-count/read は認証必須）
+	mux.HandleFunc("GET /api/announcements", announcementHandler.List)
+	mux.Handle("GET /api/announcements/unread-count", wrapAuth(http.HandlerFunc(announcementHandler.UnreadCount)))
+	mux.Handle("POST /api/announcements/{id}/read", wrapAuth(http.HandlerFunc(announcementHandler.MarkRead)))
+	// お知らせ管理 API（ホストのみ — handler 内で IsHostFromContext チェック）
+	mux.Handle("GET /api/admin/announcements", wrapAuth(http.HandlerFunc(announcementHandler.AdminList)))
+	mux.Handle("POST /api/admin/announcements", wrapAuth(http.HandlerFunc(announcementHandler.AdminCreate)))
+	mux.Handle("PUT /api/admin/announcements/{id}", wrapAuth(http.HandlerFunc(announcementHandler.AdminUpdate)))
+	mux.Handle("PATCH /api/admin/announcements/{id}/visibility", wrapAuth(http.HandlerFunc(announcementHandler.AdminSetVisibility)))
 
 	// Platform health (no auth required)
 	mux.HandleFunc("GET /api/host", hostHandler.Get)

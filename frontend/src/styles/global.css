@@ -693,3 +693,151 @@ footer p {
   gap: 0.5rem;
   margin-top: 1rem;
 }
+
+/* --- Announcements --- */
+.announcement-bell-header {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+}
+.announcement-bell-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  padding: 4px;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+}
+.announcement-bell-btn:hover {
+  opacity: 0.8;
+}
+.announcement-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  border-radius: 8px;
+  text-align: center;
+  padding: 0 3px;
+  font-weight: bold;
+}
+.announcement-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 340px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--color-bg, #fff);
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 1200;
+}
+.announcement-dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border, #eee);
+}
+.announcement-dropdown-header a {
+  font-size: 0.85rem;
+}
+.announcement-dropdown-loading,
+.announcement-dropdown-empty {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: var(--color-muted, #888);
+}
+.announcement-dropdown-item {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--color-border, #f0f0f0);
+  align-items: flex-start;
+}
+.announcement-dropdown-item.unread {
+  background: rgba(59, 130, 246, 0.05);
+}
+.announcement-dropdown-item-content {
+  flex: 1;
+  min-width: 0;
+}
+.announcement-dropdown-item-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 2px;
+}
+.announcement-dropdown-item-body {
+  font-size: 0.8rem;
+  color: var(--color-muted, #666);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.announcement-dropdown-item-date {
+  font-size: 0.75rem;
+  color: var(--color-muted, #888);
+  white-space: nowrap;
+}
+.announcement-severity-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+/* Announcement list page */
+.announcement-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.announcement-page-header h1 {
+  margin-bottom: 0;
+}
+.announcement-empty {
+  color: var(--color-muted, #888);
+}
+.announcement-card {
+  padding: 1rem;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+.announcement-card.unread {
+  background: rgba(59, 130, 246, 0.03);
+}
+.announcement-card.unread .announcement-card-title {
+  font-weight: 700;
+}
+.announcement-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.announcement-card-title {
+  font-weight: 600;
+  flex: 1;
+}
+.announcement-card-date {
+  font-size: 0.85rem;
+  color: var(--color-muted, #888);
+  white-space: nowrap;
+}
+.announcement-card-body {
+  color: var(--color-text, #333);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+/* Admin announcement */
+.status-published { color: #22c55e; }
+.status-scheduled { color: #f59e0b; }
+.status-hidden { color: #888; }

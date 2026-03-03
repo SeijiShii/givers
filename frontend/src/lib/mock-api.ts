@@ -62,6 +62,56 @@ const recurringOverrides = new Map<
   { amount?: number; interval?: "monthly" | "yearly" }
 >();
 
+/** モック: お知らせ既読 ID（セッション内のみ） */
+const mockAnnouncementReadIds = new Set<string>();
+
+/** モック: お知らせデータ */
+const MOCK_ANNOUNCEMENTS: Array<{
+  id: string;
+  author_id: string;
+  title: string;
+  body: string;
+  severity: "info" | "warn" | "error";
+  visible: boolean;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
+}> = [
+  {
+    id: "ann-1",
+    author_id: "mock-host",
+    title: "サーバーメンテナンスのお知らせ",
+    body: "2026年3月10日 02:00〜04:00 にサーバーメンテナンスを実施します。この間、サービスが一時的にご利用いただけなくなります。",
+    severity: "warn",
+    visible: true,
+    published_at: "2026-03-03T10:00:00Z",
+    created_at: "2026-03-03T10:00:00Z",
+    updated_at: "2026-03-03T10:00:00Z",
+  },
+  {
+    id: "ann-2",
+    author_id: "mock-host",
+    title: "新機能リリースのお知らせ",
+    body: "返金機能を追加しました。寄付者・プロジェクトオーナーともに寄付の返金が可能になりました。",
+    severity: "info",
+    visible: true,
+    published_at: "2026-02-28T09:00:00Z",
+    created_at: "2026-02-28T09:00:00Z",
+    updated_at: "2026-02-28T09:00:00Z",
+  },
+  {
+    id: "ann-3",
+    author_id: "mock-host",
+    title: "決済遅延のお知らせ",
+    body: "現在Stripe側の遅延により、一部の決済処理に時間がかかっています。復旧次第お知らせします。",
+    severity: "error",
+    visible: true,
+    published_at: "2026-02-25T14:00:00Z",
+    created_at: "2026-02-25T14:00:00Z",
+    updated_at: "2026-02-25T14:00:00Z",
+  },
+];
+
 /** プロジェクトステータス上書き（セッション内のみ、モック用） */
 const projectStatusOverrides = new Map<string, string>();
 
@@ -719,6 +769,89 @@ export const mockApi = {
   ): Promise<{ status: string }> {
     await delay(MOCK_DELAY);
     return { status: "refunded" };
+  },
+
+  async getAnnouncements(limit: number, cursor?: string) {
+    await delay(MOCK_DELAY);
+    const all = MOCK_ANNOUNCEMENTS.filter(
+      (a) => a.visible && new Date(a.published_at) <= new Date(),
+    );
+    return {
+      announcements: all.slice(0, limit),
+      next_cursor: null as string | null,
+    };
+  },
+
+  async getAnnouncementUnreadCount() {
+    await delay(MOCK_DELAY);
+    return MOCK_ANNOUNCEMENTS.filter(
+      (a) =>
+        a.visible &&
+        new Date(a.published_at) <= new Date() &&
+        !mockAnnouncementReadIds.has(a.id),
+    ).length;
+  },
+
+  async markAnnouncementRead(id: string) {
+    await delay(MOCK_DELAY);
+    mockAnnouncementReadIds.add(id);
+  },
+
+  async getAdminAnnouncements(limit: number, cursor?: string) {
+    await delay(MOCK_DELAY);
+    return {
+      announcements: MOCK_ANNOUNCEMENTS.slice(0, limit),
+      next_cursor: null as string | null,
+    };
+  },
+
+  async createAnnouncement(input: {
+    title: string;
+    body?: string;
+    severity?: string;
+    published_at?: string;
+  }) {
+    await delay(MOCK_DELAY);
+    const a = {
+      id: "ann-" + Date.now(),
+      author_id: "mock-host",
+      title: input.title,
+      body: input.body ?? "",
+      severity: (input.severity ?? "info") as "info" | "warn" | "error",
+      visible: true,
+      published_at: input.published_at ?? new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    MOCK_ANNOUNCEMENTS.unshift(a);
+    return a;
+  },
+
+  async updateAnnouncement(
+    id: string,
+    input: {
+      title?: string;
+      body?: string;
+      severity?: string;
+      published_at?: string;
+    },
+  ) {
+    await delay(MOCK_DELAY);
+    const a = MOCK_ANNOUNCEMENTS.find((x) => x.id === id);
+    if (!a) throw new Error("not found");
+    if (input.title !== undefined) a.title = input.title;
+    if (input.body !== undefined) a.body = input.body;
+    if (input.severity !== undefined)
+      a.severity = input.severity as "info" | "warn" | "error";
+    if (input.published_at !== undefined) a.published_at = input.published_at;
+    a.updated_at = new Date().toISOString();
+    return { ...a };
+  },
+
+  async setAnnouncementVisibility(id: string, visible: boolean) {
+    await delay(MOCK_DELAY);
+    const a = MOCK_ANNOUNCEMENTS.find((x) => x.id === id);
+    if (a) a.visible = visible;
   },
 
   async getHostHealth(): Promise<{
