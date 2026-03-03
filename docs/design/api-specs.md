@@ -27,7 +27,7 @@
 | GET | `/api/auth/{provider}/login` | 不要 | OAuth 開始（provider = google \| github \| discord \| apple）。対応する認可 URL にリダイレクト。クエリ `?return_url=/path` でログイン後のリダイレクト先を指定可能（相対パスのみ） |
 | GET | `/api/auth/{provider}/callback` | 不要 | OAuth コールバック。`code` を受け取り、ユーザー取得・セッション確立 |
 | GET | `/api/auth/finalize` | 不要 | ワンタイムコードをセッション Cookie に交換。`?return_url=/path` が指定されていればその画面にリダイレクト（未指定時は `/`） |
-| POST | `/api/auth/logout` | 必須 | ログアウト。sessions テーブルから該当行を削除、Cookie クリア |
+| POST | `/api/auth/logout` | 必須 | ログアウト。sessions テーブルから該当行を削除、Cookie クリア。**フロントはレスポンス後にホーム（`/` or `/en/`）へリダイレクト** |
 
 ### プロジェクト
 

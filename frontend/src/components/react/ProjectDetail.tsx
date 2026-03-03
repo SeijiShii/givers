@@ -279,6 +279,17 @@ export default function ProjectDetail({
             setRefreshKey((k) => k + 1);
           })
           .catch(() => {});
+        // サブスク状態も再取得（webhook処理後のsubscription検出）
+        if (me) {
+          getMySubscriptions()
+            .then((list) => {
+              const sub = list.find(
+                (d) => d.project_id === id && d.status !== "cancelled",
+              );
+              setActiveSubscription(sub ?? null);
+            })
+            .catch(() => {});
+        }
       }, 1000);
       const url = new URL(window.location.href);
       url.searchParams.delete("donated");

@@ -39,15 +39,67 @@ test.describe("寄付フロー", () => {
   test("決済完了後に感謝モーダルが表示される", async ({ page }) => {
     // session_id パラメータ付きでアクセス（Stripe からの戻りをシミュレート）
     await page.goto("/projects/mock-1?session_id=test_session");
-    // モーダルダイアログが表示される
-    const modal = page.locator("[role='dialog']");
-    await expect(modal).toBeVisible({ timeout: 10_000 });
+
+    // マイグレーションダイアログが先に出たら閉じる
+    const migrationDialog = page.locator(
+      "[role='dialog'][aria-labelledby='migration-dialog-title']",
+    );
+    if (
+      await migrationDialog.isVisible({ timeout: 3_000 }).catch(() => false)
+    ) {
+      await migrationDialog
+        .locator("button")
+        .filter({ hasText: /後で|Later/ })
+        .click();
+    }
+
+    // 感謝モーダル（migration-dialog-title を持たない dialog）
+    const thankYouModal = page.locator(
+      "[role='dialog']:not([aria-labelledby='migration-dialog-title'])",
+    );
+    await expect(thankYouModal).toBeVisible({ timeout: 10_000 });
     // 感謝メッセージが含まれている
-    await expect(modal).toContainText(/ありがとう|Thank you/);
+    await expect(thankYouModal).toContainText(/ありがとう|Thank you/);
     // 閉じるボタンで閉じられる
-    const closeBtn = modal.locator("button");
+    const closeBtn = thankYouModal.locator("button");
     await closeBtn.click();
-    await expect(modal).not.toBeVisible();
+    await expect(thankYouModal).not.toBeVisible();
+  });
+
+  test("定期寄付決済後にサブスク管理UIが表示される", async ({ page }) => {
+    // Stripe Checkout からの戻りをシミュレート（donated=1 パラメータ）
+    await page.goto("/projects/mock-1?donated=1");
+
+    // マイグレーションダイアログが先に出たら閉じる
+    const migrationDialog = page.locator(
+      "[role='dialog'][aria-labelledby='migration-dialog-title']",
+    );
+    if (
+      await migrationDialog.isVisible({ timeout: 3_000 }).catch(() => false)
+    ) {
+      await migrationDialog
+        .locator("button")
+        .filter({ hasText: /後で|Later/ })
+        .click();
+    }
+
+    // 感謝モーダルを閉じる
+    const thankYouModal = page.locator(
+      "[role='dialog']:not([aria-labelledby='migration-dialog-title'])",
+    );
+    await expect(thankYouModal).toBeVisible({ timeout: 10_000 });
+    await thankYouModal
+      .locator("button")
+      .filter({ hasText: /閉じる|Close/ })
+      .click();
+    await expect(thankYouModal).not.toBeVisible();
+
+    // サブスク管理UIが表示されること（DonateFormではなく）
+    await expect(
+      page
+        .locator("text=定期寄付を管理中")
+        .or(page.locator("text=Managing recurring donation")),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("停止ユーザーは寄付不可", async ({ page }) => {

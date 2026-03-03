@@ -134,7 +134,7 @@ giving_platform/
 - `GET /api/auth/providers` でフロントエンドに有効プロバイダ一覧を返す（フロントはこれを見てボタンを動的表示）
 - トークン（Cookie）による匿名寄付者トラッキング
 - アカウント作成時のトークン→ユーザー移行フロー
-- フロント: ログイン/ログアウト UI（React Island）
+- フロント: ログイン/ログアウト UI（React Island）。**ログアウト時はホームページ（`/` or `/en/`）にリダイレクト**（各 React Island が独立して認証状態を管理するため、ページ遷移で stale state を解消する）
 
 ### Phase 3: プロジェクト CRUD
 
@@ -155,6 +155,7 @@ giving_platform/
 - **サブスク金額変更の Stripe 連携**: `PATCH /api/me/donations/:id` で金額変更時に Stripe Subscription の price も更新する
 - **次回決済メッセージ**: `donations.next_billing_message` カラム。寄付者が次回請求時に添えるメッセージを設定可能。`invoice.payment_succeeded` webhook でアクティビティに記録→クリア
 - **プロジェクト詳細でのサブスク管理 UI**: 寄付者が既にサブスク寄付中のプロジェクトでは、DonateForm の代わりに SubscriptionManageForm（金額変更・一時停止/再開・キャンセル・次回メッセージ入力）を表示
+- **Checkout 戻り後のサブスク管理 UI 切替**: Stripe Checkout 完了後（`?donated=1` リダイレクト）、感謝モーダル表示と同時にサブスクリプション状態を再取得し、定期寄付の場合は SubscriptionManageForm に切り替える。Webhook の処理完了を待つため 1 秒のディレイ後に再取得
 - Webhook で決済完了・サブスク状態の同期
 - フロント: 寄付フォーム（React）、金額・通貨・単発/定期の選択
 - **匿名寄付者トークン**: 単発寄付は決済成功時（Webhook または成功リダイレクト）に donor_token を発行し、donations に記録すると同時に Cookie で返す。Cookie は HttpOnly, Secure（本番）, SameSite=Lax、有効期限は 1 年程度。詳細は `mock-implementation-status.md` 12.2「単発寄付時のトークン発行タイミング」。
@@ -210,7 +211,7 @@ giving_platform/
 - [ ] 「Google」クリックで Google 認証画面にリダイレクトされる
 - [ ] 「GitHub」クリックで GitHub 認証画面にリダイレクトされる（`GITHUB_CLIENT_ID` 設定時のみ表示）
 - [ ] 認証完了後、フロントにリダイレクトされ、ユーザー名と「ログアウト」が表示される
-- [ ] ログアウト後、「Google でログイン」が再表示される
+- [ ] ログアウト後、ホームページにリダイレクトされ「ログイン」が再表示される
 - [ ] 未ログインで GET /api/me が 401 を返す
 - [ ] ログイン中に GET /api/me がユーザー情報を返す
 - [ ] /me ページにアクセスできる

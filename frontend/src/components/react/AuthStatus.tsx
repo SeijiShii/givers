@@ -57,13 +57,16 @@ export default function AuthStatus({ locale = "ja" }: Props) {
   };
 
   const handleLogout = async () => {
+    const home = locale === "ja" ? "/" : "/en/";
     if (MOCK_MODE && typeof window !== "undefined" && window.localStorage) {
       window.localStorage.setItem(MOCK_LOGIN_MODE_KEY, "logout");
       setUser(null);
+      window.location.href = home;
       return;
     }
     await logout();
     setUser(null);
+    window.location.href = home;
   };
 
   const handleMigrationConfirm = async () => {
@@ -311,7 +314,9 @@ export default function AuthStatus({ locale = "ja" }: Props) {
         open={showLoginDialog}
         locale={locale}
         onClose={() => setShowLoginDialog(false)}
-        returnUrl={typeof window !== "undefined" ? window.location.pathname : undefined}
+        returnUrl={
+          typeof window !== "undefined" ? window.location.pathname : undefined
+        }
       />
     </>
   );
