@@ -69,10 +69,7 @@ func (m *mockDonationRepository) ListByProject(ctx context.Context, projectID st
 func (m *mockDonationRepository) GetByStripeSubscriptionID(ctx context.Context, subscriptionID string) (*model.Donation, error) {
 	return nil, nil
 }
-func (m *mockDonationRepository) ListMessagesByProject(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
-	return &model.DonationMessageResult{Messages: []*model.DonationMessage{}, Total: 0}, nil
-}
-func (m *mockDonationRepository) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+func (m *mockDonationRepository) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
 	return nil, nil
 }
 func (m *mockDonationRepository) SetRefundPending(_ context.Context, _ string) error {

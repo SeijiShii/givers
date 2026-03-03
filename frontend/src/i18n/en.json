@@ -189,14 +189,6 @@
     "tabSupport": "Support",
     "tabOverview": "Overview",
     "tabUpdates": "Updates",
-    "tabMessages": "Messages",
-    "messagesEmpty": "No messages yet",
-    "messagesFilterDonor": "Filter by donor",
-    "messagesDonorName": "Donor",
-    "messagesAmount": "Amount",
-    "messagesDate": "Date",
-    "messagesRecurring": "Recurring",
-    "messagesOneTime": "One-time",
     "updatesEmpty": "No updates yet",
     "editOverview": "Edit overview",
     "save": "Save",
@@ -248,6 +240,7 @@
     "donationHistorySourceRenewal": "Auto-renewal",
     "donationHistoryFilterSource": "Filter by type",
     "donationHistoryFilterDonor": "Filter by donor",
+    "donationHistoryHasMessage": "With message",
     "donationHistoryDonor": "Donor",
     "donationHistoryAmount": "Amount",
     "donationHistorySource": "Type",
@@ -264,7 +257,9 @@
     "donationHistoryRefundCompleted": "Refunded",
     "donationHistoryRefundError": "Refund failed",
     "donationHistoryRefundAlreadyRefunded": "This donation has already been refunded",
-    "donationHistoryStatus": "Status"
+    "donationHistoryStatus": "Status",
+    "donationHistorySortNewFirst": "New first",
+    "donationHistorySortOldFirst": "Old first"
   },
   "admin": {
     "usersTitle": "User Management",

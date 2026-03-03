@@ -31,12 +31,9 @@ type DonationRepository interface {
 	MonthlySumByProject(ctx context.Context, projectID string) ([]*model.MonthlySum, error)
 	// ListByProject returns donations for a specific project.
 	ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error)
-	// ListMessagesByProject returns donation messages with donor names for a project.
-	// sort must be "asc" or "desc". donor is a partial-match filter on display name.
-	ListMessagesByProject(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
 	// ListByProjectForOwner returns donations for a project with donor names, for owner viewing.
-	// Supports pagination, sorting, source filtering, and donor name filtering.
-	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error)
+	// Supports pagination, sorting, source filtering, donor name filtering, and message filtering.
+	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error)
 	// SetRefundPending sets refund_status='pending' on a donation.
 	// Returns ErrAlreadyRefunded if refund_status is not NULL, ErrNotFound if donation does not exist.
 	SetRefundPending(ctx context.Context, id string) error

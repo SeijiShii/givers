@@ -6,7 +6,6 @@ import type {
   User,
   CostItem,
   RecurringDonation,
-  DonationMessage,
 } from "../../lib/api";
 import {
   getProject,
@@ -15,7 +14,6 @@ import {
   getRelatedProjects,
   getWatchedProjects,
   getMySubscriptions,
-  getProjectMessages,
   watchProject,
   unwatchProject,
   updateProject,
@@ -121,7 +119,7 @@ function formatUpdateDate(iso: string, locale: Locale): string {
   });
 }
 
-type TabId = "support" | "updates" | "messages" | "donations";
+type TabId = "support" | "updates" | "donations";
 
 export default function ProjectDetail({
   id,
@@ -199,14 +197,6 @@ export default function ProjectDetail({
   const [deleteConfirmUpdateId, setDeleteConfirmUpdateId] = useState<
     string | null
   >(null);
-
-  // Messages state (owner-only)
-  const [messages, setMessages] = useState<DonationMessage[]>([]);
-  const [messagesTotal, setMessagesTotal] = useState(0);
-  const [messagesLoading, setMessagesLoading] = useState(false);
-  const [messagesDonorFilter, setMessagesDonorFilter] = useState("");
-  const [messagesOffset, setMessagesOffset] = useState(0);
-  const MESSAGES_LIMIT = 20;
 
   // Login dialog state
   const [showLoginDialog, setShowLoginDialog] = useState(false);
@@ -326,26 +316,6 @@ export default function ProjectDetail({
       setIsWatching(false);
     }
   }, [me?.id, project?.id]);
-
-  // Fetch messages when owner views the messages tab
-  useEffect(() => {
-    if (!isOwner || activeTab !== "messages" || !project) return;
-    setMessagesLoading(true);
-    getProjectMessages(project.id, {
-      limit: MESSAGES_LIMIT,
-      offset: messagesOffset,
-      donor: messagesDonorFilter || undefined,
-    })
-      .then((res) => {
-        setMessages(res.messages);
-        setMessagesTotal(res.total);
-      })
-      .catch(() => {
-        setMessages([]);
-        setMessagesTotal(0);
-      })
-      .finally(() => setMessagesLoading(false));
-  }, [isOwner, activeTab, project?.id, messagesOffset, messagesDonorFilter]);
 
   useEffect(() => {
     if (project && !editingOverview) {
@@ -1413,7 +1383,7 @@ export default function ProjectDetail({
       >
         {(
           (isOwner
-            ? ["support", "updates", "messages", "donations"]
+            ? ["support", "updates", "donations"]
             : ["support", "updates"]) as TabId[]
         ).map((tabId) => (
           <button
@@ -1440,7 +1410,6 @@ export default function ProjectDetail({
           >
             {tabId === "support" && tabSupportLabel}
             {tabId === "updates" && tabUpdatesLabel}
-            {tabId === "messages" && t(locale, "projects.tabMessages")}
             {tabId === "donations" && t(locale, "projects.tabDonationHistory")}
           </button>
         ))}
@@ -1789,150 +1758,6 @@ export default function ProjectDetail({
                 </ul>
               );
             })()}
-          </div>
-        )}
-
-        {activeTab === "messages" && isOwner && (
-          <div className="card" style={{ padding: "1.5rem" }}>
-            <div style={{ marginBottom: "1rem" }}>
-              <input
-                type="text"
-                value={messagesDonorFilter}
-                onChange={(e) => {
-                  setMessagesDonorFilter(e.target.value);
-                  setMessagesOffset(0);
-                }}
-                placeholder={t(locale, "projects.messagesFilterDonor")}
-                style={{ padding: "0.5rem", width: "100%", maxWidth: "300px" }}
-              />
-            </div>
-            {messagesLoading ? (
-              <p style={{ color: "var(--color-text-muted)" }}>
-                {t(locale, "projects.loading")}
-              </p>
-            ) : messages.length === 0 ? (
-              <p style={{ color: "var(--color-text-muted)" }}>
-                {t(locale, "projects.messagesEmpty")}
-              </p>
-            ) : (
-              <>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  <thead>
-                    <tr
-                      style={{
-                        borderBottom: "2px solid var(--color-border)",
-                        textAlign: "left",
-                      }}
-                    >
-                      <th style={{ padding: "0.5rem" }}>
-                        {t(locale, "projects.messagesDonorName")}
-                      </th>
-                      <th style={{ padding: "0.5rem" }}>
-                        {t(locale, "projects.messagesAmount")}
-                      </th>
-                      <th style={{ padding: "0.5rem" }}>
-                        {t(locale, "me.message")}
-                      </th>
-                      <th style={{ padding: "0.5rem" }}>
-                        {t(locale, "projects.messagesDate")}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {messages.map((msg, i) => (
-                      <tr
-                        key={i}
-                        style={{
-                          borderBottom: "1px solid var(--color-border-light)",
-                        }}
-                      >
-                        <td style={{ padding: "0.5rem" }}>
-                          {msg.donor_name}
-                          {msg.is_recurring && (
-                            <span
-                              style={{
-                                marginLeft: "0.25rem",
-                                fontSize: "0.75rem",
-                                color: "var(--color-text-muted)",
-                              }}
-                            >
-                              ({t(locale, "projects.messagesRecurring")})
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ padding: "0.5rem" }}>
-                          ¥{msg.amount.toLocaleString()}
-                        </td>
-                        <td
-                          style={{
-                            padding: "0.5rem",
-                            whiteSpace: "pre-wrap",
-                            maxWidth: "300px",
-                          }}
-                        >
-                          {msg.message}
-                        </td>
-                        <td
-                          style={{
-                            padding: "0.5rem",
-                            fontSize: "0.85rem",
-                            color: "var(--color-text-muted)",
-                          }}
-                        >
-                          {formatUpdateDate(msg.created_at, locale)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {messagesTotal > MESSAGES_LIMIT && (
-                  <div
-                    style={{
-                      marginTop: "1rem",
-                      display: "flex",
-                      gap: "0.5rem",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="btn"
-                      disabled={messagesOffset === 0}
-                      onClick={() =>
-                        setMessagesOffset(
-                          Math.max(0, messagesOffset - MESSAGES_LIMIT),
-                        )
-                      }
-                    >
-                      &laquo;
-                    </button>
-                    <span style={{ padding: "0.5rem", fontSize: "0.85rem" }}>
-                      {messagesOffset + 1}–
-                      {Math.min(messagesOffset + MESSAGES_LIMIT, messagesTotal)}{" "}
-                      / {messagesTotal}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn"
-                      disabled={
-                        messagesOffset + MESSAGES_LIMIT >= messagesTotal
-                      }
-                      onClick={() =>
-                        setMessagesOffset(messagesOffset + MESSAGES_LIMIT)
-                      }
-                    >
-                      &raquo;
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
           </div>
         )}
 

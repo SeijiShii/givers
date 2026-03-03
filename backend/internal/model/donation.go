@@ -46,21 +46,6 @@ type ChartDataPoint struct {
 	ActualAmount int    `json:"actualAmount"`
 }
 
-// DonationMessage represents a donation message for project owner viewing.
-type DonationMessage struct {
-	DonorName   string    `json:"donor_name"`
-	Amount      int       `json:"amount"`
-	Message     string    `json:"message"`
-	CreatedAt   time.Time `json:"created_at"`
-	IsRecurring bool      `json:"is_recurring"`
-}
-
-// DonationMessageResult holds a page of donation messages with total count.
-type DonationMessageResult struct {
-	Messages []*DonationMessage `json:"messages"`
-	Total    int                `json:"total"`
-}
-
 // OwnerDonationItem represents a donation record as seen by the project owner.
 type OwnerDonationItem struct {
 	ID          string    `json:"id"`

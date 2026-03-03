@@ -74,17 +74,11 @@
 | `project_updated` | プロジェクト更新時 |
 | `milestone` | 月間達成率 50% / 100% 到達時 |
 
-### 寄付メッセージ
-
-| Method | Path | 認証 | 説明 |
-|--------|------|------|------|
-| GET | `/api/projects/:id/messages` | 必須（オーナー） | プロジェクトへの寄付メッセージ一覧（ソート・フィルタ対応） |
-
 ### 寄付履歴（オーナー向け）
 
 | Method | Path | 認証 | 説明 |
 |--------|------|------|------|
-| GET | `/api/projects/:id/donations` | 必須（オーナーまたはホスト） | プロジェクトへの全寄付履歴（手動寄付 + 自動決済、メッセージ有無問わず） |
+| GET | `/api/projects/:id/donations` | 必須（オーナーまたはホスト） | プロジェクトへの全寄付履歴（手動寄付 + 自動決済。`has_message` フィルタでメッセージ付きのみに絞込可） |
 | POST | `/api/projects/:id/donations/:donationId/refund` | 必須（オーナーまたはホスト） | 寄付の全額返金（詳細は `refund-spec.md`） |
 
 ### チャート
@@ -316,44 +310,10 @@
 
 **レスポンス (204)**: No Content
 
-### GET /api/projects/:id/messages
-
-プロジェクトへの寄付メッセージ一覧を返す（オーナー認証必須）。
-
-**クエリパラメータ**
-
-| パラメータ | 型 | デフォルト | 説明 |
-|-----------|-----|-----------|------|
-| `limit` | int | 50 | 最大 200 |
-| `offset` | int | 0 | ページネーション用オフセット |
-| `sort` | string | `desc` | `asc`（古い順）/ `desc`（新しい順）。`created_at` 基準 |
-| `donor` | string | なし | 寄付者名の部分一致フィルタ |
-
-**レスポンス (200)**
-```json
-{
-  "messages": [
-    {
-      "id": "uuid",
-      "donor_name": "山田太郎",
-      "donor_type": "user",
-      "amount": 1000,
-      "message": "応援しています！",
-      "is_recurring": true,
-      "created_at": "2026-02-15T10:00:00Z"
-    }
-  ],
-  "total": 42
-}
-```
-
-- メッセージが空の寄付は結果に含まない（`message IS NOT NULL AND message != ''`）
-- 匿名寄付者（`donor_type='token'`）は `donor_name` を `null` として返す
-
 ### GET /api/projects/:id/donations
 
 プロジェクトへの全寄付履歴を返す（**オーナーまたはホスト認証必須**）。
-`messages` エンドポイントが「メッセージ付き寄付のみ」を返すのに対し、こちらは**全寄付（メッセージの有無にかかわらず）** を返す。手動寄付と自動決済を区別して表示するための `source` フィールドを含む。
+全寄付（メッセージの有無にかかわらず）を返す。`has_message` フィルタでメッセージ付き寄付のみに絞り込み可能。手動寄付と自動決済を区別して表示するための `source` フィールドを含む。
 
 **クエリパラメータ**
 
@@ -364,6 +324,7 @@
 | `sort` | string | `desc` | `asc`（古い順）/ `desc`（新しい順）。`created_at` 基準 |
 | `source` | string | なし | `checkout`（手動寄付）/ `subscription_renewal`（自動決済）。未指定で全件 |
 | `donor` | string | なし | 寄付者名の部分一致フィルタ |
+| `has_message` | bool | なし | `true` でメッセージ付き寄付のみ。未指定で全件 |
 
 **レスポンス (200)**
 ```json

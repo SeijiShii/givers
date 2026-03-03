@@ -14,7 +14,7 @@ import (
 
 // ownerDonationService is the minimal interface for OwnerDonationHandler.
 type ownerDonationService interface {
-	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error)
+	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error)
 }
 
 // OwnerDonationHandler handles donation listing endpoints for project owners.
@@ -82,7 +82,9 @@ func (h *OwnerDonationHandler) List(w http.ResponseWriter, r *http.Request) {
 		donor = v
 	}
 
-	result, err := h.donationSvc.ListByProjectForOwner(r.Context(), projectID, limit, offset, sort, source, donor)
+	hasMessage := r.URL.Query().Get("has_message") == "true"
+
+	result, err := h.donationSvc.ListByProjectForOwner(r.Context(), projectID, limit, offset, sort, source, donor, hasMessage)
 	if err != nil {
 		slog.Error("list owner donations failed", "error", err, "project_id", projectID)
 		w.WriteHeader(http.StatusInternalServerError)

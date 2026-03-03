@@ -192,66 +192,7 @@ func (r *pgDonationRepository) ListByProject(ctx context.Context, projectID stri
 	return list, rows.Err()
 }
 
-func (r *pgDonationRepository) ListMessagesByProject(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
-	// Count total matching messages
-	countQuery := `SELECT COUNT(*) FROM donations d
-		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
-		WHERE d.project_id = $1 AND d.message IS NOT NULL AND d.message != ''`
-	countArgs := []any{projectID}
-	argIdx := 2
-	if donor != "" {
-		countQuery += fmt.Sprintf(` AND COALESCE(u.display_name, 'Anonymous') ILIKE '%%' || $%d || '%%'`, argIdx)
-		countArgs = append(countArgs, donor)
-		argIdx++
-	}
-	var total int
-	if err := r.pool.QueryRow(ctx, countQuery, countArgs...).Scan(&total); err != nil {
-		return nil, err
-	}
-
-	// Fetch messages
-	sortDir := "DESC"
-	if sort == "asc" {
-		sortDir = "ASC"
-	}
-	query := fmt.Sprintf(`SELECT COALESCE(u.display_name, 'Anonymous'), d.amount, d.message, d.created_at, d.is_recurring
-		FROM donations d
-		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
-		WHERE d.project_id = $1 AND d.message IS NOT NULL AND d.message != ''`)
-	args := []any{projectID}
-	argIdx = 2
-	if donor != "" {
-		query += fmt.Sprintf(` AND COALESCE(u.display_name, 'Anonymous') ILIKE '%%' || $%d || '%%'`, argIdx)
-		args = append(args, donor)
-		argIdx++
-	}
-	query += fmt.Sprintf(` ORDER BY d.created_at %s LIMIT $%d OFFSET $%d`, sortDir, argIdx, argIdx+1)
-	args = append(args, limit, offset)
-
-	rows, err := r.pool.Query(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var msgs []*model.DonationMessage
-	for rows.Next() {
-		m := &model.DonationMessage{}
-		if err := rows.Scan(&m.DonorName, &m.Amount, &m.Message, &m.CreatedAt, &m.IsRecurring); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, m)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if msgs == nil {
-		msgs = []*model.DonationMessage{}
-	}
-	return &model.DonationMessageResult{Messages: msgs, Total: total}, nil
-}
-
-func (r *pgDonationRepository) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+func (r *pgDonationRepository) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
 	// Count total matching
 	countQuery := `SELECT COUNT(*) FROM donations d
 		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
@@ -265,9 +206,12 @@ func (r *pgDonationRepository) ListByProjectForOwner(ctx context.Context, projec
 		argIdx++
 	}
 	if donorFilter != "" {
-		countQuery += fmt.Sprintf(` AND COALESCE(u.display_name, '') ILIKE '%%' || $%d || '%%'`, argIdx)
+		countQuery += fmt.Sprintf(` AND COALESCE(u.name, '') ILIKE '%%' || $%d || '%%'`, argIdx)
 		countArgs = append(countArgs, donorFilter)
 		argIdx++
+	}
+	if hasMessage {
+		countQuery += ` AND d.message IS NOT NULL AND d.message != ''`
 	}
 
 	var total int
@@ -280,7 +224,7 @@ func (r *pgDonationRepository) ListByProjectForOwner(ctx context.Context, projec
 	if sort == "asc" {
 		sortDir = "ASC"
 	}
-	query := `SELECT d.id, u.display_name, d.donor_type,
+	query := `SELECT d.id, u.name, d.donor_type,
 		d.amount, d.currency, d.message, d.source, d.is_recurring, d.refund_status, d.created_at
 		FROM donations d
 		LEFT JOIN users u ON d.donor_type = 'user' AND d.donor_id = u.id
@@ -294,9 +238,12 @@ func (r *pgDonationRepository) ListByProjectForOwner(ctx context.Context, projec
 		argIdx++
 	}
 	if donorFilter != "" {
-		query += fmt.Sprintf(` AND COALESCE(u.display_name, '') ILIKE '%%' || $%d || '%%'`, argIdx)
+		query += fmt.Sprintf(` AND COALESCE(u.name, '') ILIKE '%%' || $%d || '%%'`, argIdx)
 		args = append(args, donorFilter)
 		argIdx++
+	}
+	if hasMessage {
+		query += ` AND d.message IS NOT NULL AND d.message != ''`
 	}
 	query += fmt.Sprintf(` ORDER BY d.created_at %s LIMIT $%d OFFSET $%d`, sortDir, argIdx, argIdx+1)
 	args = append(args, limit, offset)

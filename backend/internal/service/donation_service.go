@@ -29,8 +29,7 @@ type SubscriptionManager interface {
 type DonationService interface {
 	ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
 	MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error)
-	ListProjectMessages(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
-	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error)
+	ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error)
 }
 
 type donationService struct {
@@ -46,12 +45,8 @@ func (s *donationService) ListByUser(ctx context.Context, userID string, limit, 
 	return s.repo.ListByUser(ctx, userID, limit, offset)
 }
 
-func (s *donationService) ListProjectMessages(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
-	return s.repo.ListMessagesByProject(ctx, projectID, limit, offset, sort, donor)
-}
-
-func (s *donationService) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
-	return s.repo.ListByProjectForOwner(ctx, projectID, limit, offset, sort, sourceFilter, donorFilter)
+func (s *donationService) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
+	return s.repo.ListByProjectForOwner(ctx, projectID, limit, offset, sort, sourceFilter, donorFilter, hasMessage)
 }
 
 func (s *donationService) MigrateToken(ctx context.Context, token, userID string) (*MigrateTokenResult, error) {

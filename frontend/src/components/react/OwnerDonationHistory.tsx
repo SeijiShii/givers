@@ -29,6 +29,7 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
   const [loading, setLoading] = useState(true);
   const [sourceFilter, setSourceFilter] = useState("");
   const [donorFilter, setDonorFilter] = useState("");
+  const [hasMessageFilter, setHasMessageFilter] = useState(false);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [refundConfirmId, setRefundConfirmId] = useState<string | null>(null);
   const [refundingId, setRefundingId] = useState<string | null>(null);
@@ -43,6 +44,7 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
       sort: sortOrder,
       source: sourceFilter || undefined,
       donor: donorFilter || undefined,
+      has_message: hasMessageFilter || undefined,
     })
       .then((res) => {
         if (cancelled) return;
@@ -61,12 +63,19 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [projectId, offset, sortOrder, sourceFilter, donorFilter]);
+  }, [
+    projectId,
+    offset,
+    sortOrder,
+    sourceFilter,
+    donorFilter,
+    hasMessageFilter,
+  ]);
 
   // Reset offset when filters change
   useEffect(() => {
     setOffset(0);
-  }, [sourceFilter, donorFilter]);
+  }, [sourceFilter, donorFilter, hasMessageFilter]);
 
   const handleRefund = async (donationId: string) => {
     setRefundConfirmId(null);
@@ -136,13 +145,32 @@ export default function OwnerDonationHistory({ projectId, locale }: Props) {
           style={{ padding: "0.5rem", maxWidth: "200px" }}
         />
 
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.25rem",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={hasMessageFilter}
+            onChange={(e) => setHasMessageFilter(e.target.checked)}
+          />
+          {t(locale, "projects.donationHistoryHasMessage")}
+        </label>
+
         <button
           type="button"
           className="btn btn-small"
           onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
           style={{ padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
         >
-          {sortOrder === "desc" ? "New first" : "Old first"}
+          {sortOrder === "desc"
+            ? t(locale, "projects.donationHistorySortNewFirst")
+            : t(locale, "projects.donationHistorySortOldFirst")}
         </button>
       </div>
 

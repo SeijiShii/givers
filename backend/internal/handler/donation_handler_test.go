@@ -20,9 +20,8 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockDonationService struct {
-	listByUserFunc      func(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
-	migrateFunc         func(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error)
-	listProjectMsgsFunc func(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error)
+	listByUserFunc func(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error)
+	migrateFunc    func(ctx context.Context, token, userID string) (*service.MigrateTokenResult, error)
 }
 
 func (m *mockDonationService) ListByUser(ctx context.Context, userID string, limit, offset int) ([]*model.Donation, error) {
@@ -37,13 +36,7 @@ func (m *mockDonationService) MigrateToken(ctx context.Context, token, userID st
 	}
 	return nil, nil
 }
-func (m *mockDonationService) ListProjectMessages(ctx context.Context, projectID string, limit, offset int, sort, donor string) (*model.DonationMessageResult, error) {
-	if m.listProjectMsgsFunc != nil {
-		return m.listProjectMsgsFunc(ctx, projectID, limit, offset, sort, donor)
-	}
-	return &model.DonationMessageResult{Messages: []*model.DonationMessage{}, Total: 0}, nil
-}
-func (m *mockDonationService) ListByProjectForOwner(_ context.Context, _ string, _, _ int, _, _, _ string) (*model.OwnerDonationResult, error) {
+func (m *mockDonationService) ListByProjectForOwner(_ context.Context, _ string, _, _ int, _, _, _ string, _ bool) (*model.OwnerDonationResult, error) {
 	return &model.OwnerDonationResult{Donations: []*model.OwnerDonationItem{}, Total: 0}, nil
 }
 

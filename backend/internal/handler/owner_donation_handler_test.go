@@ -19,12 +19,12 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockOwnerDonationService struct {
-	listByProjectForOwnerFunc func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error)
+	listByProjectForOwnerFunc func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error)
 }
 
-func (m *mockOwnerDonationService) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+func (m *mockOwnerDonationService) ListByProjectForOwner(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
 	if m.listByProjectForOwnerFunc != nil {
-		return m.listByProjectForOwnerFunc(ctx, projectID, limit, offset, sort, sourceFilter, donorFilter)
+		return m.listByProjectForOwnerFunc(ctx, projectID, limit, offset, sort, sourceFilter, donorFilter, hasMessage)
 	}
 	return &model.OwnerDonationResult{Donations: []*model.OwnerDonationItem{}, Total: 0}, nil
 }
@@ -129,7 +129,7 @@ func TestOwnerDonationHandler_List_HostCanAccess(t *testing.T) {
 		},
 	}
 	donMock := &mockOwnerDonationService{
-		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
 			return &model.OwnerDonationResult{Donations: []*model.OwnerDonationItem{}, Total: 0}, nil
 		},
 	}
@@ -160,7 +160,7 @@ func TestOwnerDonationHandler_List_Success(t *testing.T) {
 		},
 	}
 	donMock := &mockOwnerDonationService{
-		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
 			if projectID != "p1" {
 				t.Errorf("expected projectID=p1, got %q", projectID)
 			}
@@ -228,20 +228,22 @@ func TestOwnerDonationHandler_List_QueryParams(t *testing.T) {
 	}
 	var capturedLimit, capturedOffset int
 	var capturedSort, capturedSource, capturedDonor string
+	var capturedHasMessage bool
 
 	donMock := &mockOwnerDonationService{
-		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
 			capturedLimit = limit
 			capturedOffset = offset
 			capturedSort = sort
 			capturedSource = sourceFilter
 			capturedDonor = donorFilter
+			capturedHasMessage = hasMessage
 			return &model.OwnerDonationResult{Donations: []*model.OwnerDonationItem{}, Total: 0}, nil
 		},
 	}
 	h := NewOwnerDonationHandler(donMock, projMock)
 
-	req := ownerAuthRequest(http.MethodGet, "/api/projects/p1/donations?limit=10&offset=5&sort=asc&source=checkout&donor=Taro", "")
+	req := ownerAuthRequest(http.MethodGet, "/api/projects/p1/donations?limit=10&offset=5&sort=asc&source=checkout&donor=Taro&has_message=true", "")
 	req.SetPathValue("id", "p1")
 	rec := httptest.NewRecorder()
 	h.List(rec, req)
@@ -264,6 +266,9 @@ func TestOwnerDonationHandler_List_QueryParams(t *testing.T) {
 	if capturedDonor != "Taro" {
 		t.Errorf("expected donor=Taro, got %q", capturedDonor)
 	}
+	if !capturedHasMessage {
+		t.Errorf("expected has_message=true, got false")
+	}
 }
 
 func TestOwnerDonationHandler_List_DefaultParams(t *testing.T) {
@@ -274,14 +279,16 @@ func TestOwnerDonationHandler_List_DefaultParams(t *testing.T) {
 	}
 	var capturedLimit, capturedOffset int
 	var capturedSort, capturedSource, capturedDonor string
+	var capturedHasMessage bool
 
 	donMock := &mockOwnerDonationService{
-		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
 			capturedLimit = limit
 			capturedOffset = offset
 			capturedSort = sort
 			capturedSource = sourceFilter
 			capturedDonor = donorFilter
+			capturedHasMessage = hasMessage
 			return &model.OwnerDonationResult{Donations: []*model.OwnerDonationItem{}, Total: 0}, nil
 		},
 	}
@@ -310,6 +317,9 @@ func TestOwnerDonationHandler_List_DefaultParams(t *testing.T) {
 	if capturedDonor != "" {
 		t.Errorf("expected default donor=\"\", got %q", capturedDonor)
 	}
+	if capturedHasMessage {
+		t.Errorf("expected default has_message=false, got true")
+	}
 }
 
 func TestOwnerDonationHandler_List_ServiceError(t *testing.T) {
@@ -319,7 +329,7 @@ func TestOwnerDonationHandler_List_ServiceError(t *testing.T) {
 		},
 	}
 	donMock := &mockOwnerDonationService{
-		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string) (*model.OwnerDonationResult, error) {
+		listByProjectForOwnerFunc: func(ctx context.Context, projectID string, limit, offset int, sort, sourceFilter, donorFilter string, hasMessage bool) (*model.OwnerDonationResult, error) {
 			return nil, errors.New("db error")
 		},
 	}

@@ -118,7 +118,6 @@ func main() {
 	activityHandler := handler.NewActivityHandler(activityService)
 	chartHandler := handler.NewChartHandler(projectService, donationRepo)
 	costPresetHandler := handler.NewCostPresetHandler(costPresetService)
-	messageHandler := handler.NewMessageHandler(donationService, projectService)
 	ownerDonationHandler := handler.NewOwnerDonationHandler(donationService, projectService)
 	refundService := service.NewRefundService(donationRepo, projectRepo, stripeClient)
 	refundHandler := handler.NewRefundHandler(refundService, projectService)
@@ -198,9 +197,6 @@ func main() {
 	mux.HandleFunc("GET /api/projects/{id}/activity", activityHandler.ProjectFeed)
 	mux.HandleFunc("GET /api/projects/{id}/chart", chartHandler.Chart)
 	mux.HandleFunc("GET /api/projects/{id}/badge.svg", badgeHandler.Badge)
-
-	// Project messages (owner or host auth required)
-	mux.Handle("GET /api/projects/{id}/messages", wrapAuth(http.HandlerFunc(messageHandler.List)))
 
 	// Owner donation history (owner or host auth required)
 	mux.Handle("GET /api/projects/{id}/donations", wrapAuth(http.HandlerFunc(ownerDonationHandler.List)))

@@ -581,41 +581,6 @@ export async function deleteSubscription(id: string): Promise<void> {
   await fetchApi(`/api/me/subscriptions/${id}`, { method: "DELETE" });
 }
 
-// --- Project Messages (owner-only) ---
-
-export interface DonationMessage {
-  donor_name: string;
-  amount: number;
-  message: string;
-  created_at: string;
-  is_recurring: boolean;
-}
-
-export interface DonationMessageResult {
-  messages: DonationMessage[];
-  total: number;
-}
-
-export async function getProjectMessages(
-  projectId: string,
-  params?: { limit?: number; offset?: number; sort?: string; donor?: string },
-): Promise<DonationMessageResult> {
-  if (MOCK_MODE)
-    return (await import("./mock-api")).mockApi.getProjectMessages(
-      projectId,
-      params,
-    );
-  const q = new URLSearchParams();
-  if (params?.limit != null) q.set("limit", String(params.limit));
-  if (params?.offset != null) q.set("offset", String(params.offset));
-  if (params?.sort) q.set("sort", params.sort);
-  if (params?.donor) q.set("donor", params.donor);
-  const qs = q.toString();
-  return fetchApi<DonationMessageResult>(
-    `/api/projects/${projectId}/messages${qs ? "?" + qs : ""}`,
-  );
-}
-
 // --- Owner Donation History (project owner only) ---
 
 export interface OwnerDonationItem {
@@ -644,6 +609,7 @@ export async function getOwnerDonations(
     sort?: string;
     source?: string;
     donor?: string;
+    has_message?: boolean;
   },
 ): Promise<OwnerDonationResult> {
   const q = new URLSearchParams();
@@ -652,6 +618,7 @@ export async function getOwnerDonations(
   if (params?.sort) q.set("sort", params.sort);
   if (params?.source) q.set("source", params.source);
   if (params?.donor) q.set("donor", params.donor);
+  if (params?.has_message) q.set("has_message", "true");
   const qs = q.toString();
   return fetchApi<OwnerDonationResult>(
     `/api/projects/${projectId}/donations${qs ? "?" + qs : ""}`,

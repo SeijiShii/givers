@@ -189,14 +189,6 @@
     "tabSupport": "支援状況",
     "tabOverview": "概要",
     "tabUpdates": "アップデート",
-    "tabMessages": "メッセージ",
-    "messagesEmpty": "メッセージはまだありません",
-    "messagesFilterDonor": "寄付者で絞り込み",
-    "messagesDonorName": "寄付者",
-    "messagesAmount": "金額",
-    "messagesDate": "日時",
-    "messagesRecurring": "定期",
-    "messagesOneTime": "単発",
     "updatesEmpty": "アップデートはまだありません",
     "editOverview": "概要を編集",
     "save": "保存",
@@ -248,6 +240,7 @@
     "donationHistorySourceRenewal": "自動更新",
     "donationHistoryFilterSource": "種別で絞り込み",
     "donationHistoryFilterDonor": "寄付者で絞り込み",
+    "donationHistoryHasMessage": "メッセージあり",
     "donationHistoryDonor": "寄付者",
     "donationHistoryAmount": "金額",
     "donationHistorySource": "種別",
@@ -264,7 +257,9 @@
     "donationHistoryRefundCompleted": "返金済み",
     "donationHistoryRefundError": "返金に失敗しました",
     "donationHistoryRefundAlreadyRefunded": "この寄付は既に返金済みです",
-    "donationHistoryStatus": "ステータス"
+    "donationHistoryStatus": "ステータス",
+    "donationHistorySortNewFirst": "新しい順",
+    "donationHistorySortOldFirst": "古い順"
   },
   "admin": {
     "usersTitle": "ユーザー管理",
