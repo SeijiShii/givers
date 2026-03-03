@@ -120,7 +120,7 @@
 |--------|------|------|------|
 | GET | `/api/host` | 不要 | プラットフォーム健全性（計算済み rate・signal を含む） |
 | POST | `/api/contact` | 不要 | サービスホストへの問い合わせ送信 |
-| GET | `/api/legal/:type` | 不要 | 法的文書（Markdown）取得。`type` = `terms` \| `privacy` \| `disclaimer`。ファイル未配置なら 404 |
+| GET | `/api/legal/:type` | 不要 | 法的文書（Markdown）取得。`type` = `terms` \| `privacy` \| `disclaimer` \| `commerce-law`。`?lang=ja` で言語指定（フォールバック: en）。ファイル未配置なら 404 |
 
 ### 管理（ホスト権限必須）
 
@@ -511,23 +511,42 @@
 | `terms` | `terms.md` | 利用規約 |
 | `privacy` | `privacy.md` | プライバシーポリシー |
 | `disclaimer` | `disclaimer.md` | 免責事項 |
+| `commerce-law` | `commerce-law.md` | 特定商取引法に基づく表記 |
 
-- ファイルは `LEGAL_DOCS_DIR` 環境変数で指定したディレクトリに配置する（デフォルト: `./legal/`）
-- ファイルが存在しない場合は **404** を返す（フロントは「このページはまだ設定されていません」と表示）
+**クエリパラメータ**
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `lang` | string | `en` | 言語コード。アローリスト: `en`, `ja`。無効値・未指定は `en` にフォールバック |
+
+**ディレクトリ構造**
+
+```
+$LEGAL_DOCS_DIR/
+  en/          ← フォールバック言語
+    terms.md / privacy.md / disclaimer.md / commerce-law.md
+  ja/
+    terms.md / privacy.md / disclaimer.md / commerce-law.md
+```
+
+- ファイルは `LEGAL_DOCS_DIR` 環境変数で指定したディレクトリ配下の `{lang}/` サブディレクトリに配置する（デフォルト: `./legal/`）
+- 指定言語のファイルが存在しない場合は `en/` にフォールバック
+- `en/` にも存在しない場合は **404** を返す（フロントは「このページはまだ設定されていません」と表示）
 - ファイル名・形式は Markdown（`.md`）固定
+- `type` はアローリスト検証。`lang` もアローリスト検証（パストラバーサル防止）
 - `..` や絶対パスを含むパストラバーサルは拒否（400）
 
-**レスポンス (200)**
-```json
-{
-  "type": "terms",
-  "content": "# 利用規約\n\n..."
-}
+**レスポンス (200)**: `Content-Type: text/markdown; charset=utf-8`
+
+```
+# 利用規約
+
+（Markdown 本文がそのまま返される）
 ```
 
 **レスポンス (404)**
-```json
-{ "errors": [{ "message": "not found" }] }
+```
+not found
 ```
 
 ### GET /api/auth/providers
@@ -702,4 +721,4 @@ WHERE project_id = $1 AND source = 'subscription_renewal';
 | `AUTH_REQUIRED` | `true` で認証ミドルウェアを有効化（本番）。未設定または `false` で開発モード（認証スキップ） |
 | `HOST_EMAILS` | ホスト権限を持つメールアドレス（カンマ区切り。admin API のアクセス制御 + プロジェクト作成時の Stripe Connect スキップ判定用） |
 | `CONTACT_NOTIFY_EMAIL` | 問い合わせ受信時の通知先メールアドレス（オプション。未設定なら DB 保存のみ） |
-| `LEGAL_DOCS_DIR` | 利用規約等の Markdown ファイルを配置するディレクトリ（デフォルト: `./legal/`） |
+| `LEGAL_DOCS_DIR` | 利用規約等の Markdown ファイルを配置するディレクトリ（デフォルト: `./legal/`）。配下に `en/`, `ja/` サブディレクトリを作成し、言語別にファイルを配置する |

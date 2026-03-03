@@ -1,6 +1,6 @@
 # TODO — GIVErS プラットフォーム
 
-最終更新: 2026-03-01
+最終更新: 2026-03-03
 
 ---
 
@@ -131,3 +131,43 @@ idea.md「継続支援はアカウント必須（解約・変更を確実に管�
 
 - [ ] **バックエンド**: `stripe_handler.go` Checkout で `is_recurring=true && donorType=="token"` を 400 で拒否
 - [ ] **フロントエンド**: `DonateForm` で未ログイン時に月額ボタンを非活性化 + 「月額寄付にはログインが必要です」メッセージを表示
+
+### 22. 特定商取引法に基づく表記ページ + 法的ドキュメント多言語対応
+
+> 参考: https://support.stripe.com/questions/how-to-create-and-display-a-commerce-disclosure-page
+
+法的ドキュメント（利用規約・プライバシーポリシー・免責事項）を言語フォルダ構造に移行し、特定商取引法ページを追加する。
+
+#### ディレクトリ構造の変更
+
+```
+backend/legal/
+  en/          ← フォールバック言語
+    terms.md / privacy.md / disclaimer.md / commerce-law.md
+  ja/
+    terms.md / privacy.md / disclaimer.md / commerce-law.md
+```
+
+#### バックエンド
+
+- [ ] 既存 `backend/legal/*.md` を `backend/legal/ja/` に移動（`git mv`）
+- [ ] `backend/legal/en/` に英語版を作成
+- [ ] `backend/legal/{ja,en}/commerce-law.md` を作成（プレースホルダー `[要入力]` 付き）
+- [ ] `legal_handler.go`: `?lang=` クエリパラメータ対応、言語アローリスト検証、フォールバック（en）
+- [ ] `legal_handler.go`: `allowedLegalTypes` に `commerce-law` 追加
+- [ ] `legal_handler.go`: レスポンスは `text/markdown` のまま維持
+- [ ] `legal_handler_test.go`: 言語フォールバック・セキュリティ等のテスト追加
+
+#### フロントエンド
+
+- [ ] `api.ts`: `getLegalDoc` を `fetchApi`（JSON パース）から素の `fetch` + `res.text()` に変更（既存バグ修正）
+- [ ] `api.ts`: `getLegalDoc(type, locale?)` に `locale` パラメータ追加、`?lang=` を API に送信
+- [ ] `mock-api.ts`: locale 対応 + `commerce-law` 追加
+- [ ] `LegalPage.tsx`: `locale` prop 追加、`getLegalDoc` に渡す
+- [ ] 既存6つの法的 `.astro` ページに `locale={locale}` prop 追加
+- [ ] `commerce-law.astro`（ja）、`en/commerce-law.astro`（en）新規作成
+- [ ] `ja.json` / `en.json`: `legal.commerceLaw` キー追加
+- [ ] `BaseLayout.astro`: フッターに特定商取引法リンク追加
+
+### 未整理
+- プロジェクトオーナーが寄付を返金できる仕組み

@@ -294,11 +294,19 @@ export interface LegalDoc {
 }
 
 export async function getLegalDoc(
-  type: "terms" | "privacy" | "disclaimer",
+  type: "terms" | "privacy" | "disclaimer" | "commerce-law",
+  locale?: string,
 ): Promise<LegalDoc | null> {
-  if (MOCK_MODE) return (await import("./mock-api")).mockApi.getLegalDoc(type);
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getLegalDoc(type, locale);
   try {
-    return await fetchApi<LegalDoc>(`/api/legal/${type}`);
+    const qs = locale ? `?lang=${encodeURIComponent(locale)}` : "";
+    const res = await fetch(`${API_URL}/api/legal/${type}${qs}`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const content = await res.text();
+    return { type, content };
   } catch {
     return null;
   }

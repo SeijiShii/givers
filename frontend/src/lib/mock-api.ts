@@ -701,17 +701,31 @@ export const mockApi = {
 
   /** 法的文書取得（モックでは固定テキストを返す） */
   async getLegalDoc(
-    type: "terms" | "privacy" | "disclaimer",
+    type: "terms" | "privacy" | "disclaimer" | "commerce-law",
+    locale?: string,
   ): Promise<LegalDoc | null> {
     await delay(MOCK_DELAY);
-    const labels: Record<string, string> = {
+    const lang = locale === "ja" ? "ja" : "en";
+    const labelsJa: Record<string, string> = {
       terms: "利用規約",
       privacy: "プライバシーポリシー",
       disclaimer: "免責事項",
+      "commerce-law": "特定商取引法に基づく表記",
     };
+    const labelsEn: Record<string, string> = {
+      terms: "Terms of Service",
+      privacy: "Privacy Policy",
+      disclaimer: "Disclaimer",
+      "commerce-law": "Specified Commercial Transactions Act Disclosure",
+    };
+    const labels = lang === "ja" ? labelsJa : labelsEn;
+    const suffix =
+      lang === "ja"
+        ? "これはモックのコンテンツです。\n\n実際のコンテンツはサーバー上の Markdown ファイルから読み込まれます。"
+        : "This is mock content.\n\nActual content is loaded from Markdown files on the server.";
     return {
       type,
-      content: `# ${labels[type] ?? type}\n\nこれはモックの${labels[type] ?? type}です。\n\n実際のコンテンツはサーバー上の Markdown ファイルから読み込まれます。`,
+      content: `# ${labels[type] ?? type}\n\n${suffix}`,
     };
   },
 
