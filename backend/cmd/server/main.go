@@ -71,6 +71,8 @@ func main() {
 	donationService := service.NewDonationService(donationRepo)
 	subscriptionService := service.NewSubscriptionService(subscriptionRepo, stripeClient)
 	costPresetService := service.NewCostPresetService(costPresetRepo)
+	consentRepo := repository.NewPgConsentRepository(pool)
+	consentService := service.NewConsentService(consentRepo)
 
 	authRequired := os.Getenv("AUTH_REQUIRED") == "true"
 	hostEmails := auth.ParseHostEmails(os.Getenv("HOST_EMAILS"))
@@ -106,7 +108,7 @@ func main() {
 		connectAccountFunc = stripeService.CreateAccountAndOnboarding
 	}
 	stripeHandler := handler.NewStripeHandler(stripeService, frontendURL, sessionSvc)
-	projectHandler := handler.NewProjectHandlerWithActivity(projectService, connectAccountFunc, activityService)
+	projectHandler := handler.NewProjectHandlerWithActivity(projectService, connectAccountFunc, activityService, consentService)
 	contactHandler := handler.NewContactHandler(contactService)
 	legalHandler := handler.NewLegalHandler(handler.LegalConfig{DocsDir: legalDocsDir})
 	watchHandler := handler.NewWatchHandler(watchService)
@@ -166,6 +168,12 @@ func main() {
 		}
 		return auth.DevAuth(hostMW(next))
 	}
+	wrapOptionalAuth := func(next http.Handler) http.Handler {
+		if authRequired {
+			return auth.OptionalAuth(sessionSvc)(next)
+		}
+		return auth.DevAuth(next)
+	}
 	mux.Handle("GET /api/me/projects", wrapAuth(http.HandlerFunc(projectHandler.MyProjects)))
 	mux.Handle("POST /api/projects", wrapAuth(http.HandlerFunc(projectHandler.Create)))
 	mux.Handle("PUT /api/projects/{id}", wrapAuth(http.HandlerFunc(projectHandler.Update)))
@@ -192,8 +200,8 @@ func main() {
 	mux.Handle("PATCH /api/admin/users/{id}/suspend", wrapAuth(http.HandlerFunc(adminUserHandler.Suspend)))
 	mux.Handle("GET /api/admin/disclosure-export", wrapAuth(http.HandlerFunc(adminUserHandler.DisclosureExport)))
 
-	// お知らせ API（一覧は認証不要、unread-count/read は認証必須）
-	mux.HandleFunc("GET /api/announcements", announcementHandler.List)
+	// お知らせ API（一覧はオプショナル認証、unread-count/read は認証必須）
+	mux.Handle("GET /api/announcements", wrapOptionalAuth(http.HandlerFunc(announcementHandler.List)))
 	mux.Handle("GET /api/announcements/unread-count", wrapAuth(http.HandlerFunc(announcementHandler.UnreadCount)))
 	mux.Handle("POST /api/announcements/{id}/read", wrapAuth(http.HandlerFunc(announcementHandler.MarkRead)))
 	// お知らせ管理 API（ホストのみ — handler 内で IsHostFromContext チェック）

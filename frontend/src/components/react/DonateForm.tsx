@@ -302,6 +302,36 @@ export default function DonateForm({
           }}
         />
       </div>
+      <p
+        style={{
+          fontSize: "0.8rem",
+          color: "var(--color-text-muted)",
+          margin: "0.75rem 0",
+          lineHeight: 1.5,
+        }}
+      >
+        {locale === "ja"
+          ? "寄付することで、"
+          : "By donating, you agree to the "}
+        <a
+          href={locale === "en" ? "/en/terms" : "/terms"}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "var(--color-primary)" }}
+        >
+          {t(locale, "legal.terms")}
+        </a>
+        {locale === "ja" ? "および" : " and "}
+        <a
+          href={locale === "en" ? "/en/privacy" : "/privacy"}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "var(--color-primary)" }}
+        >
+          {t(locale, "legal.privacy")}
+        </a>
+        {locale === "ja" ? "に同意したものとみなされます。" : "."}
+      </p>
       <button
         type="submit"
         className="btn btn-accent"

@@ -62,6 +62,23 @@ func RequireAuth(sv SessionValidator) func(http.Handler) http.Handler {
 	}
 }
 
+// OptionalAuth はセッションがあれば userID をセットし、なければそのまま通すミドルウェア
+func OptionalAuth(sv SessionValidator) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			cookie, err := r.Cookie(SessionCookieName())
+			if err == nil {
+				if userID, err := sv.ValidateSession(r.Context(), cookie.Value); err == nil {
+					ctx := WithUserID(r.Context(), userID)
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // DevUserID は開発用のダミー userID（AUTH_REQUIRED=false 時に使用）
 const DevUserID = "dev-user-id"
 

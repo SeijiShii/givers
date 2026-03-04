@@ -13,7 +13,8 @@
     "announcements": "Announcements",
     "about": "About",
     "faq": "FAQ",
-    "contact": "Contact"
+    "contact": "Contact",
+    "adminContacts": "Contact Management"
   },
   "me": {
     "title": "My Page",
@@ -107,7 +108,7 @@
     "q8": "How are my donation history and personal data used?",
     "a8": "Donation history is recorded whether or not you have an account, and can be linked to your account when you create one. Data may be used for anonymous statistics and for project owners' own project reports. We respond to account deletion requests and anonymize donation records when you delete your account. See About and our terms and privacy policy for details.",
     "q9": "How do I start accepting donations as a project owner?",
-    "a9": "After logging in and creating a new project, you'll be redirected to Stripe's setup page. Complete identity verification and register your bank account. Once done, you'll be redirected back to GIVErS and your project will go live. Donations are deposited directly to your bank account minus Stripe's 3.6% processing fee. GIVErS charges zero platform fees."
+    "a9": "After logging in and creating a new project, you'll be redirected to Stripe's setup page. Complete identity verification and register your bank account. Once done, you'll be redirected back to GIVErS and your project will go live. Donations are deposited directly to your bank account minus Stripe's 3.6% processing fee. GIVErS charges zero platform fees. Note: even if you already have a Stripe account, a new connected account will be created for GIVErS."
   },
   "host": {
     "title": "Donate to GIVErS",
@@ -218,7 +219,7 @@
     "criticalThreshold": "CRITICAL threshold (achievement %)",
     "alertsHint": "An alert is shown when the monthly achievement rate falls below these values. Leave blank for no alert.",
     "stripeConnectTitle": "About Stripe account setup",
-    "stripeConnectDesc": "To receive donations, you'll need to set up an account with Stripe (our payment provider). GIVErS never takes any fees.",
+    "stripeConnectDesc": "To receive donations, you'll need to set up an account with Stripe (our payment provider). Even if you already have a Stripe account, a new connected account will be created for GIVErS. GIVErS never takes any fees.",
     "stripeConnectButton": "Connect Stripe account",
     "stripeConnecting": "Connecting...",
     "stripeConnected": "Connected ✓",
@@ -294,6 +295,8 @@
     "contactMessage": "Message",
     "contactFilterAll": "All",
     "contactFilterUnread": "Unread only",
+    "contactMarkUnread": "Mark as unread",
+    "contactLoadMore": "Load more",
     "announcements": "Announcement Management",
     "announcementCreate": "Post new announcement",
     "announcementEdit": "Edit announcement",
@@ -347,7 +350,9 @@
     "disclaimer": "Disclaimer",
     "commerceLaw": "Specified Commercial Transactions Act",
     "notConfigured": "This page has not been configured yet.",
-    "backToTop": "Back to top"
+    "backToTop": "Back to top",
+    "agreeTerms": "I agree to the Terms of Service",
+    "agreeTermsRequired": "You must agree to the Terms of Service to create a project"
   },
   "testBanner": "This service is currently in test mode. Actual donations cannot be made.",
   "footer": {

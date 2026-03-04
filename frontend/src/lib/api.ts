@@ -286,6 +286,16 @@ export async function markContactRead(id: string): Promise<void> {
   });
 }
 
+/** 問い合わせメッセージを未読に戻す（ホスト用） */
+export async function markContactUnread(id: string): Promise<void> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.markContactUnread(id);
+  await fetchApi(`/api/admin/contacts/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: "unread" }),
+  });
+}
+
 // --- Legal API ---
 
 export interface LegalDoc {

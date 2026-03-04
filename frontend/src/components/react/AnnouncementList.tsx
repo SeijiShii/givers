@@ -49,10 +49,12 @@ export default function AnnouncementList({
           : res.announcements;
         setItems(newItems);
         setCursor(res.next_cursor);
-        // Mark unread as read
-        res.announcements
-          .filter((a) => a.is_read === false)
-          .forEach((a) => markAnnouncementRead(a.id).catch(() => {}));
+        // Mark unread as read (skip for hosts — they post announcements)
+        if (!isHost) {
+          res.announcements
+            .filter((a) => a.is_read === false)
+            .forEach((a) => markAnnouncementRead(a.id).catch(() => {}));
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -96,7 +98,7 @@ export default function AnnouncementList({
           return (
             <div
               key={item.id}
-              className={`announcement-card${item.is_read === false ? " unread" : ""}`}
+              className={`announcement-card${!isHost && item.is_read === false ? " unread" : ""}`}
             >
               <div className="announcement-card-header">
                 <span

@@ -59,6 +59,7 @@ type ProjectHandler struct {
 	connectAccountFunc ConnectAccountFunc     // nil = Stripe not configured
 	projectService     service.ProjectService
 	activityService    service.ActivityService // optional, nil = skip
+	consentService     service.ConsentService  // optional, nil = skip
 }
 
 // NewProjectHandler は ProjectHandler を生成する
@@ -67,8 +68,8 @@ func NewProjectHandler(projectService service.ProjectService, connectAccountFunc
 }
 
 // NewProjectHandlerWithActivity は ActivityService 付きの ProjectHandler を生成する
-func NewProjectHandlerWithActivity(projectService service.ProjectService, connectAccountFunc ConnectAccountFunc, actSvc service.ActivityService) *ProjectHandler {
-	return &ProjectHandler{projectService: projectService, connectAccountFunc: connectAccountFunc, activityService: actSvc}
+func NewProjectHandlerWithActivity(projectService service.ProjectService, connectAccountFunc ConnectAccountFunc, actSvc service.ActivityService, consentSvc service.ConsentService) *ProjectHandler {
+	return &ProjectHandler{projectService: projectService, connectAccountFunc: connectAccountFunc, activityService: actSvc, consentService: consentSvc}
 }
 
 // List は GET /api/projects を処理する
@@ -155,6 +156,7 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		OwnerWantMonthly *int                         `json:"owner_want_monthly"`
 		CostItems        []model.CostItem             `json:"cost_items"`
 		Alerts           *model.ProjectAlerts         `json:"alerts"`
+		AgreeTerms       bool                         `json:"agree_terms"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -166,6 +168,19 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "name_required"})
 		return
+	}
+
+	if !req.AgreeTerms {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "terms_agreement_required"})
+		return
+	}
+
+	// Record terms consent (fire-and-forget)
+	if h.consentService != nil {
+		if err := h.consentService.RecordConsent(r.Context(), userID); err != nil {
+			slog.Error("consent record failed", "error", err, "user_id", userID)
+		}
 	}
 
 	project := &model.Project{

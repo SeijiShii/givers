@@ -6,6 +6,7 @@ import AuthStatus from '../components/react/AuthStatus';
 import NavAdminLink from '../components/react/NavAdminLink';
 import NavFinancialHealthMark from '../components/react/NavFinancialHealthMark';
 import NavAnnouncementBell from '../components/react/NavAnnouncementBell';
+import NavContactLink from '../components/react/NavContactLink';
 
 interface Props {
   title: string;
@@ -93,7 +94,7 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
           <NavAdminLink client:load locale={locale} basePath={basePath} />
           <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
           <a href={`${basePath}/faq`}>{t(locale, 'nav.faq')}</a>
-          <a href={`${basePath}/contact`}>{t(locale, 'nav.contact')}</a>
+          <NavContactLink client:load locale={locale} basePath={basePath} />
           <span class="locale-switcher">
             {locale === 'ja' ? (
               <a href={`/en${Astro.url.pathname === '/' ? '' : Astro.url.pathname}`} aria-label="Switch to English">{t(locale, 'locale.en')}</a>
@@ -153,7 +154,7 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
         <span aria-hidden="true"> · </span>
         <a href={`${basePath}/commerce-law`}>{t(locale, 'legal.commerceLaw')}</a>
         <span aria-hidden="true"> · </span>
-        <a href={`${basePath}/contact`}>{t(locale, 'nav.contact')}</a>
+        <NavContactLink client:load locale={locale} basePath={basePath} />
       </nav>
     </footer>
   </body>

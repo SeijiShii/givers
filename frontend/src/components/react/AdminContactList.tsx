@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
-import { getMe, getAdminContacts, markContactRead, type User, type ContactMessage } from '../../lib/api';
+import { getMe, getAdminContacts, markContactRead, markContactUnread, type User, type ContactMessage } from '../../lib/api';
+import type { Locale } from '../../lib/i18n';
+
+const PAGE_SIZE = 20;
 
 interface Props {
-  locale: string;
+  locale: Locale;
   title: string;
   forbiddenMessage: string;
   emptyLabel: string;
   statusUnreadLabel: string;
   statusReadLabel: string;
   markReadLabel: string;
+  markUnreadLabel: string;
   fromLabel: string;
   dateLabel: string;
   messageLabel: string;
   filterAllLabel: string;
   filterUnreadLabel: string;
   loadingLabel: string;
+  loadMoreLabel: string;
 }
 
 export default function AdminContactList({
@@ -25,18 +30,22 @@ export default function AdminContactList({
   statusUnreadLabel,
   statusReadLabel,
   markReadLabel,
+  markUnreadLabel,
   fromLabel,
   dateLabel,
   messageLabel,
   filterAllLabel,
   filterUnreadLabel,
   loadingLabel,
+  loadMoreLabel,
 }: Props) {
   const [me, setMe] = useState<User | null>(null);
   const [messages, setMessages] = useState<ContactMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [markingIds, setMarkingIds] = useState<Set<string>>(new Set());
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     getMe()
@@ -45,29 +54,54 @@ export default function AdminContactList({
       .finally(() => setLoading(false));
   }, []);
 
+  const fetchMessages = (status: 'all' | 'unread', off: number, append: boolean) => {
+    getAdminContacts({
+      status: status === 'all' ? undefined : 'unread',
+      limit: PAGE_SIZE,
+      offset: off,
+    })
+      .then((data) => {
+        setMessages((prev) => (append ? [...prev, ...data] : data));
+        setHasMore(data.length === PAGE_SIZE);
+      })
+      .catch(() => {
+        if (!append) setMessages([]);
+      });
+  };
+
   useEffect(() => {
     if (me?.role !== 'host') return;
-    setLoading(true);
-    getAdminContacts({ status: filter === 'unread' ? 'unread' : 'all' })
-      .then(setMessages)
-      .catch(() => setMessages([]))
-      .finally(() => setLoading(false));
+    setOffset(0);
+    fetchMessages(filter, 0, false);
   }, [me?.role, filter]);
 
-  const handleMarkRead = async (id: string) => {
-    setMarkingIds((prev) => new Set(prev).add(id));
+  const handleToggleStatus = async (msg: ContactMessage) => {
+    setMarkingIds((prev) => new Set(prev).add(msg.id));
     try {
-      await markContactRead(id);
-      setMessages((prev) =>
-        prev.map((m) => (m.id === id ? { ...m, status: 'read' as const } : m)),
-      );
+      if (msg.status === 'unread') {
+        await markContactRead(msg.id);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msg.id ? { ...m, status: 'read' as const } : m)),
+        );
+      } else {
+        await markContactUnread(msg.id);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === msg.id ? { ...m, status: 'unread' as const } : m)),
+        );
+      }
     } finally {
       setMarkingIds((prev) => {
         const next = new Set(prev);
-        next.delete(id);
+        next.delete(msg.id);
         return next;
       });
     }
+  };
+
+  const handleLoadMore = () => {
+    const newOffset = offset + PAGE_SIZE;
+    setOffset(newOffset);
+    fetchMessages(filter, newOffset, true);
   };
 
   if (loading) {
@@ -162,17 +196,15 @@ export default function AdminContactList({
                   >
                     {msg.status === 'unread' ? statusUnreadLabel : statusReadLabel}
                   </span>
-                  {msg.status === 'unread' && (
-                    <button
-                      type="button"
-                      className="btn"
-                      style={{ fontSize: '0.8rem', padding: '0.15rem 0.5rem' }}
-                      disabled={markingIds.has(msg.id)}
-                      onClick={() => handleMarkRead(msg.id)}
-                    >
-                      {markReadLabel}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: '0.8rem', padding: '0.15rem 0.5rem' }}
+                    disabled={markingIds.has(msg.id)}
+                    onClick={() => handleToggleStatus(msg)}
+                  >
+                    {msg.status === 'unread' ? markReadLabel : markUnreadLabel}
+                  </button>
                 </div>
               </div>
               <p style={{ margin: '0.75rem 0 0', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
@@ -180,6 +212,14 @@ export default function AdminContactList({
               </p>
             </div>
           ))}
+        </div>
+      )}
+
+      {hasMore && (
+        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+          <button type="button" className="btn" onClick={handleLoadMore}>
+            {loadMoreLabel}
+          </button>
         </div>
       )}
     </div>

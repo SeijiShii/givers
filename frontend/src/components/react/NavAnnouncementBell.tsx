@@ -3,6 +3,7 @@ import {
   getAnnouncements,
   getAnnouncementUnreadCount,
   markAnnouncementRead,
+  getMe,
   type Announcement,
 } from "../../lib/api";
 
@@ -31,14 +32,23 @@ export default function NavAnnouncementBell({
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isHost, setIsHost] = useState<boolean | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Fetch unread count on mount
+  // Check if user is host
   useEffect(() => {
+    getMe()
+      .then((user) => setIsHost(user?.role === "host"))
+      .catch(() => setIsHost(false));
+  }, []);
+
+  // Fetch unread count on mount (skip for hosts)
+  useEffect(() => {
+    if (isHost !== false) return;
     getAnnouncementUnreadCount()
       .then(setUnreadCount)
       .catch(() => {});
-  }, []);
+  }, [isHost]);
 
   // Close on outside click
   useEffect(() => {
@@ -58,9 +68,7 @@ export default function NavAnnouncementBell({
         .then((res) => {
           setItems(res.announcements);
           // Mark visible unread as read
-          const unread = res.announcements.filter(
-            (a) => a.is_read === false,
-          );
+          const unread = res.announcements.filter((a) => a.is_read === false);
           unread.forEach((a) => markAnnouncementRead(a.id).catch(() => {}));
           if (unread.length > 0) {
             setUnreadCount((c) => Math.max(0, c - unread.length));
@@ -76,6 +84,9 @@ export default function NavAnnouncementBell({
     const d = new Date(iso);
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
+
+  // Host posts announcements — no bell needed
+  if (isHost === true) return null;
 
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-block" }}>

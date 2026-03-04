@@ -709,6 +709,12 @@ export const mockApi = {
     readContactIds.add(id);
   },
 
+  /** 問い合わせを未読に戻す（モック） */
+  async markContactUnread(id: string): Promise<void> {
+    await delay(MOCK_DELAY);
+    readContactIds.delete(id);
+  },
+
   /** 法的文書取得（モックでは固定テキストを返す） */
   async getLegalDoc(
     type: "terms" | "privacy" | "disclaimer" | "commerce-law",
