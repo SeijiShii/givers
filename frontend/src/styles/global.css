@@ -1,3 +1,25 @@
+/* DEV環境バナー */
+.dev-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(30, 100, 200, 0.9);
+  color: #fff;
+  text-align: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: bold;
+  z-index: 10000;
+}
+.dev-banner a {
+  color: #ffd700;
+  text-decoration: underline;
+}
+body:has(.dev-banner) {
+  padding-top: 2.5rem;
+}
+
 /* テスト運用バナー */
 .test-banner {
   position: fixed;
@@ -15,6 +37,13 @@
 }
 body:has(.test-banner) {
   padding-top: 2.5rem;
+}
+/* DEVバナーとテストバナーが同時表示される場合 */
+body:has(.dev-banner):has(.test-banner) {
+  padding-top: 5rem;
+}
+body:has(.dev-banner) .test-banner {
+  top: 2.5rem;
 }
 
 /* GIVErS - 温かい草原をイメージしたカラーテーマ */

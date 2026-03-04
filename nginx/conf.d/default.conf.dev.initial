@@ -1,0 +1,13 @@
+server {
+    listen 80;
+    server_name dev.givers.work;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 200 'Setting up SSL...';
+        add_header Content-Type text/plain;
+    }
+}

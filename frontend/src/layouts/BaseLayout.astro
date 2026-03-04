@@ -22,6 +22,7 @@ const { title, locale = 'ja', ogTitle, ogDescription, ogImage, ogUrl, ogType } =
 
 const basePath = locale === 'en' ? '/en' : '';
 const testMode = import.meta.env.PUBLIC_TEST_MODE === 'true';
+const devMode = import.meta.env.PUBLIC_DEV_MODE === 'true';
 
 const resolvedOgTitle = ogTitle || `${title} | GIVErS`;
 const resolvedOgDescription = ogDescription || t(locale, 'home.description');
@@ -137,6 +138,11 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
         });
       })();
     </script>
+    {devMode && (
+      <div class="dev-banner">
+        <Fragment set:html={t(locale, 'devBanner')} />
+      </div>
+    )}
     {testMode && (
       <div class="test-banner">{t(locale, 'testBanner')}</div>
     )}

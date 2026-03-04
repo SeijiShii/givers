@@ -355,6 +355,7 @@
     "agreeTermsRequired": "You must agree to the Terms of Service to create a project"
   },
   "testBanner": "This service is currently in test mode. Actual donations cannot be made.",
+  "devBanner": "This is a development environment. Visit <a href=\"https://givers.work\">givers.work</a> for the production site.",
   "footer": {
     "text": "GIVErS - GIVE spirit / Donation platform for the GIVE spirit."
   },

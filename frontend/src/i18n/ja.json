@@ -355,6 +355,7 @@
     "agreeTermsRequired": "プロジェクトを作成するには利用規約への同意が必要です"
   },
   "testBanner": "このサービスは現在テスト運用中であり、実際の寄付はできません",
+  "devBanner": "これは開発環境です。本番サイトは <a href=\"https://givers.work\">givers.work</a> をご覧ください。",
   "footer": {
     "text": "GIVErS - GIVEの精神 / Donation platform for the GIVE spirit."
   },
