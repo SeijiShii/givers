@@ -131,7 +131,7 @@ Webhook は Stripe から GIVErS サーバーへのイベント通知です。
 2. URL を入力:
 
 ```
-https://your-domain.example.com/api/webhooks/stripe
+https://givers.work/api/webhooks/stripe
 ```
 
 3. **受信するイベント** を選択:
