@@ -67,7 +67,7 @@ func main() {
 	)
 	activityService := service.NewActivityService(activityRepo)
 	milestoneService := service.NewMilestoneService(projectRepo, donationRepo, activityRepo)
-	stripeService := service.NewStripeServiceFull(stripeClient, projectRepo, donationRepo, subscriptionRepo, frontendURL, activityRepo, milestoneService)
+	stripeService := service.NewStripeServiceFull(stripeClient, projectRepo, donationRepo, subscriptionRepo, userRepo, frontendURL, activityRepo, milestoneService)
 	donationService := service.NewDonationService(donationRepo)
 	subscriptionService := service.NewSubscriptionService(subscriptionRepo, stripeClient)
 	costPresetService := service.NewCostPresetService(costPresetRepo)
@@ -248,6 +248,7 @@ func main() {
 	// Rate limit on checkout endpoint (10 req/min per IP)
 	checkoutRL := handler.NewRateLimiter(10)
 	mux.Handle("POST /api/donations/checkout", checkoutRL.Middleware(http.HandlerFunc(stripeHandler.Checkout)))
+	mux.Handle("POST /api/donations/quick", checkoutRL.Middleware(http.HandlerFunc(stripeHandler.QuickDonate)))
 	mux.HandleFunc("POST /api/webhooks/stripe", stripeHandler.Webhook)
 
 	// 画像ファイルの静的配信

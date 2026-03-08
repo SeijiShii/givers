@@ -884,4 +884,12 @@ export const mockApi = {
       signal,
     };
   },
+
+  /** Quick re-donate（モック: 常に succeeded を返す） */
+  async quickDonate(
+    _donationId: string,
+  ): Promise<{ status: string; donation_id?: string }> {
+    await delay(MOCK_DELAY);
+    return { status: "succeeded", donation_id: `don-quick-${Date.now()}` };
+  },
 };

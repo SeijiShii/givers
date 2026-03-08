@@ -22,4 +22,6 @@ type UserRepository interface {
 	UpdateProviderID(ctx context.Context, userID, column, value string) error
 	List(ctx context.Context, limit, offset int) ([]*model.User, error)
 	Suspend(ctx context.Context, id string, suspend bool) error
+	SaveStripeCustomerID(ctx context.Context, userID, customerID string) error
+	GetStripeCustomerID(ctx context.Context, userID string) (string, error)
 }

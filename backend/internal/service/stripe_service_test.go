@@ -71,6 +71,15 @@ func (m *mockStripeClient) CreateRefund(_ context.Context, _, _ string) (string,
 func (m *mockStripeClient) GetInvoicePaymentIntent(_ context.Context, _, _ string) (string, error) {
 	return "", nil
 }
+func (m *mockStripeClient) CreateCustomer(_ context.Context, _ string) (string, error) {
+	return "cus_mock", nil
+}
+func (m *mockStripeClient) CreateOffSessionPaymentIntent(_ context.Context, _ pkgstripe.OffSessionPaymentParams) (*pkgstripe.OffSessionPaymentResult, error) {
+	return &pkgstripe.OffSessionPaymentResult{PaymentIntentID: "pi_mock", Status: "succeeded"}, nil
+}
+func (m *mockStripeClient) ListPaymentMethods(_ context.Context, _ string) ([]pkgstripe.PaymentMethodSummary, error) {
+	return []pkgstripe.PaymentMethodSummary{{ID: "pm_mock", Brand: "visa", Last4: "4242", ExpMonth: 12, ExpYear: 2027}}, nil
+}
 
 // ---------------------------------------------------------------------------
 // Tests: CreateAccountAndOnboarding
@@ -760,6 +769,7 @@ func (m *mockStripeProjectRepo) ActivateProject(ctx context.Context, projectID s
 
 type mockStripeDonationRepo struct {
 	createFunc                    func(ctx context.Context, d *model.Donation) error
+	getByIDFunc                   func(ctx context.Context, id string) (*model.Donation, error)
 	deleteBySubscriptionIDFunc    func(ctx context.Context, subscriptionID string) error
 	getByStripeSubscriptionIDFunc func(ctx context.Context, subscriptionID string) (*model.Donation, error)
 	patchFunc                     func(ctx context.Context, id string, patch model.DonationPatch) error
@@ -770,6 +780,13 @@ func (m *mockStripeDonationRepo) Create(ctx context.Context, d *model.Donation) 
 		return m.createFunc(ctx, d)
 	}
 	return nil
+}
+
+func (m *mockStripeDonationRepo) GetByID(ctx context.Context, id string) (*model.Donation, error) {
+	if m.getByIDFunc != nil {
+		return m.getByIDFunc(ctx, id)
+	}
+	return nil, errors.New("not found")
 }
 
 func (m *mockStripeDonationRepo) DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error {
@@ -863,7 +880,7 @@ func newTestStripeServiceWithSubscriptionRepo(
 	subscriptionRepo StripeSubscriptionRepo,
 	activityRecorder StripeActivityRecorder,
 ) StripeService {
-	return NewStripeServiceFull(client, projectRepo, donationRepo, subscriptionRepo, "https://example.com", activityRecorder, nil)
+	return NewStripeServiceFull(client, projectRepo, donationRepo, subscriptionRepo, nil, "https://example.com", activityRecorder, nil)
 }
 
 // ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ type mockStripeService struct {
 	refreshOnboardingFunc          func(ctx context.Context, projectID string) (string, error)
 	createCheckoutFunc             func(ctx context.Context, req service.CheckoutRequest) (string, error)
 	processWebhookFunc             func(ctx context.Context, payload []byte, sigHeader string) error
+	quickDonateFunc                func(ctx context.Context, req service.QuickDonateRequest) (*service.QuickDonateResult, error)
 }
 
 func (m *mockStripeService) CreateAccountAndOnboarding(ctx context.Context, projectID string) (string, error) {
@@ -54,6 +55,12 @@ func (m *mockStripeService) ProcessWebhook(ctx context.Context, payload []byte, 
 		return m.processWebhookFunc(ctx, payload, sigHeader)
 	}
 	return nil
+}
+func (m *mockStripeService) QuickDonate(ctx context.Context, req service.QuickDonateRequest) (*service.QuickDonateResult, error) {
+	if m.quickDonateFunc != nil {
+		return m.quickDonateFunc(ctx, req)
+	}
+	return &service.QuickDonateResult{Status: "succeeded", DonationID: "don-mock"}, nil
 }
 
 // mockStripeSessionValidator implements auth.SessionValidator for StripeHandler tests
@@ -553,5 +560,129 @@ func TestStripeHandler_Webhook_Success(t *testing.T) {
 	}
 	if string(capturedPayload) != body {
 		t.Errorf("unexpected payload: %q", string(capturedPayload))
+	}
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/donations/quick
+// ---------------------------------------------------------------------------
+
+func TestStripeHandler_QuickDonate_Success(t *testing.T) {
+	sv := &mockStripeSessionValidator{
+		validateFunc: func(_ context.Context, token string) (string, error) {
+			if token == "valid-session" {
+				return "user-1", nil
+			}
+			return "", errors.New("invalid")
+		},
+	}
+	var capturedReq service.QuickDonateRequest
+	mock := &mockStripeService{
+		quickDonateFunc: func(_ context.Context, req service.QuickDonateRequest) (*service.QuickDonateResult, error) {
+			capturedReq = req
+			return &service.QuickDonateResult{Status: "succeeded", DonationID: "don-new"}, nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", sv)
+
+	body := bytes.NewBufferString(`{"donation_id":"don-1"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/quick", body)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-session"})
+	rec := httptest.NewRecorder()
+	h.QuickDonate(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if capturedReq.UserID != "user-1" {
+		t.Errorf("expected UserID=user-1, got %q", capturedReq.UserID)
+	}
+	if capturedReq.DonationID != "don-1" {
+		t.Errorf("expected DonationID=don-1, got %q", capturedReq.DonationID)
+	}
+	if !strings.Contains(rec.Body.String(), "succeeded") {
+		t.Errorf("expected succeeded in response, got: %s", rec.Body.String())
+	}
+}
+
+func TestStripeHandler_QuickDonate_RequiresLogin(t *testing.T) {
+	h := NewStripeHandler(&mockStripeService{}, "https://example.com", nil)
+	body := bytes.NewBufferString(`{"donation_id":"don-1"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/quick", body)
+	rec := httptest.NewRecorder()
+	h.QuickDonate(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestStripeHandler_QuickDonate_MissingDonationID(t *testing.T) {
+	sv := &mockStripeSessionValidator{
+		validateFunc: func(_ context.Context, _ string) (string, error) {
+			return "user-1", nil
+		},
+	}
+	h := NewStripeHandler(&mockStripeService{}, "https://example.com", sv)
+	body := bytes.NewBufferString(`{}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/quick", body)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "s"})
+	rec := httptest.NewRecorder()
+	h.QuickDonate(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", rec.Code)
+	}
+}
+
+func TestStripeHandler_QuickDonate_ServiceError(t *testing.T) {
+	sv := &mockStripeSessionValidator{
+		validateFunc: func(_ context.Context, _ string) (string, error) {
+			return "user-1", nil
+		},
+	}
+	mock := &mockStripeService{
+		quickDonateFunc: func(_ context.Context, _ service.QuickDonateRequest) (*service.QuickDonateResult, error) {
+			return nil, errors.New("no saved payment method")
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", sv)
+	body := bytes.NewBufferString(`{"donation_id":"don-1"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/quick", body)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "s"})
+	rec := httptest.NewRecorder()
+	h.QuickDonate(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rec.Code)
+	}
+}
+
+func TestStripeHandler_QuickDonate_RequiresAction(t *testing.T) {
+	sv := &mockStripeSessionValidator{
+		validateFunc: func(_ context.Context, _ string) (string, error) {
+			return "user-1", nil
+		},
+	}
+	mock := &mockStripeService{
+		quickDonateFunc: func(_ context.Context, _ service.QuickDonateRequest) (*service.QuickDonateResult, error) {
+			return &service.QuickDonateResult{Status: "requires_action", ClientSecret: "pi_secret_abc"}, nil
+		},
+	}
+	h := NewStripeHandler(mock, "https://example.com", sv)
+	body := bytes.NewBufferString(`{"donation_id":"don-1"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/donations/quick", body)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "s"})
+	rec := httptest.NewRecorder()
+	h.QuickDonate(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "requires_action") {
+		t.Errorf("expected requires_action in response, got: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "pi_secret_abc") {
+		t.Errorf("expected client_secret in response, got: %s", rec.Body.String())
 	}
 }

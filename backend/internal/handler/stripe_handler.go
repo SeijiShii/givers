@@ -174,6 +174,58 @@ func (h *StripeHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]bool{"received": true})
 }
 
+// QuickDonate handles POST /api/donations/quick
+// 保存済みカードで過去の寄付と同額を即時決済する。認証必須。
+func (h *StripeHandler) QuickDonate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// 認証チェック
+	if h.sv == nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "login_required"})
+		return
+	}
+	cookie, err := r.Cookie(auth.SessionCookieName())
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "login_required"})
+		return
+	}
+	userID, err := h.sv.ValidateSession(r.Context(), cookie.Value)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_session"})
+		return
+	}
+
+	var req struct {
+		DonationID string `json:"donation_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_json"})
+		return
+	}
+	if req.DonationID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "donation_id_required"})
+		return
+	}
+
+	result, err := h.svc.QuickDonate(r.Context(), service.QuickDonateRequest{
+		UserID:     userID,
+		DonationID: req.DonationID,
+	})
+	if err != nil {
+		slog.Error("quick donate failed", "error", err, "user_id", userID)
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(result)
+}
+
 // generateDonorToken は匿名寄付者用のランダムトークンを生成する。
 func generateDonorToken() string {
 	b := make([]byte, 32)

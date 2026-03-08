@@ -441,6 +441,25 @@ export async function createCheckout(
   });
 }
 
+// --- Quick Donate (ワンクリック再寄付) ---
+
+export interface QuickDonateResult {
+  status: "succeeded" | "requires_action";
+  client_secret?: string;
+  donation_id?: string;
+}
+
+export async function quickDonate(
+  donationId: string,
+): Promise<QuickDonateResult> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.quickDonate(donationId);
+  return fetchApi<QuickDonateResult>("/api/donations/quick", {
+    method: "POST",
+    body: JSON.stringify({ donation_id: donationId }),
+  });
+}
+
 // --- Donations (マイページ用、モック時のみ) ---
 
 /** 寄付履歴 */

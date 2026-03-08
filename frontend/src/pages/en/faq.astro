@@ -18,7 +18,6 @@ const items = [
 
 <BaseLayout title={t(locale, 'faq.title')} locale={locale}>
   <h1>{t(locale, 'faq.title')}</h1>
-  <p class="faq-intro" style="margin-top: 0.75rem; color: var(--color-text-muted, #555); line-height: 1.6;">{t(locale, 'faq.intro')}</p>
   <div class="card" style="margin-top: 1rem;">
     <dl style="display: grid; gap: 1.25rem;">
       {items.map(({ q, a }) => (

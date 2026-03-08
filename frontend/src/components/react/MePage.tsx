@@ -12,6 +12,7 @@ import {
   resumeSubscription,
   deleteSubscription,
   refundDonationByDonor,
+  quickDonate,
   type User,
   type Donation,
   type RecurringDonation,
@@ -68,6 +69,10 @@ interface Props {
   refundPendingLabel?: string;
   refundCompletedLabel?: string;
   refundErrorLabel?: string;
+  quickDonateLabel?: string;
+  quickDonateConfirmLabel?: string;
+  quickDonateSuccessLabel?: string;
+  quickDonateErrorLabel?: string;
 }
 
 function formatDate(iso: string, locale: Locale): string {
@@ -131,6 +136,10 @@ export default function MePage({
   refundPendingLabel,
   refundCompletedLabel,
   refundErrorLabel,
+  quickDonateLabel,
+  quickDonateConfirmLabel,
+  quickDonateSuccessLabel,
+  quickDonateErrorLabel,
 }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,6 +166,13 @@ export default function MePage({
   const [refundConfirmId, setRefundConfirmId] = useState<string | null>(null);
   const [refundingId, setRefundingId] = useState<string | null>(null);
   const [refundError, setRefundError] = useState<string | null>(null);
+  const [quickDonateConfirmId, setQuickDonateConfirmId] = useState<
+    string | null
+  >(null);
+  const [quickDonatingId, setQuickDonatingId] = useState<string | null>(null);
+  const [quickDonateSuccess, setQuickDonateSuccess] = useState<string | null>(
+    null,
+  );
 
   const basePath = locale === "en" ? "/en" : "";
 
@@ -287,6 +303,28 @@ export default function MePage({
     }
   };
 
+  const handleQuickDonate = async (donationId: string) => {
+    setQuickDonateConfirmId(null);
+    setQuickDonatingId(donationId);
+    setQuickDonateSuccess(null);
+    try {
+      const result = await quickDonate(donationId);
+      if (result.status === "succeeded") {
+        setQuickDonateSuccess(quickDonateSuccessLabel ?? "Donation completed!");
+        setDonations(await getMyDonations());
+      } else if (result.status === "requires_action" && result.client_secret) {
+        // 3Dセキュア再認証が必要な場合
+        // TODO: Stripe.js の confirmCardPayment を呼ぶ
+        setQuickDonateSuccess(null);
+      }
+    } catch {
+      setQuickDonateSuccess(null);
+      alert(quickDonateErrorLabel ?? "Quick donate failed");
+    } finally {
+      setQuickDonatingId(null);
+    }
+  };
+
   if (loading) {
     return <LoadingSkeleton variant="mePage" />;
   }
@@ -333,6 +371,36 @@ export default function MePage({
             setRefundError(null);
           }}
         />
+      )}
+      {quickDonateLabel && (
+        <ConfirmDialog
+          open={quickDonateConfirmId !== null}
+          title={quickDonateLabel}
+          message={(() => {
+            const d = donations.find((x) => x.id === quickDonateConfirmId);
+            if (!d) return quickDonateConfirmLabel ?? "";
+            return (quickDonateConfirmLabel ?? "")
+              .replace("{amount}", `¥${d.amount.toLocaleString()}`)
+              .replace("{project}", d.project_name);
+          })()}
+          confirmLabel={quickDonateLabel}
+          cancelLabel={cancelLabel}
+          onConfirm={() => {
+            if (quickDonateConfirmId) handleQuickDonate(quickDonateConfirmId);
+          }}
+          onCancel={() => setQuickDonateConfirmId(null)}
+        />
+      )}
+      {quickDonateSuccess && (
+        <p
+          style={{
+            margin: "0.75rem 0 0",
+            color: "var(--color-success, #22c55e)",
+            fontSize: "0.9rem",
+          }}
+        >
+          {quickDonateSuccess}
+        </p>
       )}
       {refundError && (
         <p
@@ -470,47 +538,73 @@ export default function MePage({
                         >
                           {d.message ?? "—"}
                         </td>
-                        {refundBtnLabel && (
-                          <td
+                        <td
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <span
                             style={{
-                              padding: "0.5rem 0.75rem",
-                              whiteSpace: "nowrap",
+                              display: "flex",
+                              gap: "0.25rem",
+                              flexWrap: "wrap",
                             }}
                           >
-                            {d.refund_status === "completed" ? (
-                              <span
-                                style={{
-                                  color: "var(--color-text-muted)",
-                                  fontSize: "0.85rem",
-                                }}
-                              >
-                                {refundCompletedLabel}
-                              </span>
-                            ) : d.refund_status === "pending" ||
-                              refundingId === d.id ? (
-                              <span
-                                style={{
-                                  color: "var(--color-text-muted)",
-                                  fontSize: "0.85rem",
-                                }}
-                              >
-                                {refundPendingLabel}
-                              </span>
-                            ) : (
+                            {quickDonateLabel && !d.refund_status && (
                               <button
                                 type="button"
-                                className="btn btn-small"
+                                className="btn btn-primary btn-small"
                                 style={{
                                   fontSize: "0.8rem",
                                   padding: "0.25rem 0.5rem",
                                 }}
-                                onClick={() => setRefundConfirmId(d.id)}
+                                disabled={quickDonatingId === d.id}
+                                onClick={() => setQuickDonateConfirmId(d.id)}
                               >
-                                {refundBtnLabel}
+                                {quickDonatingId === d.id
+                                  ? "..."
+                                  : quickDonateLabel}
                               </button>
                             )}
-                          </td>
-                        )}
+                            {refundBtnLabel && (
+                              <>
+                                {d.refund_status === "completed" ? (
+                                  <span
+                                    style={{
+                                      color: "var(--color-text-muted)",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  >
+                                    {refundCompletedLabel}
+                                  </span>
+                                ) : d.refund_status === "pending" ||
+                                  refundingId === d.id ? (
+                                  <span
+                                    style={{
+                                      color: "var(--color-text-muted)",
+                                      fontSize: "0.85rem",
+                                    }}
+                                  >
+                                    {refundPendingLabel}
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn btn-small"
+                                    style={{
+                                      fontSize: "0.8rem",
+                                      padding: "0.25rem 0.5rem",
+                                    }}
+                                    onClick={() => setRefundConfirmId(d.id)}
+                                  >
+                                    {refundBtnLabel}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

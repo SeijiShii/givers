@@ -65,6 +65,14 @@ func (m *mockUserRepository) Suspend(ctx context.Context, id string, suspend boo
 	return nil
 }
 
+func (m *mockUserRepository) SaveStripeCustomerID(ctx context.Context, userID, customerID string) error {
+	return nil
+}
+
+func (m *mockUserRepository) GetStripeCustomerID(ctx context.Context, userID string) (string, error) {
+	return "", nil
+}
+
 func TestAuthService_GetOrCreateUserFromGoogle_ExistingUser(t *testing.T) {
 	ctx := context.Background()
 	existingUser := &model.User{ID: "1", Email: "a@example.com", GoogleID: "google-123", Name: "A"}

@@ -60,7 +60,11 @@
     "refundConfirm": "この寄付を全額返金しますか？この操作は取り消せません。",
     "refundPending": "返金処理中",
     "refundCompleted": "返金済み",
-    "refundError": "返金に失敗しました"
+    "refundError": "返金に失敗しました",
+    "quickDonate": "同額で再支援",
+    "quickDonateConfirm": "{project} に {amount} を再度寄付しますか？",
+    "quickDonateSuccess": "寄付が完了しました！",
+    "quickDonateError": "寄付に失敗しました"
   },
   "home": {
     "title": "GIVErS",
@@ -90,7 +94,7 @@
   },
   "faq": {
     "title": "よくある質問",
-    "intro": "日本で寄付の文化を根付かせることを目指しており、日本での寄付に必要な情報を優先して提供しています。",
+    "intro": "",
     "q1": "GIVErS とは何ですか？",
     "a1": "GIVErS は、作り手の GIVE（見返りを求めず良いと思うものを作る）と受け手の GIVE（使って良かった人が応援したいと思う）をつなぐ寄付プラットフォームです。手数料ゼロで運営しています。",
     "q2": "アカウントを作らずに寄付できますか？",

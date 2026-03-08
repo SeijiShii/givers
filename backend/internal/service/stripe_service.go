@@ -23,6 +23,19 @@ type CheckoutRequest struct {
 	DonorID     string // user_id or donor_token
 }
 
+// QuickDonateRequest はワンクリック再寄付のリクエスト
+type QuickDonateRequest struct {
+	UserID     string // ログインユーザーの ID
+	DonationID string // 元の寄付 ID
+}
+
+// QuickDonateResult はワンクリック再寄付の結果
+type QuickDonateResult struct {
+	Status       string `json:"status"`        // "succeeded" or "requires_action"
+	ClientSecret string `json:"client_secret,omitempty"` // requires_action 時のみ
+	DonationID   string `json:"donation_id,omitempty"`   // succeeded 時のみ
+}
+
 // StripeProjectRepo は StripeService が必要とするプロジェクト操作のミニマムインターフェース
 type StripeProjectRepo interface {
 	GetStripeAccountID(ctx context.Context, projectID string) (string, error)
@@ -33,6 +46,7 @@ type StripeProjectRepo interface {
 // StripeDonationRepo は Webhook イベントで寄付レコードを操作するためのミニマムインターフェース
 type StripeDonationRepo interface {
 	Create(ctx context.Context, d *model.Donation) error
+	GetByID(ctx context.Context, id string) (*model.Donation, error)
 	DeleteByStripeSubscriptionID(ctx context.Context, subscriptionID string) error
 	GetByStripeSubscriptionID(ctx context.Context, subscriptionID string) (*model.Donation, error)
 	Patch(ctx context.Context, id string, patch model.DonationPatch) error
@@ -56,6 +70,12 @@ type StripeMilestoneNotifier interface {
 	NotifyDonation(ctx context.Context, projectID string) error
 }
 
+// StripeUserRepo は StripeService が必要とするユーザー操作のミニマムインターフェース
+type StripeUserRepo interface {
+	SaveStripeCustomerID(ctx context.Context, userID, customerID string) error
+	GetStripeCustomerID(ctx context.Context, userID string) (string, error)
+}
+
 // StripeService は Stripe 連携のビジネスロジック
 type StripeService interface {
 	// CreateAccountAndOnboarding は v2 API でアカウント作成 → Account Link URL を返す
@@ -68,6 +88,8 @@ type StripeService interface {
 	CreateCheckout(ctx context.Context, req CheckoutRequest) (string, error)
 	// ProcessWebhook は Webhook のシグネチャを検証してイベントを処理する
 	ProcessWebhook(ctx context.Context, payload []byte, sigHeader string) error
+	// QuickDonate は保存済み PaymentMethod で過去の寄付と同額を即時決済する
+	QuickDonate(ctx context.Context, req QuickDonateRequest) (*QuickDonateResult, error)
 }
 
 // StripeServiceImpl は StripeService の実装
@@ -76,6 +98,7 @@ type StripeServiceImpl struct {
 	projectRepo        StripeProjectRepo
 	donationRepo       StripeDonationRepo
 	subscriptionRepo   StripeSubscriptionRepo  // optional, nil = fallback to donationRepo
+	userRepo           StripeUserRepo          // optional, nil = skip customer creation
 	activityRecorder   StripeActivityRecorder  // optional, nil = skip
 	milestoneNotifier  StripeMilestoneNotifier // optional, nil = skip
 	frontendURL        string
@@ -104,12 +127,13 @@ func NewStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripePro
 }
 
 // NewStripeServiceFull は全依存関係付きの StripeServiceImpl を生成する
-func NewStripeServiceFull(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, subscriptionRepo StripeSubscriptionRepo, frontendURL string, activityRecorder StripeActivityRecorder, milestoneNotifier StripeMilestoneNotifier) StripeService {
+func NewStripeServiceFull(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, subscriptionRepo StripeSubscriptionRepo, userRepo StripeUserRepo, frontendURL string, activityRecorder StripeActivityRecorder, milestoneNotifier StripeMilestoneNotifier) StripeService {
 	return &StripeServiceImpl{
 		client:            client,
 		projectRepo:       projectRepo,
 		donationRepo:      donationRepo,
 		subscriptionRepo:  subscriptionRepo,
+		userRepo:          userRepo,
 		activityRecorder:  activityRecorder,
 		milestoneNotifier: milestoneNotifier,
 		frontendURL:       frontendURL,
@@ -200,6 +224,22 @@ func (s *StripeServiceImpl) CreateCheckout(ctx context.Context, req CheckoutRequ
 		locale = "ja"
 	}
 
+	// ログインユーザーの場合、Stripe Customer を解決（なければ作成）
+	var customerID string
+	if req.DonorType == "user" && req.DonorID != "" && s.userRepo != nil {
+		cid, err := s.userRepo.GetStripeCustomerID(ctx, req.DonorID)
+		if err == nil && cid != "" {
+			customerID = cid
+		} else if err == nil && cid == "" {
+			// Customer 未作成 → 新規作成して保存
+			newCID, err := s.client.CreateCustomer(ctx, "")
+			if err == nil && newCID != "" {
+				_ = s.userRepo.SaveStripeCustomerID(ctx, req.DonorID, newCID)
+				customerID = newCID
+			}
+		}
+	}
+
 	params := pkgstripe.CheckoutParams{
 		StripeAccountID: stripeAccountID,
 		ProjectID:       req.ProjectID,
@@ -212,8 +252,98 @@ func (s *StripeServiceImpl) CreateCheckout(ctx context.Context, req CheckoutRequ
 		CancelURL:       s.frontendURL + "/projects/" + req.ProjectID,
 		DonorType:       req.DonorType,
 		DonorID:         req.DonorID,
+		CustomerID:      customerID,
 	}
 	return s.client.CreateCheckoutSession(ctx, params)
+}
+
+// QuickDonate は保存済み PaymentMethod で過去の寄付と同額を即時決済する
+func (s *StripeServiceImpl) QuickDonate(ctx context.Context, req QuickDonateRequest) (*QuickDonateResult, error) {
+	if s.userRepo == nil {
+		return nil, errors.New("quick donate: user repository not configured")
+	}
+
+	// 元の寄付を取得
+	orig, err := s.donationRepo.GetByID(ctx, req.DonationID)
+	if err != nil {
+		return nil, fmt.Errorf("quick donate: get donation: %w", err)
+	}
+
+	// 権限チェック：自分の寄付のみ
+	if orig.DonorType != "user" || orig.DonorID != req.UserID {
+		return nil, errors.New("quick donate: not your donation")
+	}
+
+	// 定期寄付は対象外
+	if orig.IsRecurring {
+		return nil, errors.New("quick donate: recurring donations not supported")
+	}
+
+	// Stripe Customer ID を取得
+	customerID, err := s.userRepo.GetStripeCustomerID(ctx, req.UserID)
+	if err != nil || customerID == "" {
+		return nil, errors.New("quick donate: no saved payment method. please donate via checkout first")
+	}
+
+	// PaymentMethod 一覧から最新を取得
+	methods, err := s.client.ListPaymentMethods(ctx, customerID)
+	if err != nil || len(methods) == 0 {
+		return nil, errors.New("quick donate: no saved payment method. please donate via checkout first")
+	}
+
+	// プロジェクトの Stripe Account ID を取得
+	stripeAccountID, err := s.projectRepo.GetStripeAccountID(ctx, orig.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("quick donate: get project: %w", err)
+	}
+
+	currency := orig.Currency
+	if currency == "" {
+		currency = "jpy"
+	}
+
+	// オフセッション決済
+	result, err := s.client.CreateOffSessionPaymentIntent(ctx, pkgstripe.OffSessionPaymentParams{
+		CustomerID:      customerID,
+		PaymentMethodID: methods[0].ID,
+		Amount:          orig.Amount,
+		Currency:        currency,
+		StripeAccountID: stripeAccountID,
+		Metadata: map[string]string{
+			"project_id": orig.ProjectID,
+			"donor_type": "user",
+			"donor_id":   req.UserID,
+			"source":     "quick_donate",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("quick donate: payment failed: %w", err)
+	}
+
+	if result.Status == "succeeded" {
+		// 寄付レコードを即作成
+		d := &model.Donation{
+			ProjectID:       orig.ProjectID,
+			DonorType:       "user",
+			DonorID:         req.UserID,
+			Amount:          orig.Amount,
+			Currency:        currency,
+			Source:           "quick_donate",
+			StripePaymentID: result.PaymentIntentID,
+		}
+		if createErr := s.donationRepo.Create(ctx, d); createErr != nil && !errors.Is(createErr, repository.ErrDuplicate) {
+			return nil, fmt.Errorf("quick donate: create donation: %w", createErr)
+		}
+		s.recordDonationActivity(ctx, orig.ProjectID, req.UserID, orig.Amount, "")
+		s.notifyMilestone(ctx, orig.ProjectID)
+		return &QuickDonateResult{Status: "succeeded", DonationID: d.ID}, nil
+	}
+
+	// 3Dセキュア再認証が必要
+	return &QuickDonateResult{
+		Status:       "requires_action",
+		ClientSecret: result.ClientSecret,
+	}, nil
 }
 
 // ProcessWebhook は Webhook シグネチャを検証してイベントを処理する

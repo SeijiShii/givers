@@ -262,6 +262,214 @@ func TestRealClient_ParseWebhookEvent_InvoicePaymentIntent(t *testing.T) {
 	}
 }
 
+// --- CreateCustomer tests ---
+
+func TestRealClient_CreateCustomer_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/v1/customers" {
+			t.Errorf("expected /v1/customers, got %s", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		if got := string(body); got != "email=test%40example.com" {
+			t.Errorf("unexpected body: %s", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"cus_test123"}`)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, "sk_test")
+	id, err := c.CreateCustomer(context.Background(), "test@example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "cus_test123" {
+		t.Errorf("expected cus_test123, got %q", id)
+	}
+}
+
+func TestRealClient_CreateCustomer_NotConfigured(t *testing.T) {
+	c := NewClient("", "")
+	_, err := c.CreateCustomer(context.Background(), "test@example.com")
+	if err == nil {
+		t.Fatal("expected error when not configured")
+	}
+}
+
+// --- CreateOffSessionPaymentIntent tests ---
+
+func TestRealClient_CreateOffSessionPaymentIntent_Succeeded(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/v1/payment_intents" {
+			t.Errorf("expected /v1/payment_intents, got %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Stripe-Account"); got != "acct_owner1" {
+			t.Errorf("expected Stripe-Account=acct_owner1, got %q", got)
+		}
+		body, _ := io.ReadAll(r.Body)
+		bodyStr := string(body)
+		for _, expected := range []string{"amount=1000", "currency=jpy", "customer=cus_abc", "payment_method=pm_xyz", "confirm=true", "off_session=true"} {
+			if !contains(bodyStr, expected) {
+				t.Errorf("body missing %q: %s", expected, bodyStr)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"pi_test","status":"succeeded","client_secret":""}`)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, "sk_test")
+	result, err := c.CreateOffSessionPaymentIntent(context.Background(), OffSessionPaymentParams{
+		CustomerID:      "cus_abc",
+		PaymentMethodID: "pm_xyz",
+		Amount:          1000,
+		Currency:        "jpy",
+		StripeAccountID: "acct_owner1",
+		Metadata:        map[string]string{"project_id": "proj-1"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.PaymentIntentID != "pi_test" {
+		t.Errorf("expected pi_test, got %q", result.PaymentIntentID)
+	}
+	if result.Status != "succeeded" {
+		t.Errorf("expected succeeded, got %q", result.Status)
+	}
+}
+
+func TestRealClient_CreateOffSessionPaymentIntent_RequiresAction(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"pi_3ds","status":"requires_action","client_secret":"pi_3ds_secret_abc"}`)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, "sk_test")
+	result, err := c.CreateOffSessionPaymentIntent(context.Background(), OffSessionPaymentParams{
+		CustomerID:      "cus_abc",
+		PaymentMethodID: "pm_xyz",
+		Amount:          2000,
+		Currency:        "jpy",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "requires_action" {
+		t.Errorf("expected requires_action, got %q", result.Status)
+	}
+	if result.ClientSecret != "pi_3ds_secret_abc" {
+		t.Errorf("expected client secret, got %q", result.ClientSecret)
+	}
+}
+
+func TestRealClient_CreateOffSessionPaymentIntent_StripeError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(402)
+		fmt.Fprint(w, `{"error":{"message":"card expired"}}`)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, "sk_test")
+	_, err := c.CreateOffSessionPaymentIntent(context.Background(), OffSessionPaymentParams{
+		CustomerID:      "cus_abc",
+		PaymentMethodID: "pm_xyz",
+		Amount:          1000,
+		Currency:        "jpy",
+	})
+	if err == nil {
+		t.Fatal("expected error for card expired")
+	}
+}
+
+func TestRealClient_CreateOffSessionPaymentIntent_NotConfigured(t *testing.T) {
+	c := NewClient("", "")
+	_, err := c.CreateOffSessionPaymentIntent(context.Background(), OffSessionPaymentParams{})
+	if err == nil {
+		t.Fatal("expected error when not configured")
+	}
+}
+
+// --- ListPaymentMethods tests ---
+
+func TestRealClient_ListPaymentMethods_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET, got %s", r.Method)
+		}
+		if r.URL.Path != "/v1/payment_methods" {
+			t.Errorf("expected /v1/payment_methods, got %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("customer"); got != "cus_abc" {
+			t.Errorf("expected customer=cus_abc, got %q", got)
+		}
+		if got := r.URL.Query().Get("type"); got != "card" {
+			t.Errorf("expected type=card, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":[{"id":"pm_1","card":{"brand":"visa","last4":"4242","exp_month":12,"exp_year":2027}},{"id":"pm_2","card":{"brand":"mastercard","last4":"5555","exp_month":6,"exp_year":2028}}]}`)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, "sk_test")
+	methods, err := c.ListPaymentMethods(context.Background(), "cus_abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(methods) != 2 {
+		t.Fatalf("expected 2 methods, got %d", len(methods))
+	}
+	if methods[0].ID != "pm_1" || methods[0].Brand != "visa" || methods[0].Last4 != "4242" {
+		t.Errorf("unexpected first method: %+v", methods[0])
+	}
+}
+
+func TestRealClient_ListPaymentMethods_Empty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"data":[]}`)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, "sk_test")
+	methods, err := c.ListPaymentMethods(context.Background(), "cus_abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(methods) != 0 {
+		t.Errorf("expected empty list, got %d", len(methods))
+	}
+}
+
+func TestRealClient_ListPaymentMethods_NotConfigured(t *testing.T) {
+	c := NewClient("", "")
+	_, err := c.ListPaymentMethods(context.Background(), "cus_abc")
+	if err == nil {
+		t.Fatal("expected error when not configured")
+	}
+}
+
+// contains checks if s contains substr (helper for form-encoded body checks)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
 // newTestClient creates a RealClient that points to a test server instead of Stripe.
 func newTestClient(baseURL, secretKey string) *RealClient {
 	c := NewClient(secretKey, "")

@@ -60,7 +60,11 @@
     "refundConfirm": "Are you sure you want to refund this donation in full? This action cannot be undone.",
     "refundPending": "Refund pending",
     "refundCompleted": "Refunded",
-    "refundError": "Refund failed"
+    "refundError": "Refund failed",
+    "quickDonate": "Re-donate same amount",
+    "quickDonateConfirm": "Donate {amount} to {project} again?",
+    "quickDonateSuccess": "Donation completed!",
+    "quickDonateError": "Donation failed"
   },
   "home": {
     "title": "GIVErS",
@@ -90,7 +94,7 @@
   },
   "faq": {
     "title": "Frequently Asked Questions",
-    "intro": "GIVErS prioritizes information needed for donation in Japan, with the goal of fostering a culture of giving there. The FAQ below also covers Japan-specific topics such as tax deductions.",
+    "intro": "",
     "q1": "What is GIVErS?",
     "a1": "GIVErS is a donation platform that connects the GIVE of creators (making what they believe in without expecting returns) and the GIVE of recipients (wanting to support what they found valuable). It operates with zero fees.",
     "q2": "Can I donate without creating an account?",

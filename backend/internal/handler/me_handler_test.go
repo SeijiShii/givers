@@ -42,6 +42,12 @@ func (m *mockUserRepository) List(context.Context, int, int) ([]*model.User, err
 	return nil, nil
 }
 func (m *mockUserRepository) Suspend(context.Context, string, bool) error { return nil }
+func (m *mockUserRepository) SaveStripeCustomerID(context.Context, string, string) error {
+	return nil
+}
+func (m *mockUserRepository) GetStripeCustomerID(context.Context, string) (string, error) {
+	return "", nil
+}
 
 // mockMeSessionValidator implements auth.SessionValidator for MeHandler tests
 type mockMeSessionValidator struct {

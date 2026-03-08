@@ -104,6 +104,12 @@ func (m *mockAdminUserRepository) Suspend(ctx context.Context, id string, suspen
 	}
 	return nil
 }
+func (m *mockAdminUserRepository) SaveStripeCustomerID(context.Context, string, string) error {
+	return nil
+}
+func (m *mockAdminUserRepository) GetStripeCustomerID(context.Context, string) (string, error) {
+	return "", nil
+}
 
 // ---------------------------------------------------------------------------
 // AdminUserService.ListUsers tests

@@ -26,8 +26,8 @@ func (r *PgUserRepository) Ping(ctx context.Context) error {
 
 func scanUser(scan func(...any) error) (*model.User, error) {
 	var u model.User
-	var googleID, githubID, discordID *string
-	if err := scan(&u.ID, &u.Email, &googleID, &githubID, &discordID, &u.Name, &u.SuspendedAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
+	var googleID, githubID, discordID, stripeCustomerID *string
+	if err := scan(&u.ID, &u.Email, &googleID, &githubID, &discordID, &u.Name, &stripeCustomerID, &u.SuspendedAt, &u.CreatedAt, &u.UpdatedAt); err != nil {
 		return nil, err
 	}
 	if googleID != nil {
@@ -39,10 +39,13 @@ func scanUser(scan func(...any) error) (*model.User, error) {
 	if discordID != nil {
 		u.DiscordID = *discordID
 	}
+	if stripeCustomerID != nil {
+		u.StripeCustomerID = *stripeCustomerID
+	}
 	return &u, nil
 }
 
-const userSelectCols = `id, email, google_id, github_id, discord_id, name, suspended_at, created_at, updated_at`
+const userSelectCols = `id, email, google_id, github_id, discord_id, name, stripe_customer_id, suspended_at, created_at, updated_at`
 
 // FindByID は ID でユーザーを取得する
 func (r *PgUserRepository) FindByID(ctx context.Context, id string) (*model.User, error) {
@@ -143,4 +146,32 @@ func (r *PgUserRepository) Suspend(ctx context.Context, id string, suspend bool)
 		return ErrNotFound
 	}
 	return nil
+}
+
+// SaveStripeCustomerID は Stripe Customer ID をユーザーに保存する
+func (r *PgUserRepository) SaveStripeCustomerID(ctx context.Context, userID, customerID string) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE users SET stripe_customer_id = $1, updated_at = NOW() WHERE id = $2`,
+		customerID, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetStripeCustomerID はユーザーの Stripe Customer ID を取得する
+func (r *PgUserRepository) GetStripeCustomerID(ctx context.Context, userID string) (string, error) {
+	var customerID *string
+	err := r.pool.QueryRow(ctx,
+		`SELECT stripe_customer_id FROM users WHERE id = $1`, userID).Scan(&customerID)
+	if err != nil {
+		return "", err
+	}
+	if customerID == nil {
+		return "", nil
+	}
+	return *customerID, nil
 }

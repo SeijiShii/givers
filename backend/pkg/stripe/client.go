@@ -41,6 +41,7 @@ type CheckoutParams struct {
 	CancelURL       string
 	DonorType       string // "user" or "token" — metadata として保存
 	DonorID         string // user_id or donor_token
+	CustomerID      string // cus_... （ログインユーザーの Stripe Customer ID、空なら設定しない）
 }
 
 // WebhookEventObject は payment_intent や subscription の data.object
@@ -65,6 +66,32 @@ type WebhookEvent struct {
 	Data struct {
 		Object WebhookEventObject `json:"object"`
 	} `json:"data"`
+}
+
+// OffSessionPaymentParams はオフセッション決済の入力パラメータ
+type OffSessionPaymentParams struct {
+	CustomerID      string
+	PaymentMethodID string
+	Amount          int
+	Currency        string
+	StripeAccountID string            // Connect アカウント（空ならプラットフォーム直接）
+	Metadata        map[string]string // project_id, donor_type, donor_id, source 等
+}
+
+// OffSessionPaymentResult はオフセッション決済の結果
+type OffSessionPaymentResult struct {
+	PaymentIntentID string // pi_...
+	Status          string // "succeeded" or "requires_action"
+	ClientSecret    string // requires_action 時のみ
+}
+
+// PaymentMethodSummary は保存済みカードの要約情報
+type PaymentMethodSummary struct {
+	ID       string // pm_...
+	Brand    string // "visa", "mastercard" 等
+	Last4    string
+	ExpMonth int
+	ExpYear  int
 }
 
 // Client は Stripe API クライアントのインターフェース
@@ -93,6 +120,12 @@ type Client interface {
 	CreateRefund(ctx context.Context, paymentIntentID, stripeAccountID string) (refundID string, err error)
 	// GetInvoicePaymentIntent は Invoice から PaymentIntent ID を取得する（subscription_renewal の返金用）。
 	GetInvoicePaymentIntent(ctx context.Context, invoiceID, stripeAccountID string) (paymentIntentID string, err error)
+	// CreateCustomer は Stripe Customer を作成し cus_... を返す
+	CreateCustomer(ctx context.Context, email string) (string, error)
+	// CreateOffSessionPaymentIntent は保存済み PaymentMethod でオフセッション決済を行う
+	CreateOffSessionPaymentIntent(ctx context.Context, params OffSessionPaymentParams) (*OffSessionPaymentResult, error)
+	// ListPaymentMethods は Customer に紐づく保存済みカードの一覧を返す
+	ListPaymentMethods(ctx context.Context, customerID string) ([]PaymentMethodSummary, error)
 }
 
 // RealClient は Stripe API への raw HTTP クライアント実装
@@ -341,6 +374,15 @@ func (c *RealClient) CreateCheckoutSession(ctx context.Context, params CheckoutP
 		if params.Message != "" {
 			data.Set("payment_intent_data[metadata][message]", params.Message)
 		}
+		// ログインユーザーの場合、カード情報をオフセッション再利用のために保存
+		if params.CustomerID != "" {
+			data.Set("payment_intent_data[setup_future_usage]", "off_session")
+		}
+	}
+
+	// Stripe Customer を紐づけ（ログインユーザーのみ）
+	if params.CustomerID != "" {
+		data.Set("customer", params.CustomerID)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
@@ -619,6 +661,156 @@ func (c *RealClient) GetInvoicePaymentIntent(ctx context.Context, invoiceID, str
 		return "", errors.New("stripe: invoice has no payment_intent")
 	}
 	return result.PaymentIntent, nil
+}
+
+// CreateCustomer は Stripe Customer を作成し cus_... を返す
+func (c *RealClient) CreateCustomer(ctx context.Context, email string) (string, error) {
+	if c.SecretKey == "" {
+		return "", ErrNotConfigured
+	}
+
+	data := url.Values{}
+	data.Set("email", email)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.apiBase()+"/v1/customers", strings.NewReader(data.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(c.SecretKey, "")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		ID    string `json:"id"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.Error != nil {
+		return "", fmt.Errorf("stripe create customer: %s", result.Error.Message)
+	}
+	if result.ID == "" {
+		return "", errors.New("stripe create customer: empty customer ID in response")
+	}
+	return result.ID, nil
+}
+
+// CreateOffSessionPaymentIntent は保存済み PaymentMethod でオフセッション即時決済を行う
+func (c *RealClient) CreateOffSessionPaymentIntent(ctx context.Context, params OffSessionPaymentParams) (*OffSessionPaymentResult, error) {
+	if c.SecretKey == "" {
+		return nil, ErrNotConfigured
+	}
+
+	data := url.Values{}
+	data.Set("amount", strconv.Itoa(params.Amount))
+	data.Set("currency", params.Currency)
+	data.Set("customer", params.CustomerID)
+	data.Set("payment_method", params.PaymentMethodID)
+	data.Set("confirm", "true")
+	data.Set("off_session", "true")
+	for k, v := range params.Metadata {
+		data.Set("metadata["+k+"]", v)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		c.apiBase()+"/v1/payment_intents", strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(c.SecretKey, "")
+	if params.StripeAccountID != "" {
+		req.Header.Set("Stripe-Account", params.StripeAccountID)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var pi struct {
+		ID           string `json:"id"`
+		Status       string `json:"status"`
+		ClientSecret string `json:"client_secret"`
+		Error        *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&pi); err != nil {
+		return nil, err
+	}
+	if pi.Error != nil {
+		return nil, fmt.Errorf("stripe payment intent: %s", pi.Error.Message)
+	}
+
+	return &OffSessionPaymentResult{
+		PaymentIntentID: pi.ID,
+		Status:          pi.Status,
+		ClientSecret:    pi.ClientSecret,
+	}, nil
+}
+
+// ListPaymentMethods は Customer に紐づく保存済みカードの一覧を返す
+func (c *RealClient) ListPaymentMethods(ctx context.Context, customerID string) ([]PaymentMethodSummary, error) {
+	if c.SecretKey == "" {
+		return nil, ErrNotConfigured
+	}
+
+	endpoint := fmt.Sprintf("%s/v1/payment_methods?customer=%s&type=card", c.apiBase(), customerID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(c.SecretKey, "")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Data []struct {
+			ID   string `json:"id"`
+			Card struct {
+				Brand    string `json:"brand"`
+				Last4    string `json:"last4"`
+				ExpMonth int    `json:"exp_month"`
+				ExpYear  int    `json:"exp_year"`
+			} `json:"card"`
+		} `json:"data"`
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("stripe list payment methods: %s", result.Error.Message)
+	}
+
+	methods := make([]PaymentMethodSummary, len(result.Data))
+	for i, pm := range result.Data {
+		methods[i] = PaymentMethodSummary{
+			ID:       pm.ID,
+			Brand:    pm.Card.Brand,
+			Last4:    pm.Card.Last4,
+			ExpMonth: pm.Card.ExpMonth,
+			ExpYear:  pm.Card.ExpYear,
+		}
+	}
+	return methods, nil
 }
 
 func (c *RealClient) updateSubscription(ctx context.Context, subscriptionID string, data url.Values) error {
