@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/dist/client/givers-logo-512.png" alt="GIVErS Logo" width="128" />
+  <img src="assets/givers-logo-512.png" alt="GIVErS Logo" width="128" />
 </p>
 
 <h1 align="center">GIVErS</h1>
