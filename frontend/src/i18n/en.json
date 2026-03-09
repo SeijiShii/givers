@@ -14,7 +14,10 @@
     "about": "About",
     "faq": "FAQ",
     "contact": "Contact",
-    "adminContacts": "Contact Management"
+    "adminContacts": "Contact Management",
+    "adminAlerts": "Donation Alerts",
+    "messages": "Messages",
+    "adminMessages": "Message Management"
   },
   "me": {
     "title": "My Page",
@@ -316,7 +319,28 @@
     "announcementScheduledAt": "Publish date",
     "announcementStatusPublished": "Published",
     "announcementStatusScheduled": "Scheduled",
-    "announcementStatusHidden": "Hidden"
+    "announcementStatusHidden": "Hidden",
+    "alertsTitle": "Donation Alerts",
+    "alertsEmpty": "No alerts.",
+    "alertFilterAll": "All",
+    "alertFilterNew": "New",
+    "alertFilterAcknowledged": "Acknowledged",
+    "alertFilterResolved": "Resolved",
+    "alertStatusNew": "New",
+    "alertStatusAcknowledged": "Acknowledged",
+    "alertStatusResolved": "Resolved",
+    "alertAcknowledge": "Acknowledge",
+    "alertResolve": "Resolve",
+    "alertReopen": "Reopen",
+    "alertTypeSelfDealing": "Self-dealing",
+    "alertTypeHighFrequency": "High frequency",
+    "alertTypeHighAmount": "High amount",
+    "alertTypeRoundTripping": "Round-tripping",
+    "alertSeverityWarning": "Warning",
+    "alertSeverityCritical": "Critical",
+    "alertProject": "Project",
+    "alertDonor": "Donor",
+    "alertLoadMore": "Load more"
   },
   "errors": {
     "accountSuspended": "This account has been suspended. Please contact support if you have questions.",
@@ -403,5 +427,29 @@
     "severityError": "Incident",
     "unread": "Unread",
     "manage": "Manage Announcements"
+  },
+  "messages": {
+    "title": "Messages",
+    "empty": "No messages",
+    "newThread": "New Message",
+    "recipient": "Recipient",
+    "subject": "Subject",
+    "body": "Message",
+    "send": "Send",
+    "threadClosed": "This conversation is closed",
+    "activate": "Reopen",
+    "deactivate": "Mark Solved",
+    "loadMore": "Load more",
+    "loadOlder": "Load older messages",
+    "active": "Active",
+    "inactive": "Solved",
+    "manage": "Manage Messages",
+    "broadcastAll": "Send to all users",
+    "searchUser": "Search users...",
+    "broadcastSuccess": "Message sent to all users",
+    "selectedUser": "To",
+    "createMessage": "Create message",
+    "searching": "Searching...",
+    "noResults": "No users found"
   }
 }

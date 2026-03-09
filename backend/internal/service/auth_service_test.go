@@ -61,6 +61,10 @@ func (m *mockUserRepository) List(ctx context.Context, limit, offset int) ([]*mo
 	return nil, nil
 }
 
+func (m *mockUserRepository) Search(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+	return nil, nil
+}
+
 func (m *mockUserRepository) Suspend(ctx context.Context, id string, suspend bool) error {
 	return nil
 }

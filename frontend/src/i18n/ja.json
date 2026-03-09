@@ -14,7 +14,10 @@
     "about": "About",
     "faq": "よくある質問",
     "contact": "お問い合わせ",
-    "adminContacts": "お問い合わせ管理"
+    "adminContacts": "お問い合わせ管理",
+    "adminAlerts": "寄付アラート",
+    "messages": "メッセージ",
+    "adminMessages": "メッセージ管理"
   },
   "me": {
     "title": "マイページ",
@@ -316,7 +319,28 @@
     "announcementScheduledAt": "公開日時",
     "announcementStatusPublished": "公開中",
     "announcementStatusScheduled": "予約中",
-    "announcementStatusHidden": "非表示"
+    "announcementStatusHidden": "非表示",
+    "alertsTitle": "寄付アラート",
+    "alertsEmpty": "アラートはありません。",
+    "alertFilterAll": "すべて",
+    "alertFilterNew": "未対応",
+    "alertFilterAcknowledged": "確認済み",
+    "alertFilterResolved": "対応済み",
+    "alertStatusNew": "未対応",
+    "alertStatusAcknowledged": "確認済み",
+    "alertStatusResolved": "対応済み",
+    "alertAcknowledge": "確認済みにする",
+    "alertResolve": "対応済みにする",
+    "alertReopen": "未対応に戻す",
+    "alertTypeSelfDealing": "自己取引",
+    "alertTypeHighFrequency": "高頻度寄付",
+    "alertTypeHighAmount": "高額寄付",
+    "alertTypeRoundTripping": "寄付・返金の反復",
+    "alertSeverityWarning": "注意",
+    "alertSeverityCritical": "重大",
+    "alertProject": "プロジェクト",
+    "alertDonor": "寄付者",
+    "alertLoadMore": "もっと読み込む"
   },
   "errors": {
     "accountSuspended": "このアカウントは利用停止されています。ご不明な点は運営までお問い合わせください。",
@@ -403,5 +427,29 @@
     "severityError": "障害",
     "unread": "未読",
     "manage": "お知らせを管理"
+  },
+  "messages": {
+    "title": "メッセージ",
+    "empty": "メッセージはありません",
+    "newThread": "新しいメッセージ",
+    "recipient": "宛先",
+    "subject": "件名",
+    "body": "メッセージ",
+    "send": "送信",
+    "threadClosed": "この会話は終了しています",
+    "activate": "再開",
+    "deactivate": "解決済みにする",
+    "loadMore": "もっと見る",
+    "loadOlder": "過去のメッセージを表示",
+    "active": "アクティブ",
+    "inactive": "解決済み",
+    "manage": "メッセージを管理",
+    "broadcastAll": "全てのユーザーに送信",
+    "searchUser": "ユーザーを検索...",
+    "broadcastSuccess": "全ユーザーにメッセージを送信しました",
+    "selectedUser": "送信先",
+    "createMessage": "メッセージを作成",
+    "searching": "検索中...",
+    "noResults": "該当するユーザーが見つかりません"
   }
 }

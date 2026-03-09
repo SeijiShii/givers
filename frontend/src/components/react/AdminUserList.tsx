@@ -19,6 +19,7 @@ interface Props {
   suspendLabel: string;
   unsuspendLabel: string;
   projectCountLabel: string;
+  basePath?: string;
 }
 
 export default function AdminUserList({
@@ -30,6 +31,7 @@ export default function AdminUserList({
   suspendLabel,
   unsuspendLabel,
   projectCountLabel,
+  basePath = "",
 }: Props) {
   const [me, setMe] = useState<User | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -360,6 +362,16 @@ export default function AdminUserList({
                       }}
                     >
                       {locale === "ja" ? "開示用" : "Export"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      style={{ fontSize: "0.8rem", padding: "0.2rem 0.4rem" }}
+                      onClick={() => {
+                        window.location.href = `${basePath}/admin/messages?to=${u.id}`;
+                      }}
+                    >
+                      {t(locale, "messages.createMessage")}
                     </button>
                   </span>
                 </td>

@@ -12,9 +12,10 @@ import (
 
 // MeHandler は現在のユーザー情報を返すハンドラ
 type MeHandler struct {
-	userRepo   repository.UserRepository
-	sv         auth.SessionValidator
-	hostEmails map[string]bool
+	userRepo     repository.UserRepository
+	donationRepo repository.DonationRepository
+	sv           auth.SessionValidator
+	hostEmails   map[string]bool
 }
 
 // NewMeHandler は MeHandler を生成する（DI: UserRepository を注入）
@@ -26,16 +27,24 @@ func NewMeHandler(userRepo repository.UserRepository, sv auth.SessionValidator, 
 	return &MeHandler{userRepo: userRepo, sv: sv, hostEmails: set}
 }
 
+// NewMeHandlerWithDonation は DonationRepository 付きの MeHandler を生成する
+func NewMeHandlerWithDonation(userRepo repository.UserRepository, sv auth.SessionValidator, hostEmails []string, donationRepo repository.DonationRepository) *MeHandler {
+	h := NewMeHandler(userRepo, sv, hostEmails)
+	h.donationRepo = donationRepo
+	return h
+}
+
 // meResponse は GET /api/me のレスポンス（User + role + suspended bool）
 type meResponse struct {
-	ID          string     `json:"id"`
-	Email       string     `json:"email"`
-	Name        string     `json:"name"`
-	Role        string     `json:"role,omitempty"`
-	Suspended   bool       `json:"suspended,omitempty"`
-	SuspendedAt *time.Time `json:"suspended_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID                    string     `json:"id"`
+	Email                 string     `json:"email"`
+	Name                  string     `json:"name"`
+	Role                  string     `json:"role,omitempty"`
+	Suspended             bool       `json:"suspended,omitempty"`
+	SuspendedAt           *time.Time `json:"suspended_at,omitempty"`
+	PendingTokenMigration bool       `json:"pending_token_migration,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 // Me は GET /api/me を処理する
@@ -79,6 +88,15 @@ func (h *MeHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.hostEmails[user.Email] {
 		resp.Role = "host"
+	}
+
+	// Check if there are anonymous donations to migrate
+	if h.donationRepo != nil {
+		if donorCookie, err := r.Cookie("donor_token"); err == nil && donorCookie.Value != "" {
+			if has, err := h.donationRepo.HasTokenDonations(r.Context(), donorCookie.Value); err == nil && has {
+				resp.PendingTokenMigration = true
+			}
+		}
 	}
 
 	slog.Debug("me: success", "user_id", user.ID, "email", user.Email, "role", resp.Role)

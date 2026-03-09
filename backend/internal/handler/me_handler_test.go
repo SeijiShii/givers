@@ -9,8 +9,23 @@ import (
 	"testing"
 
 	"github.com/givers/backend/internal/model"
+	"github.com/givers/backend/internal/repository"
 	"github.com/givers/backend/pkg/auth"
 )
+
+// mockDonationRepoForMe implements repository.DonationRepository for MeHandler tests.
+// Only HasTokenDonations is used; other methods panic if called.
+type mockDonationRepoForMe struct {
+	repository.DonationRepository // embed to satisfy interface
+	hasTokenFunc                  func(ctx context.Context, token string) (bool, error)
+}
+
+func (m *mockDonationRepoForMe) HasTokenDonations(ctx context.Context, token string) (bool, error) {
+	if m.hasTokenFunc != nil {
+		return m.hasTokenFunc(ctx, token)
+	}
+	return false, nil
+}
 
 type mockUserRepository struct {
 	findByIDFunc func(ctx context.Context, id string) (*model.User, error)
@@ -39,6 +54,9 @@ func (m *mockUserRepository) UpdateProviderID(context.Context, string, string, s
 	return nil
 }
 func (m *mockUserRepository) List(context.Context, int, int) ([]*model.User, error) {
+	return nil, nil
+}
+func (m *mockUserRepository) Search(context.Context, string, int, int) ([]*model.User, error) {
 	return nil, nil
 }
 func (m *mockUserRepository) Suspend(context.Context, string, bool) error { return nil }
@@ -186,5 +204,111 @@ func TestMeHandler_HostEmail_ReturnsHostRole(t *testing.T) {
 	}
 	if got.Role != "host" {
 		t.Errorf("expected role=host, got %q", got.Role)
+	}
+}
+
+func TestMeHandler_PendingTokenMigration_True(t *testing.T) {
+	sv := &mockMeSessionValidator{
+		validateFunc: func(_ context.Context, _ string) (string, error) {
+			return "u1", nil
+		},
+	}
+	userRepo := &mockUserRepository{
+		findByIDFunc: func(_ context.Context, id string) (*model.User, error) {
+			return &model.User{ID: "u1", Email: "test@example.com", Name: "Test"}, nil
+		},
+	}
+	donationRepo := &mockDonationRepoForMe{
+		hasTokenFunc: func(_ context.Context, token string) (bool, error) {
+			if token == "my-donor-token" {
+				return true, nil
+			}
+			return false, nil
+		},
+	}
+	h := NewMeHandlerWithDonation(userRepo, sv, nil, donationRepo)
+
+	req := httptest.NewRequest("GET", "/api/me", nil)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-token"})
+	req.AddCookie(&http.Cookie{Name: "donor_token", Value: "my-donor-token"})
+	rec := httptest.NewRecorder()
+	h.Me(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var got meResponse
+	_ = json.NewDecoder(rec.Body).Decode(&got)
+	if !got.PendingTokenMigration {
+		t.Error("expected pending_token_migration=true when donor_token has unmigrated donations")
+	}
+}
+
+func TestMeHandler_PendingTokenMigration_FalseWhenNoDonorToken(t *testing.T) {
+	sv := &mockMeSessionValidator{
+		validateFunc: func(_ context.Context, _ string) (string, error) {
+			return "u1", nil
+		},
+	}
+	userRepo := &mockUserRepository{
+		findByIDFunc: func(_ context.Context, id string) (*model.User, error) {
+			return &model.User{ID: "u1", Email: "test@example.com", Name: "Test"}, nil
+		},
+	}
+	donationRepo := &mockDonationRepoForMe{
+		hasTokenFunc: func(_ context.Context, token string) (bool, error) {
+			t.Error("HasTokenDonations should not be called when no donor_token cookie")
+			return false, nil
+		},
+	}
+	h := NewMeHandlerWithDonation(userRepo, sv, nil, donationRepo)
+
+	req := httptest.NewRequest("GET", "/api/me", nil)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-token"})
+	// no donor_token cookie
+	rec := httptest.NewRecorder()
+	h.Me(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var got meResponse
+	_ = json.NewDecoder(rec.Body).Decode(&got)
+	if got.PendingTokenMigration {
+		t.Error("expected pending_token_migration=false when no donor_token cookie")
+	}
+}
+
+func TestMeHandler_PendingTokenMigration_FalseWhenNoMatchingDonations(t *testing.T) {
+	sv := &mockMeSessionValidator{
+		validateFunc: func(_ context.Context, _ string) (string, error) {
+			return "u1", nil
+		},
+	}
+	userRepo := &mockUserRepository{
+		findByIDFunc: func(_ context.Context, id string) (*model.User, error) {
+			return &model.User{ID: "u1", Email: "test@example.com", Name: "Test"}, nil
+		},
+	}
+	donationRepo := &mockDonationRepoForMe{
+		hasTokenFunc: func(_ context.Context, token string) (bool, error) {
+			return false, nil // no matching donations
+		},
+	}
+	h := NewMeHandlerWithDonation(userRepo, sv, nil, donationRepo)
+
+	req := httptest.NewRequest("GET", "/api/me", nil)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName(), Value: "valid-token"})
+	req.AddCookie(&http.Cookie{Name: "donor_token", Value: "some-token"})
+	rec := httptest.NewRecorder()
+	h.Me(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var got meResponse
+	_ = json.NewDecoder(rec.Body).Decode(&got)
+	if got.PendingTokenMigration {
+		t.Error("expected pending_token_migration=false when no matching donations")
 	}
 }

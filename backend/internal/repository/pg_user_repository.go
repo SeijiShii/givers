@@ -128,6 +128,28 @@ func (r *PgUserRepository) List(ctx context.Context, limit, offset int) ([]*mode
 	return users, rows.Err()
 }
 
+// Search returns users whose name or email matches q (ILIKE).
+func (r *PgUserRepository) Search(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+	pattern := "%" + q + "%"
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+userSelectCols+` FROM users WHERE name ILIKE $1 OR email ILIKE $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		pattern, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*model.User
+	for rows.Next() {
+		u, err := scanUser(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // Suspend sets or clears suspended_at for a user.
 // suspend=true sets suspended_at=NOW(), suspend=false clears it.
 func (r *PgUserRepository) Suspend(ctx context.Context, id string, suspend bool) error {

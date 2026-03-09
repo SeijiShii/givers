@@ -168,6 +168,14 @@ func (r *pgDonationRepository) MigrateToken(ctx context.Context, token string, u
 	return int(tag.RowsAffected()), nil
 }
 
+func (r *pgDonationRepository) HasTokenDonations(ctx context.Context, token string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM donations WHERE donor_type = 'token' AND donor_id = $1)`,
+		token).Scan(&exists)
+	return exists, err
+}
+
 func (r *pgDonationRepository) ListByProject(ctx context.Context, projectID string, limit, offset int) ([]*model.Donation, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT `+donationSelectCols+`

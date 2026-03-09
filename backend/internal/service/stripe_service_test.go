@@ -880,7 +880,7 @@ func newTestStripeServiceWithSubscriptionRepo(
 	subscriptionRepo StripeSubscriptionRepo,
 	activityRecorder StripeActivityRecorder,
 ) StripeService {
-	return NewStripeServiceFull(client, projectRepo, donationRepo, subscriptionRepo, nil, "https://example.com", activityRecorder, nil)
+	return NewStripeServiceFull(client, projectRepo, donationRepo, subscriptionRepo, nil, "https://example.com", activityRecorder, nil, nil)
 }
 
 // ---------------------------------------------------------------------------

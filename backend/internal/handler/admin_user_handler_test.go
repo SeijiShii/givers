@@ -20,14 +20,21 @@ import (
 // ---------------------------------------------------------------------------
 
 type mockAdminUserService struct {
-	listUsersFunc func(ctx context.Context, limit, offset int) ([]*model.User, error)
-	suspendFunc   func(ctx context.Context, id string, suspend bool) error
-	getUserFunc   func(ctx context.Context, id string) (*model.User, error)
+	listUsersFunc   func(ctx context.Context, limit, offset int) ([]*model.User, error)
+	searchUsersFunc func(ctx context.Context, q string, limit, offset int) ([]*model.User, error)
+	suspendFunc     func(ctx context.Context, id string, suspend bool) error
+	getUserFunc     func(ctx context.Context, id string) (*model.User, error)
 }
 
 func (m *mockAdminUserService) ListUsers(ctx context.Context, limit, offset int) ([]*model.User, error) {
 	if m.listUsersFunc != nil {
 		return m.listUsersFunc(ctx, limit, offset)
+	}
+	return nil, nil
+}
+func (m *mockAdminUserService) SearchUsers(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+	if m.searchUsersFunc != nil {
+		return m.searchUsersFunc(ctx, q, limit, offset)
 	}
 	return nil, nil
 }
@@ -185,6 +192,54 @@ func TestAdminUserHandler_List_ServiceError(t *testing.T) {
 	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
 
 	req := adminHostRequest(http.MethodGet, "/api/admin/users", "")
+	rec := httptest.NewRecorder()
+	h.List(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rec.Code)
+	}
+}
+
+func TestAdminUserHandler_List_WithSearchQuery(t *testing.T) {
+	var capturedQ string
+	mock := &mockAdminUserService{
+		searchUsersFunc: func(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+			capturedQ = q
+			return []*model.User{{ID: "1", Email: "alice@example.com", Name: "Alice"}}, nil
+		},
+	}
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/users?q=alice", "")
+	rec := httptest.NewRecorder()
+	h.List(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	if capturedQ != "alice" {
+		t.Errorf("expected q=alice, got %q", capturedQ)
+	}
+	var resp struct {
+		Users []*model.User `json:"users"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Users) != 1 {
+		t.Errorf("expected 1 user, got %d", len(resp.Users))
+	}
+}
+
+func TestAdminUserHandler_List_SearchError(t *testing.T) {
+	mock := &mockAdminUserService{
+		searchUsersFunc: func(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/users?q=test", "")
 	rec := httptest.NewRecorder()
 	h.List(rec, req)
 
@@ -596,6 +651,68 @@ func TestAdminUserHandler_DisclosureExport_RequiresHost(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/disclosure-export?type=user&id=u1", nil)
 	rec := httptest.NewRecorder()
 	h.DisclosureExport(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/users/:id tests
+// ---------------------------------------------------------------------------
+
+func TestAdminUserHandler_GetByID_Success(t *testing.T) {
+	now := time.Now()
+	mock := &mockAdminUserService{
+		getUserFunc: func(ctx context.Context, id string) (*model.User, error) {
+			return &model.User{ID: "u1", Email: "a@b.com", Name: "Alice", CreatedAt: now}, nil
+		},
+	}
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/users/u1", "")
+	req.SetPathValue("id", "u1")
+	rec := httptest.NewRecorder()
+	h.GetByID(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		User *model.User `json:"user"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.User.ID != "u1" {
+		t.Errorf("expected user ID=u1, got %q", resp.User.ID)
+	}
+}
+
+func TestAdminUserHandler_GetByID_NotFound(t *testing.T) {
+	mock := &mockAdminUserService{
+		getUserFunc: func(ctx context.Context, id string) (*model.User, error) {
+			return nil, repository.ErrNotFound
+		},
+	}
+	h := NewAdminUserHandler(mock, &mockProjectServiceForAdmin{}, nil)
+
+	req := adminHostRequest(http.MethodGet, "/api/admin/users/no-such", "")
+	req.SetPathValue("id", "no-such")
+	rec := httptest.NewRecorder()
+	h.GetByID(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestAdminUserHandler_GetByID_RequiresHost(t *testing.T) {
+	h := NewAdminUserHandler(&mockAdminUserService{}, &mockProjectServiceForAdmin{}, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/users/u1", nil)
+	req.SetPathValue("id", "u1")
+	rec := httptest.NewRecorder()
+	h.GetByID(rec, req)
+
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", rec.Code)
 	}

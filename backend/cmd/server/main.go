@@ -67,7 +67,9 @@ func main() {
 	)
 	activityService := service.NewActivityService(activityRepo)
 	milestoneService := service.NewMilestoneService(projectRepo, donationRepo, activityRepo)
-	stripeService := service.NewStripeServiceFull(stripeClient, projectRepo, donationRepo, subscriptionRepo, userRepo, frontendURL, activityRepo, milestoneService)
+	alertRepo := repository.NewPgDonationAlertRepository(pool)
+	alertService := service.NewDonationAlertService(projectRepo, alertRepo)
+	stripeService := service.NewStripeServiceFull(stripeClient, projectRepo, donationRepo, subscriptionRepo, userRepo, frontendURL, activityRepo, milestoneService, alertService)
 	donationService := service.NewDonationService(donationRepo)
 	subscriptionService := service.NewSubscriptionService(subscriptionRepo, stripeClient)
 	costPresetService := service.NewCostPresetService(costPresetRepo)
@@ -101,7 +103,7 @@ func main() {
 		AppleClientID:   os.Getenv("APPLE_CLIENT_ID"),
 		EnableEmail:     os.Getenv("ENABLE_EMAIL_LOGIN") == "true",
 	})
-	meHandler := handler.NewMeHandler(userRepo, sessionSvc, hostEmails)
+	meHandler := handler.NewMeHandlerWithDonation(userRepo, sessionSvc, hostEmails, donationRepo)
 	// Stripe が設定されている場合のみ v2 API でアカウント作成+オンボーディングを行う
 	var connectAccountFunc handler.ConnectAccountFunc
 	if os.Getenv("STRIPE_SECRET_KEY") != "" {
@@ -127,6 +129,10 @@ func main() {
 	announcementRepo := repository.NewPgAnnouncementRepository(pool)
 	announcementService := service.NewAnnouncementService(announcementRepo)
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
+	adminAlertHandler := handler.NewAdminAlertHandler(alertService)
+	messageRepo := repository.NewPgMessageRepository(pool)
+	messageService := service.NewMessageService(messageRepo, userRepo)
+	messageHandler := handler.NewMessageHandler(messageService)
 
 	uploadsDir := os.Getenv("UPLOADS_DIR")
 	if uploadsDir == "" {
@@ -197,8 +203,11 @@ func main() {
 	mux.Handle("GET /api/admin/contacts", wrapAuth(http.HandlerFunc(contactHandler.AdminList)))
 	mux.Handle("PATCH /api/admin/contacts/{id}/status", wrapAuth(http.HandlerFunc(contactHandler.UpdateStatus)))
 	mux.Handle("GET /api/admin/users", wrapAuth(http.HandlerFunc(adminUserHandler.List)))
+	mux.Handle("GET /api/admin/users/{id}", wrapAuth(http.HandlerFunc(adminUserHandler.GetByID)))
 	mux.Handle("PATCH /api/admin/users/{id}/suspend", wrapAuth(http.HandlerFunc(adminUserHandler.Suspend)))
 	mux.Handle("GET /api/admin/disclosure-export", wrapAuth(http.HandlerFunc(adminUserHandler.DisclosureExport)))
+	mux.Handle("GET /api/admin/alerts", wrapAuth(http.HandlerFunc(adminAlertHandler.List)))
+	mux.Handle("PATCH /api/admin/alerts/{id}/status", wrapAuth(http.HandlerFunc(adminAlertHandler.UpdateStatus)))
 
 	// お知らせ API（一覧はオプショナル認証、unread-count/read は認証必須）
 	mux.Handle("GET /api/announcements", wrapOptionalAuth(http.HandlerFunc(announcementHandler.List)))
@@ -209,6 +218,17 @@ func main() {
 	mux.Handle("POST /api/admin/announcements", wrapAuth(http.HandlerFunc(announcementHandler.AdminCreate)))
 	mux.Handle("PUT /api/admin/announcements/{id}", wrapAuth(http.HandlerFunc(announcementHandler.AdminUpdate)))
 	mux.Handle("PATCH /api/admin/announcements/{id}/visibility", wrapAuth(http.HandlerFunc(announcementHandler.AdminSetVisibility)))
+
+	// メッセージ API（認証必須）
+	mux.Handle("GET /api/me/messages/threads", wrapAuth(http.HandlerFunc(messageHandler.ListThreads)))
+	mux.Handle("GET /api/me/messages/threads/{id}", wrapAuth(http.HandlerFunc(messageHandler.GetThread)))
+	mux.Handle("GET /api/me/messages/threads/{id}/messages", wrapAuth(http.HandlerFunc(messageHandler.ListMessages)))
+	mux.Handle("POST /api/me/messages/threads/{id}/messages", wrapAuth(http.HandlerFunc(messageHandler.SendMessage)))
+	mux.Handle("GET /api/me/messages/unread-count", wrapAuth(http.HandlerFunc(messageHandler.UnreadCount)))
+	// メッセージ管理 API（ホストのみ — handler 内で IsHostFromContext チェック）
+	mux.Handle("POST /api/admin/messages/threads", wrapAuth(http.HandlerFunc(messageHandler.AdminCreateThread)))
+	mux.Handle("GET /api/admin/messages/threads", wrapAuth(http.HandlerFunc(messageHandler.AdminListThreads)))
+	mux.Handle("PATCH /api/admin/messages/threads/{id}/active", wrapAuth(http.HandlerFunc(messageHandler.AdminSetThreadActive)))
 
 	// Platform health (no auth required)
 	mux.HandleFunc("GET /api/host", hostHandler.Get)

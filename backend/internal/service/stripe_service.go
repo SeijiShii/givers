@@ -70,6 +70,7 @@ type StripeMilestoneNotifier interface {
 	NotifyDonation(ctx context.Context, projectID string) error
 }
 
+
 // StripeUserRepo は StripeService が必要とするユーザー操作のミニマムインターフェース
 type StripeUserRepo interface {
 	SaveStripeCustomerID(ctx context.Context, userID, customerID string) error
@@ -101,6 +102,7 @@ type StripeServiceImpl struct {
 	userRepo           StripeUserRepo          // optional, nil = skip customer creation
 	activityRecorder   StripeActivityRecorder  // optional, nil = skip
 	milestoneNotifier  StripeMilestoneNotifier // optional, nil = skip
+	alertDetector      StripeAlertDetector     // optional, nil = skip
 	frontendURL        string
 }
 
@@ -127,7 +129,7 @@ func NewStripeServiceWithActivity(client pkgstripe.Client, projectRepo StripePro
 }
 
 // NewStripeServiceFull は全依存関係付きの StripeServiceImpl を生成する
-func NewStripeServiceFull(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, subscriptionRepo StripeSubscriptionRepo, userRepo StripeUserRepo, frontendURL string, activityRecorder StripeActivityRecorder, milestoneNotifier StripeMilestoneNotifier) StripeService {
+func NewStripeServiceFull(client pkgstripe.Client, projectRepo StripeProjectRepo, donationRepo StripeDonationRepo, subscriptionRepo StripeSubscriptionRepo, userRepo StripeUserRepo, frontendURL string, activityRecorder StripeActivityRecorder, milestoneNotifier StripeMilestoneNotifier, alertDetector StripeAlertDetector) StripeService {
 	return &StripeServiceImpl{
 		client:            client,
 		projectRepo:       projectRepo,
@@ -136,6 +138,7 @@ func NewStripeServiceFull(client pkgstripe.Client, projectRepo StripeProjectRepo
 		userRepo:          userRepo,
 		activityRecorder:  activityRecorder,
 		milestoneNotifier: milestoneNotifier,
+		alertDetector:     alertDetector,
 		frontendURL:       frontendURL,
 	}
 }
@@ -401,6 +404,7 @@ func (s *StripeServiceImpl) handlePaymentIntentSucceeded(ctx context.Context, ev
 	}
 	s.recordDonationActivity(ctx, projectID, donorID, obj.Amount, obj.Metadata["message"])
 	s.notifyMilestone(ctx, projectID)
+	s.checkDonationAlert(ctx, projectID, donorType, donorID, obj.Amount, d.ID)
 	return nil
 }
 
@@ -463,6 +467,7 @@ func (s *StripeServiceImpl) handleSubscriptionCreated(ctx context.Context, event
 	}
 	s.recordDonationActivity(ctx, projectID, donorID, amount, obj.Metadata["message"])
 	s.notifyMilestone(ctx, projectID)
+	s.checkDonationAlert(ctx, projectID, donorType, donorID, amount, d.ID)
 	return nil
 }
 
@@ -490,6 +495,14 @@ func (s *StripeServiceImpl) notifyMilestone(ctx context.Context, projectID strin
 		return
 	}
 	_ = s.milestoneNotifier.NotifyDonation(ctx, projectID)
+}
+
+// checkDonationAlert は寄付確定時に異常パターンを検知する（失敗しても無視）
+func (s *StripeServiceImpl) checkDonationAlert(ctx context.Context, projectID, donorType, donorID string, amount int, donationID string) {
+	if s.alertDetector == nil {
+		return
+	}
+	_ = s.alertDetector.CheckDonation(ctx, projectID, donorType, donorID, amount, donationID)
 }
 
 func (s *StripeServiceImpl) handleSubscriptionDeleted(ctx context.Context, event pkgstripe.WebhookEvent) error {
@@ -577,9 +590,10 @@ func (s *StripeServiceImpl) handleInvoicePaymentSucceeded(ctx context.Context, e
 		return err
 	}
 
-	// Record activity and notify milestone
+	// Record activity, notify milestone, check alerts
 	s.recordDonationActivity(ctx, projectID, donorID, amount, donationMessage)
 	s.notifyMilestone(ctx, projectID)
+	s.checkDonationAlert(ctx, projectID, donorType, donorID, amount, d.ID)
 
 	// Clear next_billing_message on subscription (if it was set)
 	if message != "" {

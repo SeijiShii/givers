@@ -96,7 +96,6 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
   const [imageError, setImageError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [agreeTerms, setAgreeTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,11 +144,6 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
     setError(null);
     setSubmitting(true);
     try {
-      if (!isEdit && !agreeTerms) {
-        setError(t(locale, "legal.agreeTermsRequired"));
-        setSubmitting(false);
-        return;
-      }
       // cost_items: ラベルか金額が入っている行のみ送信
       const validItems = costItems.filter(
         (ci) => ci.label.trim() !== "" || ci.unit_price > 0,
@@ -165,7 +159,6 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
         owner_want_monthly: ownerWant > 0 ? ownerWant : null,
         cost_items: validItems.length > 0 ? validItems : null,
         alerts: alertsEnabled ? alerts : null,
-        ...(!isEdit ? { agree_terms: agreeTerms } : {}),
       };
       if (isEdit) {
         await updateProject(project!.id, payload);
@@ -778,38 +771,6 @@ export default function ProjectForm({ locale, project, redirectPath }: Props) {
               <li>{t(locale, "projects.stripeConnectStep4")}</li>
             </ol>
           </div>
-        </div>
-      )}
-
-      {/* 利用規約同意（新規作成のみ） */}
-      {!isEdit && (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <label
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "0.5rem",
-              cursor: "pointer",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={agreeTerms}
-              onChange={(e) => setAgreeTerms(e.target.checked)}
-              style={{ marginTop: "0.25rem" }}
-            />
-            <span style={{ fontSize: "0.9rem" }}>
-              <a
-                href={locale === "en" ? "/en/terms" : "/terms"}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "var(--color-primary)" }}
-              >
-                {t(locale, "legal.terms")}
-              </a>
-              {locale === "ja" ? "に同意する" : " — I agree"}
-            </span>
-          </label>
         </div>
       )}
 

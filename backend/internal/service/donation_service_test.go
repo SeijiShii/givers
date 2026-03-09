@@ -81,6 +81,9 @@ func (m *mockDonationRepository) CompleteRefund(_ context.Context, _, _ string) 
 func (m *mockDonationRepository) ClearRefundPending(_ context.Context, _ string) error {
 	return nil
 }
+func (m *mockDonationRepository) HasTokenDonations(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
 
 // ---------------------------------------------------------------------------
 // DonationService.ListByUser tests

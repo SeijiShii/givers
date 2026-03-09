@@ -7,6 +7,9 @@ import NavAdminLink from '../components/react/NavAdminLink';
 import NavFinancialHealthMark from '../components/react/NavFinancialHealthMark';
 import NavAnnouncementBell from '../components/react/NavAnnouncementBell';
 import NavContactLink from '../components/react/NavContactLink';
+import NavAlertLink from '../components/react/NavAlertLink';
+import NavMessageBell from '../components/react/NavMessageBell';
+import NavMessageLink from '../components/react/NavMessageLink';
 
 interface Props {
   title: string;
@@ -80,6 +83,9 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
         <span class="announcement-bell-header">
           <NavAnnouncementBell client:load locale={locale} basePath={basePath} viewAllLabel={t(locale, 'announcements.viewAll')} titleLabel={t(locale, 'announcements.title')} emptyLabel={t(locale, 'announcements.empty')} />
         </span>
+        <span class="message-bell-header">
+          <NavMessageBell client:load locale={locale} basePath={basePath} titleLabel={t(locale, 'messages.title')} emptyLabel={t(locale, 'messages.empty')} viewAllLabel={t(locale, 'messages.loadMore')} />
+        </span>
         <span class="auth-status-header">
           <AuthStatus client:load locale={locale} />
         </span>
@@ -93,6 +99,8 @@ const gaId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID;
           <a href={`${basePath}/announcements`}>{t(locale, 'nav.announcements')}</a>
           <a href={`${basePath}/me`}>{t(locale, 'nav.me')}</a>
           <NavAdminLink client:load locale={locale} basePath={basePath} />
+          <NavAlertLink client:load locale={locale} basePath={basePath} />
+          <NavMessageLink client:load locale={locale} basePath={basePath} />
           <a href={`${basePath}/about`}>{t(locale, 'nav.about')}</a>
           <a href={`${basePath}/faq`}>{t(locale, 'nav.faq')}</a>
           <NavContactLink client:load locale={locale} basePath={basePath} />

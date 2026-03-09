@@ -156,7 +156,6 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 		OwnerWantMonthly *int                         `json:"owner_want_monthly"`
 		CostItems        []model.CostItem             `json:"cost_items"`
 		Alerts           *model.ProjectAlerts         `json:"alerts"`
-		AgreeTerms       bool                         `json:"agree_terms"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -167,12 +166,6 @@ func (h *ProjectHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if req.Name == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "name_required"})
-		return
-	}
-
-	if !req.AgreeTerms {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "terms_agreement_required"})
 		return
 	}
 

@@ -10,6 +10,10 @@ import type {
   ContactInput,
   ContactMessage,
   LegalDoc,
+  MessageThread,
+  Message,
+  MessageThreadListResult,
+  MessageListResult,
 } from "./api";
 import type { AdminUser, DisclosureExportPayload } from "./api";
 import { MOCK_LOGIN_MODE_KEY } from "./api";
@@ -482,6 +486,21 @@ export const mockApi = {
     return [...MOCK_ADMIN_USERS];
   },
 
+  async searchUsers(q: string): Promise<AdminUser[]> {
+    await delay(MOCK_DELAY);
+    const lower = q.toLowerCase();
+    return MOCK_ADMIN_USERS.filter(
+      (u) =>
+        u.name.toLowerCase().includes(lower) ||
+        u.email.toLowerCase().includes(lower),
+    );
+  },
+
+  async getAdminUser(id: string): Promise<AdminUser | null> {
+    await delay(MOCK_DELAY);
+    return MOCK_ADMIN_USERS.find((u) => u.id === id) ?? null;
+  },
+
   async suspendUser(id: string, suspended: boolean): Promise<{ ok: boolean }> {
     await delay(MOCK_DELAY);
     const user = MOCK_ADMIN_USERS.find((u) => u.id === id);
@@ -892,4 +911,182 @@ export const mockApi = {
     await delay(MOCK_DELAY);
     return { status: "succeeded", donation_id: `don-quick-${Date.now()}` };
   },
+
+  // --- Messages ---
+
+  async getMyThreads(
+    limit = 20,
+    _cursor?: string,
+  ): Promise<MessageThreadListResult> {
+    await delay(MOCK_DELAY);
+    return { threads: MOCK_THREADS.slice(0, limit), next_cursor: null };
+  },
+
+  async getThread(id: string): Promise<MessageThread> {
+    await delay(MOCK_DELAY);
+    const t = MOCK_THREADS.find((x) => x.id === id);
+    if (!t) throw new Error("not found");
+    return { ...t };
+  },
+
+  async getThreadMessages(
+    threadId: string,
+    limit = 50,
+    _cursor?: string,
+  ): Promise<MessageListResult> {
+    await delay(MOCK_DELAY);
+    const msgs = MOCK_MESSAGES.filter((m) => m.thread_id === threadId).slice(
+      0,
+      limit,
+    );
+    return { messages: msgs, next_cursor: null };
+  },
+
+  async sendMessage(threadId: string, body: string): Promise<Message> {
+    await delay(MOCK_DELAY);
+    const msg: Message = {
+      id: `msg-${Date.now()}`,
+      thread_id: threadId,
+      sender_id: "mock-user-1",
+      sender_name: "テストユーザー",
+      body,
+      created_at: new Date().toISOString(),
+    };
+    MOCK_MESSAGES.push(msg);
+    return msg;
+  },
+
+  async getMessageUnreadCount(): Promise<number> {
+    await delay(MOCK_DELAY);
+    return 2;
+  },
+
+  async broadcastThread(subject: string, body: string): Promise<number> {
+    await delay(MOCK_DELAY);
+    const users = MOCK_ADMIN_USERS.filter((u) => u.id !== "mock-host-1");
+    for (const u of users) {
+      await this.createThread(u.id, subject, body);
+    }
+    return users.length;
+  },
+
+  async createThread(
+    participantUserId: string,
+    subject: string,
+    body: string,
+  ): Promise<MessageThread> {
+    await delay(MOCK_DELAY);
+    const thread: MessageThread = {
+      id: `thread-${Date.now()}`,
+      host_user_id: "mock-host-1",
+      participant_user_id: participantUserId,
+      subject,
+      active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      participant_name: "新規ユーザー",
+      host_name: "ホスト",
+      unread_count: 0,
+      last_message_body: body,
+      last_message_at: new Date().toISOString(),
+    };
+    MOCK_THREADS.unshift(thread);
+    MOCK_MESSAGES.push({
+      id: `msg-${Date.now()}`,
+      thread_id: thread.id,
+      sender_id: "mock-host-1",
+      sender_name: "ホスト",
+      body,
+      created_at: new Date().toISOString(),
+    });
+    return thread;
+  },
+
+  async getAdminThreads(
+    limit = 20,
+    _cursor?: string,
+  ): Promise<MessageThreadListResult> {
+    await delay(MOCK_DELAY);
+    return { threads: MOCK_THREADS.slice(0, limit), next_cursor: null };
+  },
+
+  async setThreadActive(threadId: string, active: boolean): Promise<void> {
+    await delay(MOCK_DELAY);
+    const t = MOCK_THREADS.find((x) => x.id === threadId);
+    if (t) t.active = active;
+  },
 };
+
+const MOCK_THREADS: MessageThread[] = [
+  {
+    id: "thread-1",
+    host_user_id: "mock-host-1",
+    participant_user_id: "mock-user-1",
+    subject: "プロジェクトへのご支援について",
+    active: true,
+    created_at: "2026-03-01T10:00:00Z",
+    updated_at: "2026-03-07T15:30:00Z",
+    participant_name: "テストユーザー",
+    host_name: "ホスト",
+    unread_count: 1,
+    last_message_body: "ご質問ありがとうございます。追加情報をお送りします。",
+    last_message_at: "2026-03-07T15:30:00Z",
+  },
+  {
+    id: "thread-2",
+    host_user_id: "mock-host-1",
+    participant_user_id: "mock-user-2",
+    subject: "リワードについて",
+    active: false,
+    created_at: "2026-02-20T09:00:00Z",
+    updated_at: "2026-02-25T12:00:00Z",
+    participant_name: "ユーザー2",
+    host_name: "ホスト",
+    unread_count: 0,
+    last_message_body: "承知しました。ありがとうございます。",
+    last_message_at: "2026-02-25T12:00:00Z",
+  },
+];
+
+const MOCK_MESSAGES: Message[] = [
+  {
+    id: "msg-1",
+    thread_id: "thread-1",
+    sender_id: "mock-host-1",
+    sender_name: "ホスト",
+    body: "こんにちは！プロジェクトへのご支援ありがとうございます。何かご質問がありましたらお気軽にどうぞ。",
+    created_at: "2026-03-01T10:00:00Z",
+  },
+  {
+    id: "msg-2",
+    thread_id: "thread-1",
+    sender_id: "mock-user-1",
+    sender_name: "テストユーザー",
+    body: "ありがとうございます！進捗について詳しく教えていただけますか？",
+    created_at: "2026-03-05T14:00:00Z",
+  },
+  {
+    id: "msg-3",
+    thread_id: "thread-1",
+    sender_id: "mock-host-1",
+    sender_name: "ホスト",
+    body: "ご質問ありがとうございます。追加情報をお送りします。",
+    created_at: "2026-03-07T15:30:00Z",
+  },
+  {
+    id: "msg-4",
+    thread_id: "thread-2",
+    sender_id: "mock-host-1",
+    sender_name: "ホスト",
+    body: "リワードの発送について確認させてください。",
+    created_at: "2026-02-20T09:00:00Z",
+  },
+  {
+    id: "msg-5",
+    thread_id: "thread-2",
+    sender_id: "mock-user-2",
+    sender_name: "ユーザー2",
+    body: "承知しました。ありがとうございます。",
+    created_at: "2026-02-25T12:00:00Z",
+  },
+];

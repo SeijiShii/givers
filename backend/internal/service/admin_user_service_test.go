@@ -56,6 +56,7 @@ type mockAdminUserRepository struct {
 	findByGitHubID  func(ctx context.Context, githubID string) (*model.User, error)
 	createFunc      func(ctx context.Context, user *model.User) error
 	listFunc        func(ctx context.Context, limit, offset int) ([]*model.User, error)
+	searchFunc      func(ctx context.Context, q string, limit, offset int) ([]*model.User, error)
 	suspendFunc     func(ctx context.Context, id string, suspend bool) error
 }
 
@@ -95,6 +96,12 @@ func (m *mockAdminUserRepository) Create(ctx context.Context, user *model.User) 
 func (m *mockAdminUserRepository) List(ctx context.Context, limit, offset int) ([]*model.User, error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, limit, offset)
+	}
+	return nil, nil
+}
+func (m *mockAdminUserRepository) Search(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+	if m.searchFunc != nil {
+		return m.searchFunc(ctx, q, limit, offset)
 	}
 	return nil, nil
 }
@@ -270,5 +277,71 @@ func TestAdminUserService_GetUser_ReturnsUser(t *testing.T) {
 	}
 	if got.ID != "u1" {
 		t.Errorf("expected ID=u1, got %q", got.ID)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// AdminUserService.SearchUsers tests
+// ---------------------------------------------------------------------------
+
+func TestAdminUserService_SearchUsers_ReturnsResults(t *testing.T) {
+	users := []*model.User{
+		{ID: "1", Email: "alice@example.com", Name: "Alice"},
+	}
+	mock := &mockAdminUserRepository{
+		searchFunc: func(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+			if q == "alice" {
+				return users, nil
+			}
+			return nil, nil
+		},
+	}
+	svc := NewAdminUserService(mock)
+
+	got, err := svc.SearchUsers(context.Background(), "alice", 20, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Errorf("expected 1 user, got %d", len(got))
+	}
+}
+
+func TestAdminUserService_SearchUsers_PropagatesError(t *testing.T) {
+	mock := &mockAdminUserRepository{
+		searchFunc: func(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+			return nil, errors.New("db error")
+		},
+	}
+	svc := NewAdminUserService(mock)
+
+	_, err := svc.SearchUsers(context.Background(), "test", 20, 0)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestAdminUserService_SearchUsers_ForwardsPagination(t *testing.T) {
+	var capturedQ string
+	var capturedLimit, capturedOffset int
+	mock := &mockAdminUserRepository{
+		searchFunc: func(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+			capturedQ = q
+			capturedLimit = limit
+			capturedOffset = offset
+			return nil, nil
+		},
+	}
+	svc := NewAdminUserService(mock)
+
+	_, _ = svc.SearchUsers(context.Background(), "bob", 10, 50)
+	if capturedQ != "bob" {
+		t.Errorf("expected q=bob, got %q", capturedQ)
+	}
+	if capturedLimit != 10 {
+		t.Errorf("expected limit=10, got %d", capturedLimit)
+	}
+	if capturedOffset != 50 {
+		t.Errorf("expected offset=50, got %d", capturedOffset)
 	}
 }

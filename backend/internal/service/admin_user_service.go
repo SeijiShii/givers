@@ -10,6 +10,7 @@ import (
 // AdminUserService provides host-only user management operations.
 type AdminUserService interface {
 	ListUsers(ctx context.Context, limit, offset int) ([]*model.User, error)
+	SearchUsers(ctx context.Context, q string, limit, offset int) ([]*model.User, error)
 	SuspendUser(ctx context.Context, id string, suspend bool) error
 	GetUser(ctx context.Context, id string) (*model.User, error)
 }
@@ -42,6 +43,10 @@ func (s *adminUserService) SuspendUser(ctx context.Context, id string, suspend b
 		_ = s.sessionRepo.DeleteByUserID(ctx, id)
 	}
 	return nil
+}
+
+func (s *adminUserService) SearchUsers(ctx context.Context, q string, limit, offset int) ([]*model.User, error) {
+	return s.userRepo.Search(ctx, q, limit, offset)
 }
 
 func (s *adminUserService) GetUser(ctx context.Context, id string) (*model.User, error) {

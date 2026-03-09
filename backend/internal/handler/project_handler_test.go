@@ -276,7 +276,7 @@ func TestProjectHandler_Create_RecordsProjectCreatedActivity(t *testing.T) {
 	}
 	h := NewProjectHandlerWithActivity(mock, nil, actSvc, nil)
 
-	body := bytes.NewBufferString(`{"name":"New Project","description":"Desc","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"New Project","description":"Desc"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -313,7 +313,7 @@ func TestProjectHandler_Create_ActivityErrorDoesNotFail(t *testing.T) {
 	}
 	h := NewProjectHandlerWithActivity(mock, nil, actSvc, nil)
 
-	body := bytes.NewBufferString(`{"name":"P","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"P"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -405,26 +405,6 @@ func TestProjectHandler_Create_NameRequired(t *testing.T) {
 	}
 }
 
-func TestProjectHandler_Create_TermsAgreementRequired(t *testing.T) {
-	mock := &mockProjectService{}
-	h := NewProjectHandler(mock, nil)
-
-	body := bytes.NewBufferString(`{"name":"P"}`)
-	req := httptest.NewRequest("POST", "/api/projects", body)
-	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
-	rec := httptest.NewRecorder()
-	h.Create(rec, req)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", rec.Code)
-	}
-	var resp map[string]string
-	_ = json.NewDecoder(rec.Body).Decode(&resp)
-	if resp["error"] != "terms_agreement_required" {
-		t.Errorf("expected error=terms_agreement_required, got %q", resp["error"])
-	}
-}
-
 func TestProjectHandler_Create_Success(t *testing.T) {
 	var created *model.Project
 	mock := &mockProjectService{
@@ -436,7 +416,7 @@ func TestProjectHandler_Create_Success(t *testing.T) {
 	}
 	h := NewProjectHandler(mock, nil)
 
-	body := bytes.NewBufferString(`{"name":"New Project","description":"Desc","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"New Project","description":"Desc"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -461,7 +441,7 @@ func TestProjectHandler_Create_WithDeadline_YYYYMMDD(t *testing.T) {
 	}
 	h := NewProjectHandler(mock, nil)
 
-	body := bytes.NewBufferString(`{"name":"P","deadline":"2025-12-31","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"P","deadline":"2025-12-31"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -489,7 +469,7 @@ func TestProjectHandler_Create_WithDeadline_RFC3339(t *testing.T) {
 	}
 	h := NewProjectHandler(mock, nil)
 
-	body := bytes.NewBufferString(`{"name":"P","deadline":"2025-06-15T10:30:00Z","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"P","deadline":"2025-06-15T10:30:00Z"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -517,7 +497,7 @@ func TestProjectHandler_Create_EmptyDeadline(t *testing.T) {
 	}
 	h := NewProjectHandler(mock, nil)
 
-	body := bytes.NewBufferString(`{"name":"P","deadline":"","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"P","deadline":""}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -839,7 +819,7 @@ func TestProjectHandler_Create_WithShareMessage(t *testing.T) {
 	}
 	h := NewProjectHandler(mock, nil)
 
-	body := bytes.NewBufferString(`{"name":"P","share_message":"ぜひ応援してください！","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"P","share_message":"ぜひ応援してください！"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -928,7 +908,7 @@ func TestProjectHandler_Create_OverviewFillsDescription(t *testing.T) {
 	}
 	h := NewProjectHandler(mock, nil)
 
-	body := bytes.NewBufferString(`{"name":"P","overview":"# My Project\n\nThis is a **detailed** overview.","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"P","overview":"# My Project\n\nThis is a **detailed** overview."}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -963,7 +943,7 @@ func TestProjectHandler_Create_ExplicitDescriptionNotOverridden(t *testing.T) {
 	}
 	h := NewProjectHandler(mock, nil)
 
-	body := bytes.NewBufferString(`{"name":"P","description":"Explicit desc","overview":"# Full overview","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"P","description":"Explicit desc","overview":"# Full overview"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()
@@ -993,7 +973,7 @@ func TestProjectHandler_Create_HostGetsActiveStatus(t *testing.T) {
 	connectFunc := func(_ context.Context, id string) (string, error) { return "https://connect.stripe.com/setup?acct=" + id, nil }
 	h := NewProjectHandler(mock, connectFunc)
 
-	body := bytes.NewBufferString(`{"name":"Host Project","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"Host Project"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	ctx := auth.WithUserID(context.Background(), "host-user")
 	ctx = auth.WithIsHost(ctx, true)
@@ -1028,7 +1008,7 @@ func TestProjectHandler_Create_RegularOwnerGetsDraftStatus(t *testing.T) {
 	connectFunc := func(_ context.Context, id string) (string, error) { return "https://connect.stripe.com/setup?acct=" + id, nil }
 	h := NewProjectHandler(mock, connectFunc)
 
-	body := bytes.NewBufferString(`{"name":"Owner Project","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"Owner Project"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "regular-user"))
 	rec := httptest.NewRecorder()
@@ -1064,7 +1044,7 @@ func TestProjectHandler_Create_WithThankYouMessage(t *testing.T) {
 	}
 	h := NewProjectHandler(mock, nil)
 
-	body := bytes.NewBufferString(`{"name":"P","thank_you_message":"ご支援感謝します！","agree_terms":true}`)
+	body := bytes.NewBufferString(`{"name":"P","thank_you_message":"ご支援感謝します！"}`)
 	req := httptest.NewRequest("POST", "/api/projects", body)
 	req = req.WithContext(auth.WithUserID(context.Background(), "u1"))
 	rec := httptest.NewRecorder()

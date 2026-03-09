@@ -296,6 +296,13 @@ func (r *PgProjectRepository) GetMonthlyTarget(ctx context.Context, projectID st
 	return target, err
 }
 
+// GetOwnerID はプロジェクトのオーナー ID を返す
+func (r *PgProjectRepository) GetOwnerID(ctx context.Context, projectID string) (string, error) {
+	var ownerID string
+	err := r.pool.QueryRow(ctx, `SELECT owner_id FROM projects WHERE id = $1`, projectID).Scan(&ownerID)
+	return ownerID, err
+}
+
 // UpdateImageURL はプロジェクトの image_url のみを更新する
 func (r *PgProjectRepository) UpdateImageURL(ctx context.Context, projectID, imageURL string) error {
 	tag, err := r.pool.Exec(ctx,

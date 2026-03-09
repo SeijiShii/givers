@@ -62,6 +62,36 @@ export async function getAdminUsers(): Promise<AdminUser[]> {
   }));
 }
 
+/** ユーザー検索（ホスト用） */
+export async function searchUsers(q: string): Promise<AdminUser[]> {
+  if (MOCK_MODE) return (await import("./mock-api")).mockApi.searchUsers(q);
+  const params = new URLSearchParams({ q, limit: "20" });
+  const res = await fetchApi<{
+    users: (User & { suspended_at?: string | null })[];
+  }>(`/api/admin/users?${params.toString()}`);
+  return (res.users ?? []).map((u) => ({
+    ...u,
+    status: u.suspended_at ? ("suspended" as const) : ("active" as const),
+  }));
+}
+
+/** ユーザー取得（IDで、ホスト用） */
+export async function getAdminUser(id: string): Promise<AdminUser | null> {
+  if (MOCK_MODE) return (await import("./mock-api")).mockApi.getAdminUser(id);
+  try {
+    const res = await fetchApi<{
+      user: User & { suspended_at?: string | null };
+    }>(`/api/admin/users/${id}`);
+    const u = res.user;
+    return {
+      ...u,
+      status: u.suspended_at ? ("suspended" as const) : ("active" as const),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** ユーザーの利用停止・解除（ホストのみ） */
 export async function suspendUser(
   id: string,
@@ -293,6 +323,46 @@ export async function markContactUnread(id: string): Promise<void> {
   await fetchApi(`/api/admin/contacts/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status: "unread" }),
+  });
+}
+
+// --- Donation Alert API (host-only) ---
+
+export interface DonationAlert {
+  id: string;
+  project_id: string;
+  donation_id?: string;
+  donor_type: string;
+  donor_id: string;
+  alert_type: string; // "self_dealing" | "high_frequency" | "high_amount" | "round_tripping"
+  severity: string; // "warning" | "critical"
+  status: string; // "new" | "acknowledged" | "resolved"
+  details: string; // JSON string
+  created_at: string;
+  resolved_at?: string;
+  resolved_by?: string;
+}
+
+export async function getAdminAlerts(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ alerts: DonationAlert[]; total: number }> {
+  if (MOCK_MODE) return { alerts: [], total: 0 };
+  const q = new URLSearchParams();
+  if (params?.status) q.set("status", params.status);
+  q.set("limit", String(params?.limit ?? 50));
+  q.set("offset", String(params?.offset ?? 0));
+  return fetchApi(`/api/admin/alerts?${q.toString()}`);
+}
+
+export async function updateAlertStatus(
+  id: string,
+  status: string,
+): Promise<{ status: string }> {
+  return fetchApi(`/api/admin/alerts/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
   });
 }
 
@@ -1062,5 +1132,172 @@ export async function setAnnouncementVisibility(
   await fetchApi(`/api/admin/announcements/${id}/visibility`, {
     method: "PATCH",
     body: JSON.stringify({ visible }),
+  });
+}
+
+// --- Messages ---
+
+export interface MessageThread {
+  id: string;
+  host_user_id: string;
+  participant_user_id: string;
+  subject: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  unread_count?: number;
+  last_message_body?: string;
+  last_message_at?: string;
+  participant_name?: string;
+  host_name?: string;
+}
+
+export interface MessageThreadListResult {
+  threads: MessageThread[];
+  next_cursor: string | null;
+}
+
+export interface Message {
+  id: string;
+  thread_id: string;
+  sender_id: string;
+  sender_name?: string;
+  body: string;
+  created_at: string;
+}
+
+export interface MessageListResult {
+  messages: Message[];
+  next_cursor: string | null;
+}
+
+export async function getMyThreads(
+  limit = 20,
+  cursor?: string,
+): Promise<MessageThreadListResult> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getMyThreads(limit, cursor);
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  return fetchApi<MessageThreadListResult>(
+    `/api/me/messages/threads?${params.toString()}`,
+  );
+}
+
+export async function getThread(id: string): Promise<MessageThread> {
+  if (MOCK_MODE) return (await import("./mock-api")).mockApi.getThread(id);
+  const res = await fetchApi<{ thread: MessageThread }>(
+    `/api/me/messages/threads/${id}`,
+  );
+  return res.thread;
+}
+
+export async function getThreadMessages(
+  threadId: string,
+  limit = 50,
+  cursor?: string,
+): Promise<MessageListResult> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getThreadMessages(
+      threadId,
+      limit,
+      cursor,
+    );
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  return fetchApi<MessageListResult>(
+    `/api/me/messages/threads/${threadId}/messages?${params.toString()}`,
+  );
+}
+
+export async function sendMessage(
+  threadId: string,
+  body: string,
+): Promise<Message> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.sendMessage(threadId, body);
+  const res = await fetchApi<{ message: Message }>(
+    `/api/me/messages/threads/${threadId}/messages`,
+    { method: "POST", body: JSON.stringify({ body }) },
+  );
+  return res.message;
+}
+
+export async function getMessageUnreadCount(): Promise<number> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getMessageUnreadCount();
+  const res = await fetchApi<{ count: number }>(
+    "/api/me/messages/unread-count",
+  );
+  return res.count;
+}
+
+export async function createThread(
+  participantUserId: string,
+  subject: string,
+  body: string,
+): Promise<MessageThread> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.createThread(
+      participantUserId,
+      subject,
+      body,
+    );
+  const res = await fetchApi<{ thread: MessageThread }>(
+    "/api/admin/messages/threads",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        participant_user_id: participantUserId,
+        subject,
+        body,
+      }),
+    },
+  );
+  return res.thread;
+}
+
+export async function broadcastThread(
+  subject: string,
+  body: string,
+): Promise<number> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.broadcastThread(subject, body);
+  const res = await fetchApi<{ count: number }>("/api/admin/messages/threads", {
+    method: "POST",
+    body: JSON.stringify({
+      broadcast: true,
+      subject,
+      body,
+    }),
+  });
+  return res.count;
+}
+
+export async function getAdminThreads(
+  limit = 20,
+  cursor?: string,
+): Promise<MessageThreadListResult> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.getAdminThreads(limit, cursor);
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor", cursor);
+  return fetchApi<MessageThreadListResult>(
+    `/api/admin/messages/threads?${params.toString()}`,
+  );
+}
+
+export async function setThreadActive(
+  threadId: string,
+  active: boolean,
+): Promise<void> {
+  if (MOCK_MODE)
+    return (await import("./mock-api")).mockApi.setThreadActive(
+      threadId,
+      active,
+    );
+  await fetchApi(`/api/admin/messages/threads/${threadId}/active`, {
+    method: "PATCH",
+    body: JSON.stringify({ active }),
   });
 }

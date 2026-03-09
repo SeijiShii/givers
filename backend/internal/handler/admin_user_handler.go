@@ -67,7 +67,15 @@ func (h *AdminUserHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	users, err := h.adminSvc.ListUsers(r.Context(), limit, offset)
+	q := r.URL.Query().Get("q")
+
+	var users []*model.User
+	var err error
+	if q != "" {
+		users, err = h.adminSvc.SearchUsers(r.Context(), q, limit, offset)
+	} else {
+		users, err = h.adminSvc.ListUsers(r.Context(), limit, offset)
+	}
 	if err != nil {
 		slog.Error("admin list users failed", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -79,6 +87,30 @@ func (h *AdminUserHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]any{"users": users})
+}
+
+// GetByID handles GET /api/admin/users/{id} (host-only).
+func (h *AdminUserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if !requireHost(w, r) {
+		return
+	}
+
+	id := r.PathValue("id")
+	user, err := h.adminSvc.GetUser(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "not_found"})
+			return
+		}
+		slog.Error("admin get user failed", "error", err, "user_id", id)
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "get_failed"})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]any{"user": user})
 }
 
 type suspendRequest struct {
