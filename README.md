@@ -1,4 +1,14 @@
-# GIVErS
+<p align="center">
+  <img src="frontend/dist/client/givers-logo-512.png" alt="GIVErS Logo" width="128" />
+</p>
+
+<h1 align="center">GIVErS</h1>
+
+<p align="center">
+  <a href="https://givers.work/projects/bf6968a3-35b3-4ca9-ad4e-14b324fea0b6">
+    <img src="https://givers.work/api/projects/bf6968a3-35b3-4ca9-ad4e-14b324fea0b6/badge.svg" alt="GIVErS Badge" />
+  </a>
+</p>
 
 **GIVEの精神** / Donation platform for the GIVE spirit.
 
