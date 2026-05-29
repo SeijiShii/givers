@@ -8,10 +8,10 @@ This page provides disclosures required under Japan's Act on Specified Commercia
 
 | Item | Details |
 |------|---------|
-| Business name | GIVErS |
+| Business name | QUADii |
 | Representative | ShiiSeiji |
-| Address | (Disclosed upon request) |
-| Phone number | (Disclosed upon request) |
+| Address | Yamato Building 405, 1-6-16 Kanda-Izumicho, Chiyoda-ku, Tokyo 101-0024, Japan |
+| Phone number | 050-1792-0316 |
 | Email address | quadii.shii@gmail.com |
 
 ## Service Details
