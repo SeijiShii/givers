@@ -1,8 +1,8 @@
 # Disclaimer
 
-Last updated: March 3, 2026
+Last updated: May 31, 2026
 
-This disclaimer defines the scope of liability in connection with the use of GIVErS ("the Service").
+This disclaimer defines the scope of liability in connection with the use of GIVErS ("the Service"), operated by QUADii ("the operator").
 
 ## Article 1 (Accuracy of Information)
 
@@ -16,14 +16,16 @@ Project information on the Service is created and managed by project owners. The
 
 ## Article 3 (Limitation of Liability)
 
-The operator shall not be liable for the following damages arising from the use or inability to use the Service:
+1. The operator shall not be liable for the following damages arising from the use or inability to use the Service, except where caused by the operator's intent or gross negligence:
 
-- Damages due to service outages, failures, or data loss
-- Damages due to failures or changes to third-party services (e.g., Stripe)
-- Damages due to delays or failures in refund processing (dependent on Stripe processing status)
-- Damages due to unauthorized access or information leaks by third parties
-- Damages due to disputes between project owners and donors
-- Any damages arising from transactions conducted through the Service
+   - Damages due to service outages, failures, or data loss
+   - Damages due to failures or changes to third-party services (e.g., Stripe)
+   - Damages due to delays or failures in refund processing (dependent on Stripe processing status)
+   - Damages due to unauthorized access or information leaks by third parties
+   - Damages due to disputes between project owners and donors
+
+2. Even where the operator is liable for damages, except in cases of the operator's intent or gross negligence, such liability is limited to ordinary damages actually and directly incurred by the user, capped at the amount of the donation giving rise to the damage.
+3. The limitations in this article do not apply to the extent they are void under the Consumer Contract Act or other mandatory law.
 
 ## Article 4 (External Links)
 

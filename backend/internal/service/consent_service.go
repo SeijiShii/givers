@@ -9,7 +9,7 @@ import (
 
 // CurrentTermsVersion は現在の利用規約バージョン。
 // 利用規約を更新した場合はこの値を変更する。次回のプロジェクト作成時に再同意が求められる。
-const CurrentTermsVersion = "2026-03-04"
+const CurrentTermsVersion = "2026-05-31"
 
 // ConsentService はユーザーの利用規約同意に関するビジネスロジックのインターフェース
 type ConsentService interface {
